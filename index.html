@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sawt — Phase 1 pipeline test</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <h1>Sawt — Phase 1 pipeline test</h1>
+      <p class="sub">
+        Mic → Moonshine STT (local WASM) → ZeroClaw <code>/ws/chat</code> → SpeechSynthesis
+      </p>
+
+      <section class="panel">
+        <h2>1. ZeroClaw connection</h2>
+        <label>
+          Gateway URL
+          <input id="ws-url" type="text" value="ws://127.0.0.1:42617/ws/chat" />
+        </label>
+        <label>
+          Agent alias
+          <input id="agent-alias" type="text" placeholder="e.g. default" />
+        </label>
+        <label>
+          Pairing token (optional)
+          <input id="auth-token" type="text" placeholder="bearer token, if required" />
+        </label>
+        <button id="connect-btn" type="button">Connect</button>
+        <span id="conn-status" class="status status-idle">disconnected</span>
+      </section>
+
+      <section class="panel">
+        <h2>2. Speak</h2>
+        <button id="mic-btn" type="button" disabled>Start listening</button>
+        <span id="mic-status" class="status status-idle">model not loaded</span>
+        <div class="field">
+          <div class="field-label">Live transcript (streaming, uncommitted)</div>
+          <div id="live-transcript" class="transcript-box live"></div>
+        </div>
+        <div class="field">
+          <div class="field-label">Committed transcript (sent to ZeroClaw)</div>
+          <div id="committed-transcript" class="transcript-box committed"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>3. ZeroClaw reply</h2>
+        <div id="reply-box" class="transcript-box reply"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Log</h2>
+        <pre id="log"></pre>
+      </section>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
