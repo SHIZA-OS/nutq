@@ -1,4 +1,5 @@
-# Sawt
+# sawt
+Sawt (صوت, 'voice'): a client-side voice agent widget for ZeroClaw. Works with any ZeroClaw instance, no core changes required.
 
 ## Install
 
@@ -13,3 +14,4 @@ npm run dev
 
 Requires Node.js and npm. Point Sawt at your own ZeroClaw instance by filling in the gateway
 URL, agent alias, and pairing token in the app.
+
