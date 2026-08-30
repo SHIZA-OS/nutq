@@ -1,17 +1,17 @@
-# sawt
-Sawt (صوت, 'voice'): a client-side voice agent widget for ZeroClaw. Works with any ZeroClaw instance, no core changes required.
+# nutq
+Nutq (نطق, 'utterance'): a client-side voice agent widget for ZeroClaw. Works with any ZeroClaw instance, no core changes required.
 
 ## Install
 
-Sawt is distributed as source only, clone it directly:
+Nutq is distributed as source only, clone it directly:
 
 ```
-git clone https://github.com/SHIZA-OS/sawt.git
-cd sawt
+git clone https://github.com/SHIZA-OS/nutq.git
+cd nutq
 npm install
 npm run dev
 ```
 
-Requires Node.js and npm. Point Sawt at your own ZeroClaw instance by filling in the gateway
+Requires Node.js and npm. Point nutq at your own ZeroClaw instance by filling in the gateway
 URL, agent alias, and pairing token in the app.
 
