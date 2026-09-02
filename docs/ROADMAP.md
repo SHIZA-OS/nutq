@@ -37,12 +37,7 @@ called "Moonshine Voice." The npm package Nutq currently depends on is still cur
 archival of the source repo is a risk worth resolving (understanding what "Moonshine Voice"
 means for long-term support, or evaluating alternatives) before depending further on it.
 
-## 6. Start Plan 2: upstream the Cargo.toml forwarding-fix PR
-
-Not yet started. Plan 2 is to submit a PR to zeroclaw-labs/zeroclaw with a Cargo.toml
-forwarding fix for the gateway-voice-duplex feature flag.
-
-## 7. Package Nutq as a reusable embeddable widget
+## 6. Package Nutq as a reusable embeddable widget
 
 Once the interaction model (item 3) and the TTS choice (item 4) are settled, package Nutq as
 a reusable, embeddable widget rather than a standalone app.
