@@ -15,6 +15,16 @@
       </p>
 
       <section class="panel">
+        <h2>Pairing</h2>
+        <label>
+          Pairing code (6 digits)
+          <input id="pair-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" />
+        </label>
+        <button id="pair-btn" type="button">Pair</button>
+        <span id="pair-status" class="status status-idle">not paired</span>
+      </section>
+
+      <section class="panel">
         <h2>1. ZeroClaw connection</h2>
         <label>
           Gateway URL
