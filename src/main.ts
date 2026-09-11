@@ -11,6 +11,10 @@ const connStatus = $<HTMLSpanElement>("conn-status");
 const pairCodeInput = $<HTMLInputElement>("pair-code");
 const pairBtn = $<HTMLButtonElement>("pair-btn");
 const pairStatus = $<HTMLSpanElement>("pair-status");
+const pairFallback = $<HTMLDivElement>("pair-fallback");
+const pairFallbackCurl = $<HTMLPreElement>("pair-fallback-curl");
+const pairFallbackTokenInput = $<HTMLInputElement>("pair-fallback-token");
+const pairFallbackSaveBtn = $<HTMLButtonElement>("pair-fallback-save-btn");
 const micBtn = $<HTMLButtonElement>("mic-btn");
 const micStatus = $<HTMLSpanElement>("mic-status");
 const liveTranscriptEl = $<HTMLDivElement>("live-transcript");
@@ -70,6 +74,34 @@ function setAuthToken(token: string) {
   tokenAutoFilled = true;
 }
 
+function savePairingToken(gatewayUrl: string, token: string) {
+  localStorage.setItem(pairingStorageKey(gatewayUrl), token);
+  setAuthToken(token);
+}
+
+function showPairFallback(httpBase: string, code: string) {
+  pairFallbackCurl.textContent = `curl -X POST ${httpBase}/pair -H "X-Pairing-Code: ${code}"`;
+  pairFallback.hidden = false;
+}
+
+function hidePairFallback() {
+  pairFallback.hidden = true;
+  pairFallbackTokenInput.value = "";
+}
+
+pairFallbackSaveBtn.addEventListener("click", () => {
+  const token = pairFallbackTokenInput.value.trim();
+  if (!token) {
+    log("Paste the token from the curl output before saving.");
+    return;
+  }
+  const gatewayUrl = wsUrlInput.value.trim();
+  savePairingToken(gatewayUrl, token);
+  setStatus(pairStatus, "paired (manual)", "ok");
+  log(`Saved manually-pasted pairing token for ${gatewayUrl}`);
+  hidePairFallback();
+});
+
 function loadSavedTokenForCurrentUrl() {
   const gatewayUrl = wsUrlInput.value.trim();
   if (!gatewayUrl) return;
@@ -82,6 +114,7 @@ function loadSavedTokenForCurrentUrl() {
 }
 
 wsUrlInput.addEventListener("change", () => {
+  hidePairFallback();
   if (tokenAutoFilled) {
     authTokenInput.value = "";
     tokenAutoFilled = false;
@@ -114,6 +147,7 @@ async function pair() {
 
   setStatus(pairStatus, "pairing…", "idle");
   log(`Pairing with ${httpBase}/pair`);
+  hidePairFallback();
 
   let response: Response;
   try {
@@ -122,8 +156,14 @@ async function pair() {
       headers: { "X-Pairing-Code": code },
     });
   } catch (e) {
-    setStatus(pairStatus, "error", "error");
-    log(`Pairing request failed: ${e}`);
+    setStatus(pairStatus, "manual pairing needed", "error");
+    log(
+      `Pairing request failed: ${e}. This is most commonly a cross-origin (CORS) restriction ` +
+        "the browser enforces when this page and the gateway are on different origins; the " +
+        "browser doesn't expose the specific reason to JavaScript, so any fetch failure here " +
+        "is treated the same way. Falling back to a manual pairing command below.",
+    );
+    showPairFallback(httpBase, code);
     return;
   }
 
@@ -138,8 +178,7 @@ async function pair() {
 
   if (response.status === 200 && body.paired && body.token) {
     const gatewayUrl = wsUrlInput.value.trim();
-    localStorage.setItem(pairingStorageKey(gatewayUrl), body.token);
-    setAuthToken(body.token);
+    savePairingToken(gatewayUrl, body.token);
     setStatus(pairStatus, "paired", "ok");
     log(`Paired successfully: ${body.message ?? "token saved"}`);
     return;

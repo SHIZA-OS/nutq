@@ -22,6 +22,22 @@
         </label>
         <button id="pair-btn" type="button">Pair</button>
         <span id="pair-status" class="status status-idle">not paired</span>
+
+        <div id="pair-fallback" class="field" hidden>
+          <div class="field-label">Automatic pairing didn't go through</div>
+          <p class="sub">
+            Automatic pairing didn't go through (this is often a cross-origin restriction your
+            browser enforces when this page and your ZeroClaw gateway are on different
+            origins). Run the command below yourself, or send it to whoever runs your ZeroClaw
+            instance, then paste the token it returns below.
+          </p>
+          <pre id="pair-fallback-curl" class="transcript-box"></pre>
+          <label>
+            Paste token from curl output
+            <input id="pair-fallback-token" type="text" placeholder="zc_..." />
+          </label>
+          <button id="pair-fallback-save-btn" type="button">Save token</button>
+        </div>
       </section>
 
       <section class="panel">

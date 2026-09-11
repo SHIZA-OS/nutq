@@ -29,3 +29,23 @@ auto-fills the token without re-pairing. If you point Nutq at a different gatewa
 token field clears since a token is only valid for the instance it was paired with, and
 you'll need to pair again for that instance.
 
+### If automatic pairing doesn't go through
+
+If the "Pair" button fails outright rather than returning an invalid-code or rate-limit
+error, this is most often a cross-origin (CORS) restriction: browsers don't expose the
+specific reason a cross-origin fetch failed to JavaScript, so Nutq treats any such failure
+the same way and falls back to a manual flow. When this happens, the Pairing section shows
+an equivalent `curl` command built from your gateway URL and the code you entered:
+
+```
+curl -X POST <http-base>/pair -H "X-Pairing-Code: <code>"
+```
+
+Run that command yourself, or send it to whoever operates your ZeroClaw instance, then paste
+the token it returns into the field that appears below the command. Saving it there stores
+the token the same way a successful automatic pairing would, keyed to the gateway URL, and
+auto-fills the main token field.
+
+If you want the fully automatic one-click flow instead, host Nutq's built static files from
+the same origin as your gateway: same-origin requests avoid the CORS restriction entirely.
+
