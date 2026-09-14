@@ -34,9 +34,29 @@ function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "err
   el.className = `status status-${kind}`;
 }
 
+// --- Eval instrumentation (docs/eval-harness-design.md section 4) ------
+// Structured timestamp events for staged-latency measurement. Uses Date.now()
+// to match the timestamping already used by log(), rather than introducing a
+// second (performance.now()) convention.
+
+type EvalEvent =
+  | "speech_start"
+  | "speech_end"
+  | "stt_committed"
+  | "ws_message_sent"
+  | "first_chunk_received"
+  | "done_received"
+  | "tts_start";
+
+function logEvent(event: EvalEvent) {
+  const record = { event, timestamp_ms: Date.now() };
+  log(`EVENT ${JSON.stringify(record)}`);
+}
+
 let socket: WebSocket | null = null;
 let replyBuffer = "";
 let receivedSessionStart = false;
+let receivedFirstChunkThisTurn = false;
 
 function buildWsUrl(): string {
   const base = wsUrlInput.value.trim();
@@ -244,10 +264,15 @@ function connect() {
         log("Server acknowledged connect frame");
         break;
       case "chunk":
+        if (!receivedFirstChunkThisTurn) {
+          receivedFirstChunkThisTurn = true;
+          logEvent("first_chunk_received");
+        }
         replyBuffer += parsed.content ?? "";
         replyBoxEl.textContent = replyBuffer;
         break;
       case "done":
+        logEvent("done_received");
         replyBuffer = parsed.full_response ?? replyBuffer;
         replyBoxEl.textContent = replyBuffer;
         log(`Reply complete (${parsed.tokens_used ?? "?"} tokens)`);
@@ -291,8 +316,10 @@ function sendTranscript(text: string) {
   }
   replyBuffer = "";
   replyBoxEl.textContent = "";
+  receivedFirstChunkThisTurn = false;
   const frame = { type: "message", content: text };
   socket.send(JSON.stringify(frame));
+  logEvent("ws_message_sent");
   log(`Sent: ${text}`);
 }
 
@@ -303,6 +330,7 @@ function speak(text: string) {
     return;
   }
   const utterance = new SpeechSynthesisUtterance(text);
+  utterance.onstart = () => logEvent("tts_start");
   window.speechSynthesis.speak(utterance);
 }
 
@@ -348,6 +376,7 @@ function initTranscriber() {
         liveTranscriptEl.textContent = text;
       },
       onTranscriptionCommitted(text: string) {
+        logEvent("stt_committed");
         liveTranscriptEl.textContent = "";
         committedTranscriptEl.textContent = text;
         log(`Committed transcript: "${text}"`);
@@ -365,10 +394,12 @@ micBtn.addEventListener("click", async () => {
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
+    logEvent("speech_start");
     await transcriber!.start();
   } else {
     micBtn.textContent = "Start listening";
     listening = false;
+    logEvent("speech_end");
     transcriber!.stop();
   }
 });
