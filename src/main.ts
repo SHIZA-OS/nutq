@@ -40,6 +40,8 @@ function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "err
 // second (performance.now()) convention.
 
 type EvalEvent =
+  | "mic_button_press"
+  | "mic_button_release"
   | "speech_start"
   | "speech_end"
   | "stt_committed"
@@ -372,6 +374,12 @@ function initTranscriber() {
         log("Transcription stopped");
         setStatus(micStatus, "ready", "ok");
       },
+      onSpeechStart() {
+        logEvent("speech_start");
+      },
+      onSpeechEnd() {
+        logEvent("speech_end");
+      },
       onTranscriptionUpdated(text: string) {
         liveTranscriptEl.textContent = text;
       },
@@ -394,12 +402,12 @@ micBtn.addEventListener("click", async () => {
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
-    logEvent("speech_start");
+    logEvent("mic_button_press");
     await transcriber!.start();
   } else {
     micBtn.textContent = "Start listening";
     listening = false;
-    logEvent("speech_end");
+    logEvent("mic_button_release");
     transcriber!.stop();
   }
 });
