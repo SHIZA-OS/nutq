@@ -236,7 +236,11 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
 
 1. Add the timestamp instrumentation to Nutq's client code (section 4). Verify events actually log
    correctly for one real manual test run before building anything else on top.
-2. Confirm or add a session correlation ID across the `/ws/chat` protocol (open decision, section 8).
+2. Confirmed: session-level correlation works with zero protocol change (session_key derives
+   directly from the session_id already sent in session_start). Per-turn correlation for
+   multiturn_context cases uses send-order matching instead of a client-generated ID, since a proper
+   fix would require a zeroclaw fork change, which stays parked per standing instruction. See
+   section 8 for the full resolution.
 3. Build the `runtime-trace.jsonl` parser, joined against client-side events by session ID.
 4. Build the staged latency calculation and a minimal report (just this metric first, prove the
    join works end to end).
