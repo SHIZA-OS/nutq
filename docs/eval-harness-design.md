@@ -45,16 +45,22 @@ Two sources already exist per Handoff 5, neither needs new infra:
 ## 4. Client-Side Instrumentation Needed First
 
 Before any staged latency number is possible, Nutq itself needs new timestamped log events. This is
-the one piece of actual Nutq code that has to change before the harness can run. Add explicit
-timestamp events at:
+the one piece of actual Nutq code that has to change before the harness can run.
 
-- `speech_start` (user starts talking, from Moonshine's VAD if enabled, or push-to-talk press)
-- `speech_end` (push-to-talk release, or VAD-detected end)
-- `stt_committed` (Moonshine emits the final committed transcript)
+**Implemented and confirmed (see section 5.1 for the ordering finding that changed the original
+plan):**
+
+- `speech_start` / `speech_end`: wired to Moonshine's `onSpeechStart`/`onSpeechEnd` VAD callbacks,
+  not the UI button. Logged, but `speech_end` is informational only, not used in latency formulas,
+  since its ordering relative to `stt_committed` is not guaranteed in streaming mode.
+- `mic_button_press` / `mic_button_release`: the UI click-handler timestamps, originally mislabeled
+  as `speech_start`/`speech_end` before the rewiring. Kept as a separate, distinct signal.
+- `stt_committed` (Moonshine's `onTranscriptionCommitted` callback fires)
 - `ws_message_sent` (the `{"type":"message",...}` frame goes out over `/ws/chat`)
 - `first_chunk_received` (first `{"type":"chunk",...}` frame arrives)
 - `done_received` (the `{"type":"done","full_response":...}` frame arrives)
-- `tts_start` (`SpeechSynthesisUtterance` actually begins speaking)
+- `tts_start` (`SpeechSynthesisUtterance.onstart` fires; not yet confirmed live, sandbox environment
+  has no working Web Speech API voices, needs verification on a real desktop browser)
 
 Each event: `{event, timestamp_ms, session_id}`. Session ID needs to be generated client-side per
 recording and threaded through so server-side trace entries can be joined back to it (the `/ws/chat`
@@ -66,14 +72,41 @@ the outbound message frame if not).
 
 ### 5.1 Staged latency
 Derived entirely from the timestamp events in section 4, joined with `runtime-trace.jsonl` server
-timestamps for the same session ID:
+timestamps for the same session ID.
 
-- STT latency: `stt_committed - speech_end`
+**Revised anchor, confirmed via live testing (not the original assumption):** `speech_end` (wired to
+Moonshine's `onSpeechEnd`, the Silero VAD's utterance-boundary callback) and `stt_committed` are not
+reliably ordered. In streaming mode (`useVAD=false`), transcript commits are gated by the frame
+buffer's own faster EMA-threshold pause detector, a separate signal from Silero's coarser VAD, both
+watching the same underlying per-frame speech probability but racing independently. Live testing
+showed `stt_committed` landing before `speech_end` by 95ms and 425ms across two clean runs, not
+after, as originally assumed. There is no clean "user stopped talking" timestamp currently exposed
+by Moonshine's public callback surface; the fast internal detector that actually gates commits has no
+callback of its own.
+
+Given this, `stt_committed` is used as the practical anchor for user-perceived latency instead of
+`speech_end`. This slightly understates true perceived latency by however much STT inference time
+was baked into reaching that commit, documented here rather than treated as exact:
+
 - Dispatch latency: `ws_message_sent - stt_committed` (should be near zero; flags if not)
 - Time-to-first-token: `first_chunk_received - ws_message_sent`
 - Full completion time: `done_received - ws_message_sent`
 - TTS start delay: `tts_start - done_received`
-- User-perceived latency (the number that matters): `tts_start - speech_end`
+- User-perceived latency (the number that matters): `tts_start - stt_committed`
+
+`speech_end` is still logged (alongside `speech_start`) but treated as informational only, not part
+of the formulas above, since its ordering relative to `stt_committed` isn't guaranteed. It remains
+useful for spotting cases where the VAD boundary and the buffer's commit trigger diverge widely,
+which may itself be worth surfacing in the report as a data-quality signal rather than discarding.
+
+Separately, `mic_button_press`/`mic_button_release` are logged from the UI's click handler. These are
+UI-action timestamps, not speech boundaries, kept for a possible future UX metric (how long users
+hold the button relative to how long they actually speak) but not used in any latency formula here.
+
+A future experiment, not undertaken as part of this instrumentation work: switching
+`MicrophoneTranscriber` to `useVAD=true` might resolve the race at the source by having a single
+detector gate both signals, but this changes real transcription behavior and responsiveness, not
+just instrumentation, and needs its own deliberate evaluation rather than a reactive flip.
 
 Note per Handoff 5: VAD-to-STT latency doesn't apply yet, current interaction is push-to-talk only.
 Leave that stage out of the report until continuous listening ships, don't fill it with a placeholder.
@@ -168,11 +201,36 @@ hide a bad tail that matters more for perceived quality than the average does).
   standing project rule, that routes through Syed Hussain, not a default assumed here.
 - **Pass/fail thresholds**: explicitly deferred per Handoff 5, stays a team decision once baseline
   numbers exist.
-- **Session ID correlation**: whether `/ws/chat`'s protocol already carries anything usable for
-  joining client and server timestamps, or whether one needs to be added to the outbound message
-  frame. Needs a real source check before building the joining logic, not an assumption.
 - **CPU proxy method** (section 5.7): the wall-clock proxy is a reasonable stand-in given browsers
   don't expose real CPU metrics to JS, but worth a second look before treating it as authoritative.
+
+### Resolved: session/turn correlation (previously an open decision)
+
+Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
+
+- The client already receives `session_id` once, in the `session_start` frame at connection open.
+  `session_key` (used to tag trace entries) is deterministically `"gw_" + session_id`, so
+  session-level correlation needs zero protocol change, it already works today.
+- Per-turn correlation does not exist client-side. The server generates a real per-turn `turn_id`
+  (`ws.rs:1042`), but it's never sent to the client, and the `trace_id` that does appear in
+  `runtime-trace.jsonl` is assigned per logging call-site, not consistently per turn (two entries for
+  the same turn were observed carrying two different `trace_id` values). A client-sent field like
+  `client_message_id` would be silently ignored by the current server, since inbound frames are
+  parsed permissively as untyped JSON with no `deny_unknown_fields` struct. Fixing this properly
+  needs a real `zeroclaw` fork change (server reads/echoes an ID), which is explicitly stalled per
+  standing instruction on upstream work.
+- **Resolution adopted, no core change required**: the harness opens one fresh WebSocket
+  connection per eval case wherever possible, one turn per session. In that shape, `session_key`
+  alone is a perfect per-turn join key. For the `multiturn_context` category specifically (multiple
+  turns per session, by design), correlation falls back to send-order: match the *n*th
+  `{"type":"message",...}` the harness sent to the *n*th `gateway_ws_turn` trace entry sharing that
+  `session_key`, relying on chronological ordering within a session rather than an explicit ID.
+  Worth a one-time sanity check when the parser is built, confirming entries never arrive
+  out of send-order for a single session before trusting this at scale.
+- **Not every trace row is attributable.** Some entries (e.g. `"task spawned"`) log with an empty
+  `"zeroclaw": {}` and no `session_key` at all. The parser must filter to only rows where
+  `session_key` is present, and should report a count of skipped/unattributable rows per run as a
+  data-quality signal, rather than silently drop them with no trace of having done so.
 
 ## 9. Suggested Build Order for Claude Code
 
