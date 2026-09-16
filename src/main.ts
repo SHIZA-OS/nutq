@@ -1,5 +1,28 @@
 import "./style.css";
-import { MicrophoneTranscriber } from "@moonshine-ai/moonshine-js";
+import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
+
+// Mic constraints MicrophoneTranscriber used to set internally, ported over
+// now that we call getUserMedia ourselves (vendored Transcriber has no
+// getUserMedia of its own, see src/vendor/transcriber.ts).
+const MIC_CONSTRAINTS: MediaStreamConstraints = {
+  audio: {
+    channelCount: 1,
+    echoCancellation: true,
+    autoGainControl: true,
+    noiseSuppression: true,
+    sampleRate: 16000,
+  },
+};
+
+// Starting point only, not calibrated: stricter than vad-web's v5 defaults
+// (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
+// redemptionFrames 24) to cut down on background noise misfiring as speech.
+// Real tuning needs the eval harness's WER metric once it exists (see
+// docs/eval-harness-design.md) to check this isn't also dropping real speech.
+const VAD_OPTIONS: VADThresholdOptions = {
+  positiveSpeechThreshold: 0.65,
+  minSpeechFrames: 12,
+};
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -344,12 +367,12 @@ connectBtn.addEventListener("click", () => {
   connect();
 });
 
-let transcriber: MicrophoneTranscriber | null = null;
+let transcriber: Transcriber | null = null;
 let listening = false;
 
 function initTranscriber() {
   setStatus(micStatus, "loading model…", "idle");
-  transcriber = new MicrophoneTranscriber(
+  transcriber = new Transcriber(
     "model/tiny",
     {
       onPermissionsRequested() {
@@ -392,7 +415,31 @@ function initTranscriber() {
       },
     },
     false, // useVAD=false -> streaming mode
+    "quantized",
+    VAD_OPTIONS,
   );
+}
+
+// MicrophoneTranscriber used to do this getUserMedia + attachStream dance
+// internally inside its own start(); the vendored base Transcriber has no
+// getUserMedia of its own (see src/vendor/transcriber.ts), so it's ported
+// here verbatim, same constraints, same permission-denied handling via the
+// transcriber's own onError callback.
+async function startMicrophone(t: Transcriber) {
+  const status = await navigator.permissions.query({ name: "microphone" as PermissionName });
+  if (status.state === "denied") {
+    t.callbacks.onError("Microphone permission denied");
+    return;
+  }
+  try {
+    t.callbacks.onPermissionsRequested();
+    const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    t.attachStream(stream);
+    await t.start();
+  } catch (e) {
+    t.callbacks.onError(`Microphone permission denied: ${e}`);
+    t.stop();
+  }
 }
 
 micBtn.addEventListener("click", async () => {
@@ -403,7 +450,7 @@ micBtn.addEventListener("click", async () => {
     micBtn.textContent = "Stop listening";
     listening = true;
     logEvent("mic_button_press");
-    await transcriber!.start();
+    await startMicrophone(transcriber!);
   } else {
     micBtn.textContent = "Start listening";
     listening = false;
