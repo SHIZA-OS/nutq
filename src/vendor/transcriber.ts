@@ -377,9 +377,57 @@ class Transcriber {
                 this.callbacks.onSpeechStart();
                 isTalking = true;
             },
+            // KNOWN ISSUE, deliberately not fixed here: streaming mode
+            // (useVAD=false, what Nutq uses) has two independent,
+            // unsynchronized commit paths. This onSpeechEnd callback is one;
+            // the other is the this.speechBuffer.shouldCommit() branch inside
+            // onFrameProcessed below (pause-EMA or maxCommitInterval), which
+            // resets/flushes this.speechBuffer on its own schedule, unrelated
+            // to vad-web's own internal segment tracking.
+            //
+            // A fix was attempted here (consuming onSpeechEnd's own padded
+            // `floatArray` instead of this.speechBuffer.copy(), to recover the
+            // ~32ms/~1 frame clipped from the true start of every utterance,
+            // since this.speechBuffer only starts recording once isTalking
+            // flips true). It correctly fixed the clipped first word, but a
+            // bounded diagnostic (still present below, disabled) measured the
+            // real delta between floatArray and this.speechBuffer at 100+
+            // frames (multiple seconds), not ~1 frame: whichever path last
+            // reset this.speechBuffer determines how stale its frameCount is
+            // relative to floatArray's continuous, uninterrupted segment. The
+            // two buffers disagree by however long it's been since the other
+            // path's last forced commit, not by a fixed small pad. That also
+            // produced a new, inconsistent second-word corruption
+            // ("quick" -> "click") not present before. Reverted rather than
+            // hand-tuning a trim value against a buffer-sync bug.
+            //
+            // Real fix needs one of: (a) drop onSpeechEnd's role in streaming
+            // mode entirely and rely solely on the frame-buffer path, or
+            // (b) keep vad-web's internal segment buffer and this.speechBuffer
+            // in sync so they represent the same window. Not a quick fix,
+            // a real design decision. Full investigation, live-tested
+            // transcripts, and the diagnostic's actual numbers are in this
+            // session's history; don't re-derive from scratch.
             onSpeechEnd: (floatArray) => {
                 Log.log("Transcriber.onSpeechEnd()");
                 this.callbacks.onSpeechEnd();
+
+                // DIAGNOSTIC: onSpeechEnd padding investigation, not used in
+                // production. Flip on to re-measure the floatArray vs.
+                // this.speechBuffer delta described above.
+                const ONSET_PADDING_DIAGNOSTIC_ENABLED = false;
+                if (ONSET_PADDING_DIAGNOSTIC_ENABLED) {
+                    const oldLengthSamples = this.speechBuffer.frameCount * Settings.FRAME_SIZE;
+                    const deltaSamples = floatArray.length - oldLengthSamples;
+                    const deltaMs = (deltaSamples / 16000) * 1000;
+                    Log.info(
+                        `onSpeechEnd padding diagnostic: floatArray=${floatArray.length} samples, ` +
+                            `old buffer would have been=${oldLengthSamples} samples, ` +
+                            `delta=${deltaSamples} samples (${deltaMs.toFixed(1)}ms, ` +
+                            `${(deltaSamples / Settings.FRAME_SIZE).toFixed(2)} frames)`
+                    );
+                }
+
                 var tmpBuffer = this.speechBuffer.copy();
                 this.sttModel?.generate(tmpBuffer).then((text) => {
                     if (text) {
