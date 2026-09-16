@@ -334,6 +334,10 @@ function connect() {
   };
 }
 
+const RESPONSE_STYLE_PREFIX =
+  "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. " +
+  "Be concise but don't cut off mid-thought.\n\n";
+
 function sendTranscript(text: string) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     log("Cannot send: not connected");
@@ -342,7 +346,7 @@ function sendTranscript(text: string) {
   replyBuffer = "";
   replyBoxEl.textContent = "";
   receivedFirstChunkThisTurn = false;
-  const frame = { type: "message", content: text };
+  const frame = { type: "message", content: RESPONSE_STYLE_PREFIX + text };
   socket.send(JSON.stringify(frame));
   logEvent("ws_message_sent");
   log(`Sent: ${text}`);
