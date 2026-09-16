@@ -401,6 +401,15 @@ class Transcriber {
             // ("quick" -> "click") not present before. Reverted rather than
             // hand-tuning a trim value against a buffer-sync bug.
             //
+            // Note: post-revert verification (3 runs) showed "quick" misheard
+            // as "click" once, the same word-substitution artifact seen
+            // throughout the floatArray experiment. Source was confirmed
+            // genuinely reverted at the time (checked via curl), so this is
+            // likely coincidental model noise on a small sample, not leftover
+            // contamination, but flagging it since it's specific enough to be
+            // worth re-checking if it recurs, e.g. once the eval harness's WER
+            // metric can measure this properly instead of by eye.
+            //
             // Real fix needs one of: (a) drop onSpeechEnd's role in streaming
             // mode entirely and rely solely on the frame-buffer path, or
             // (b) keep vad-web's internal segment buffer and this.speechBuffer
