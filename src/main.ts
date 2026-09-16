@@ -309,6 +309,37 @@ function connect() {
       case "error":
         log(`Server error: ${parsed.message ?? JSON.stringify(parsed)}`);
         break;
+      case "approval_request": {
+        const tool = parsed.tool ?? "(unknown tool)";
+        const argsSummary = parsed.arguments_summary ?? "(no summary)";
+        log(
+          `Approval requested: tool="${tool}" args="${argsSummary}" ` +
+            `(request_id=${parsed.request_id}, timeout_secs=${parsed.timeout_secs}). ` +
+            `Auto-denying: Nutq never auto-approves tool calls.`,
+        );
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(
+            JSON.stringify({
+              type: "approval_response",
+              request_id: parsed.request_id,
+              decision: "deny",
+            }),
+          );
+        }
+        break;
+      }
+      case "tool_call":
+        log(`Tool call: ${parsed.name ?? "?"} (id=${parsed.id}) args=${JSON.stringify(parsed.args)}`);
+        break;
+      case "tool_result":
+        log(`Tool result: ${parsed.name ?? "?"} (id=${parsed.id}) output=${JSON.stringify(parsed.output)}`);
+        break;
+      case "thinking":
+        log(`Thinking: ${parsed.content ?? ""}`);
+        break;
+      case "plan":
+        log(`Plan: ${JSON.stringify(parsed.entries ?? [])}`);
+        break;
       default:
         log(`Unhandled frame type "${parsed.type}": ${ev.data}`);
     }
