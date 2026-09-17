@@ -5,25 +5,81 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nutq: Phase 1 pipeline test</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Amiri:ital@0;1&family=Cormorant+Garamond:wght@300;500&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
     <div id="app">
-      <h1>Nutq: Phase 1 pipeline test</h1>
-      <p class="sub">
-        Mic → Moonshine STT (local WASM) → ZeroClaw <code>/ws/chat</code> → SpeechSynthesis
+      <header class="site-header">
+        <div class="brand">
+          <div class="wordmark">SHIZA</div>
+          <p class="tagline">Own Your AI. Before AI Owns You.</p>
+        </div>
+        <div class="header-right">
+          <div class="nutq-mark">
+            <span class="nutq-word">Nutq</span>
+            <span class="nutq-arabic" lang="ar">نطق</span>
+          </div>
+          <p class="meta-line">Phase 1 pipeline test &middot; <span class="version">v0.1</span></p>
+        </div>
+      </header>
+
+      <p class="pipeline-breadcrumb">
+        Mic &rarr; Moonshine STT (local WASM) &rarr; ZeroClaw
+        <code class="pill-code">/ws/chat</code> &rarr; SpeechSynthesis
       </p>
 
-      <section class="panel">
-        <h2>Pairing</h2>
-        <label>
-          Pairing code (6 digits)
-          <input id="pair-code" type="text" inputmode="numeric" maxlength="6" placeholder="123456" />
-        </label>
-        <button id="pair-btn" type="button">Pair</button>
+      <section class="mic-hero">
+        <div class="mic-glow" aria-hidden="true"></div>
+        <button id="mic-btn" type="button" class="mic-circle" disabled>Start listening</button>
+        <p class="mic-hint">Tap to start listening</p>
+        <span id="mic-status" class="status status-idle">model not loaded</span>
+      </section>
+
+      <div class="transcript-grid">
+        <section class="glass-card">
+          <h3 class="card-label">STT (committed)</h3>
+          <div
+            id="committed-transcript"
+            class="transcript-box committed"
+            data-placeholder="No committed transcript yet."
+          ></div>
+        </section>
+        <section class="glass-card">
+          <h3 class="card-label">TTS (ZeroClaw response)</h3>
+          <div id="reply-box" class="transcript-box reply" data-placeholder="No reply yet."></div>
+        </section>
+      </div>
+
+      <div class="field live-field">
+        <div class="field-label">Live transcript (streaming, uncommitted)</div>
+        <div id="live-transcript" class="transcript-box live"></div>
+      </div>
+
+      <section class="card">
+        <h2 class="card-title">Pairing</h2>
+        <div class="pairing-row">
+          <label class="field-block">
+            Pairing code (6 digits)
+            <input
+              id="pair-code"
+              type="text"
+              inputmode="numeric"
+              maxlength="6"
+              placeholder="123456"
+              class="code-input"
+            />
+          </label>
+          <button id="pair-btn" type="button" class="btn-solid">Pair</button>
+        </div>
         <span id="pair-status" class="status status-idle">not paired</span>
 
-        <div id="pair-fallback" class="field" hidden>
+        <div id="pair-fallback" class="fallback-panel" hidden>
           <div class="field-label">Automatic pairing didn't go through</div>
           <p class="sub">
             Automatic pairing didn't go through (this is often a cross-origin restriction your
@@ -31,56 +87,49 @@
             origins). Run the command below yourself, or send it to whoever runs your ZeroClaw
             instance, then paste the token it returns below.
           </p>
-          <pre id="pair-fallback-curl" class="transcript-box"></pre>
-          <label>
+          <pre id="pair-fallback-curl" class="transcript-box code-block"></pre>
+          <label class="field-block">
             Paste token from curl output
             <input id="pair-fallback-token" type="text" placeholder="zc_..." />
           </label>
-          <button id="pair-fallback-save-btn" type="button">Save token</button>
+          <button id="pair-fallback-save-btn" type="button" class="btn-solid">Save token</button>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>1. ZeroClaw connection</h2>
-        <label>
-          Gateway URL
-          <input id="ws-url" type="text" value="ws://127.0.0.1:42617/ws/chat" />
-        </label>
-        <label>
-          Agent alias
-          <input id="agent-alias" type="text" placeholder="e.g. default" />
-        </label>
-        <label>
-          Pairing token (optional)
-          <input id="auth-token" type="text" placeholder="bearer token, if required" />
-        </label>
-        <button id="connect-btn" type="button">Connect</button>
+      <section class="card">
+        <h2 class="card-title">1. ZeroClaw connection</h2>
+        <div class="form-grid">
+          <label class="field-block">
+            Gateway URL
+            <input id="ws-url" type="text" value="ws://127.0.0.1:42617/ws/chat" />
+          </label>
+          <label class="field-block">
+            Agent alias
+            <input id="agent-alias" type="text" placeholder="e.g. default" />
+          </label>
+        </div>
+        <div class="token-row">
+          <label class="field-block grow">
+            Pairing token (optional)
+            <input id="auth-token" type="text" placeholder="bearer token, if required" />
+          </label>
+          <button id="connect-btn" type="button" class="btn-solid">Connect</button>
+        </div>
         <span id="conn-status" class="status status-idle">disconnected</span>
       </section>
 
-      <section class="panel">
-        <h2>2. Speak</h2>
-        <button id="mic-btn" type="button" disabled>Start listening</button>
-        <span id="mic-status" class="status status-idle">model not loaded</span>
-        <div class="field">
-          <div class="field-label">Live transcript (streaming, uncommitted)</div>
-          <div id="live-transcript" class="transcript-box live"></div>
-        </div>
-        <div class="field">
-          <div class="field-label">Committed transcript (sent to ZeroClaw)</div>
-          <div id="committed-transcript" class="transcript-box committed"></div>
-        </div>
+      <section class="card">
+        <h2 class="card-title">Logs</h2>
+        <pre id="log" class="log-box"></pre>
       </section>
 
-      <section class="panel">
-        <h2>3. ZeroClaw reply</h2>
-        <div id="reply-box" class="transcript-box reply"></div>
-      </section>
-
-      <section class="panel">
-        <h2>Log</h2>
-        <pre id="log"></pre>
-      </section>
+      <footer class="site-footer">
+        <div class="brand">
+          <div class="wordmark">SHIZA</div>
+          <p class="tagline">Own Your AI. Before AI Owns You.</p>
+        </div>
+        <p class="footer-contact">shiza.ai | hello@shiza.ai</p>
+      </footer>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
