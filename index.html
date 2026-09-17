@@ -38,7 +38,7 @@
         <div class="mic-glow" aria-hidden="true"></div>
         <button id="mic-btn" type="button" class="mic-circle" disabled>Start listening</button>
         <p class="mic-hint">Tap to start listening</p>
-        <span id="mic-status" class="status status-idle">model not loaded</span>
+        <span id="mic-status" class="status status-warn">model not loaded</span>
       </section>
 
       <div class="transcript-grid">
@@ -77,7 +77,7 @@
           </label>
           <button id="pair-btn" type="button" class="btn-solid">Pair</button>
         </div>
-        <span id="pair-status" class="status status-idle">not paired</span>
+        <span id="pair-status" class="status status-warn">not paired</span>
 
         <div id="pair-fallback" class="fallback-panel" hidden>
           <div class="field-label">Automatic pairing didn't go through</div>
@@ -115,7 +115,7 @@
           </label>
           <button id="connect-btn" type="button" class="btn-solid">Connect</button>
         </div>
-        <span id="conn-status" class="status status-idle">disconnected</span>
+        <span id="conn-status" class="status status-warn">disconnected</span>
       </section>
 
       <section class="card">

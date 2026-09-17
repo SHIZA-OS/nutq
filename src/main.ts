@@ -52,7 +52,7 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "error") {
+function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "error" | "warn") {
   el.textContent = text;
   el.className = `status status-${kind}`;
 }
@@ -163,7 +163,7 @@ wsUrlInput.addEventListener("change", () => {
   if (tokenAutoFilled) {
     authTokenInput.value = "";
     tokenAutoFilled = false;
-    setStatus(pairStatus, "not paired", "idle");
+    setStatus(pairStatus, "not paired", "warn");
     log("Gateway URL changed: cleared the previous pairing token, it's only valid for the instance it was paired with.");
   }
   loadSavedTokenForCurrentUrl();
@@ -359,7 +359,7 @@ function connect() {
           "pairing at all. Try re-pairing or check with your ZeroClaw operator.",
       );
     }
-    setStatus(connStatus, "disconnected", "idle");
+    setStatus(connStatus, "disconnected", "warn");
     micBtn.disabled = true;
     socket = null;
   };

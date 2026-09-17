@@ -314,6 +314,11 @@ a {
   border-color: rgba(229, 72, 77, 0.45);
 }
 
+.status-warn {
+  color: var(--amber);
+  border-color: rgba(239, 179, 65, 0.45);
+}
+
 /* ---------- transcript cards ---------- */
 
 .transcript-grid {
