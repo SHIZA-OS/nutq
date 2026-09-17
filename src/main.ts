@@ -442,7 +442,7 @@ async function finishListening() {
 function initTranscriber() {
   setStatus(micStatus, "loading model…", "idle");
   transcriber = new Transcriber(
-    "model/tiny",
+    "model/base",
     {
       onPermissionsRequested() {
         log("Requesting microphone permission");
