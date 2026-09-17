@@ -551,9 +551,32 @@ class Transcriber {
     /**
      * Stops transcription.
      */
-    public stop() {
+    public async stop() {
         this.isActive = false;
         this.callbacks.onTranscribeStopped();
+        // Whatever's accumulated in this.speechBuffer since the last commit
+        // would otherwise be silently discarded: vadModel.pause() takes the
+        // FrameProcessor.reset() branch (submitUserSpeechOnPause defaults to
+        // false, never overridden here), which clears state without firing
+        // onSpeechEnd or handing back any audio. Flush it manually first,
+        // same generate()/onTranscriptionCommitted() path the buffer's own
+        // normal commit takes, deliberately NOT vad-web's onSpeechEnd/
+        // floatArray path (see the KNOWN ISSUE comment above: that path was
+        // tried and reverted for a real, documented bug, not available here).
+        // Awaited (stop() is now async) so callers that need the final
+        // commit to have already landed before acting on it (e.g. sending
+        // the accumulated transcript on button release) can await this.
+        if (this.speechBuffer && this.speechBuffer.hasFrames()) {
+            var tmpBuffer = this.speechBuffer.copy();
+            this.speechBuffer.flush();
+            const text = await this.sttModel?.generate(tmpBuffer);
+            if (text) {
+                this.callbacks.onTranscriptionCommitted(
+                    text,
+                    this.getAudioBuffer(tmpBuffer)
+                );
+            }
+        }
         if (this.vadModel) {
             this.vadModel.pause();
         }

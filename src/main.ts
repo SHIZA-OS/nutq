@@ -404,6 +404,40 @@ connectBtn.addEventListener("click", () => {
 
 let transcriber: Transcriber | null = null;
 let listening = false;
+// Accumulates every onTranscriptionCommitted piece for the current
+// press-to-release session. Sent once, on release, instead of per-commit;
+// a mid-sentence pause no longer triggers its own send.
+let sessionTranscript = "";
+
+// Auto-send-on-silence: a convenience layered on top of push-to-talk, not a
+// replacement for it. 5s, not 3s: live testing showed natural mid-sentence
+// pauses of ~3s, so 3s risked cutting sentences short; 5s gives real margin.
+const SILENCE_COMMIT_MS = 5000;
+let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearSilenceTimer() {
+  if (silenceTimer !== null) {
+    clearTimeout(silenceTimer);
+    silenceTimer = null;
+  }
+}
+
+// Stops the transcriber, flushes any pending buffered audio (Transcriber.stop()
+// in src/vendor/transcriber.ts forces a final commit), sends the full
+// accumulated sessionTranscript once, and resets the button back to "Start
+// listening". Shared by the manual button-release path and the automatic
+// silence-timeout path so the stop/flush/send sequence lives in one place.
+async function finishListening() {
+  if (!listening) return;
+  listening = false;
+  clearSilenceTimer();
+  micBtn.textContent = "Start listening";
+  await transcriber!.stop();
+  if (sessionTranscript) {
+    sendTranscript(sessionTranscript);
+  }
+  sessionTranscript = "";
+}
 
 function initTranscriber() {
   setStatus(micStatus, "loading model…", "idle");
@@ -434,9 +468,16 @@ function initTranscriber() {
       },
       onSpeechStart() {
         logEvent("speech_start");
+        clearSilenceTimer();
       },
       onSpeechEnd() {
         logEvent("speech_end");
+        clearSilenceTimer();
+        silenceTimer = setTimeout(() => {
+          silenceTimer = null;
+          log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
+          finishListening();
+        }, SILENCE_COMMIT_MS);
       },
       onTranscriptionUpdated(text: string) {
         liveTranscriptEl.textContent = text;
@@ -444,9 +485,9 @@ function initTranscriber() {
       onTranscriptionCommitted(text: string) {
         logEvent("stt_committed");
         liveTranscriptEl.textContent = "";
-        committedTranscriptEl.textContent = text;
-        log(`Committed transcript: "${text}"`);
-        sendTranscript(text);
+        sessionTranscript = sessionTranscript ? `${sessionTranscript} ${text}` : text;
+        committedTranscriptEl.textContent = sessionTranscript;
+        log(`Committed transcript piece: "${text}" (accumulated: "${sessionTranscript}")`);
       },
     },
     false, // useVAD=false -> streaming mode
@@ -485,12 +526,11 @@ micBtn.addEventListener("click", async () => {
     micBtn.textContent = "Stop listening";
     listening = true;
     logEvent("mic_button_press");
+    sessionTranscript = "";
     await startMicrophone(transcriber!);
   } else {
-    micBtn.textContent = "Start listening";
-    listening = false;
     logEvent("mic_button_release");
-    transcriber!.stop();
+    await finishListening();
   }
 });
 
