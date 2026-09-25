@@ -36,3 +36,48 @@ test("skips rows with no session_key, groups turns by session, orders by timesta
     ],
   );
 });
+
+test("buckets llm_response rows (provider_calls, provider_duration_ms) into the turn that follows them", () => {
+  const lines = [
+    // turn 1: two provider calls (e.g. a tool-calling turn) before its gateway_ws_turn
+    JSON.stringify({
+      "@timestamp": "t1",
+      message: "llm_response",
+      attributes: { session_key: "gw_b" },
+      zeroclaw: { session_key: "gw_b", duration_ms: 100 },
+    }),
+    JSON.stringify({
+      "@timestamp": "t2",
+      message: "llm_response",
+      attributes: { session_key: "gw_b" },
+      zeroclaw: { session_key: "gw_b", duration_ms: 200 },
+    }),
+    JSON.stringify({
+      "@timestamp": "t3",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_b", tokens_used: 10 },
+    }),
+    // turn 2: one provider call, must not pick up turn 1's calls
+    JSON.stringify({
+      "@timestamp": "t4",
+      message: "llm_response",
+      attributes: { session_key: "gw_b" },
+      zeroclaw: { session_key: "gw_b", duration_ms: 50 },
+    }),
+    JSON.stringify({
+      "@timestamp": "t5",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_b", tokens_used: 20 },
+    }),
+  ];
+
+  const { sessions } = parseTrace(lines.join("\n"));
+
+  assert.deepEqual(
+    sessions["gw_b"].map((t) => [t.turn, t.provider_calls, t.provider_duration_ms]),
+    [
+      [1, 2, 300],
+      [2, 1, 50],
+    ],
+  );
+});

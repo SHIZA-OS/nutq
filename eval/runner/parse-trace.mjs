@@ -32,6 +32,11 @@ export function parseTrace(raw) {
   const lines = raw.split("\n").filter((l) => l.trim());
   const skipped = { malformed: 0, noSessionKey: 0 };
   const turnsBySession = new Map();
+  // llm_response only (not llm_request): it's the row that actually carries
+  // duration_ms, so it's what "provider_calls count and summed duration_ms"
+  // is built from. A request with no matching response (provider error,
+  // never completed) is deliberately not counted here.
+  const providerRowsBySession = new Map();
 
   for (const line of lines) {
     let entry;
@@ -48,10 +53,15 @@ export function parseTrace(raw) {
       continue;
     }
 
-    if (entry.message !== "gateway_ws_turn") continue; // only turns become records
-
-    if (!turnsBySession.has(sessionKey)) turnsBySession.set(sessionKey, []);
-    turnsBySession.get(sessionKey).push(entry);
+    if (entry.message === "gateway_ws_turn") {
+      if (!turnsBySession.has(sessionKey)) turnsBySession.set(sessionKey, []);
+      turnsBySession.get(sessionKey).push(entry);
+    } else if (entry.message === "llm_response") {
+      if (!providerRowsBySession.has(sessionKey)) providerRowsBySession.set(sessionKey, []);
+      providerRowsBySession.get(sessionKey).push(entry);
+    }
+    // Everything else (task spawned/complete, turn_final_response, llm_request,
+    // etc.) is attributable but not turned into a record; out of scope here.
   }
 
   // Order by @timestamp, not trace_id (trace_id is assigned per logging
@@ -59,12 +69,37 @@ export function parseTrace(raw) {
   const result = {};
   for (const [sessionKey, entries] of turnsBySession) {
     entries.sort((a, b) => a["@timestamp"].localeCompare(b["@timestamp"]));
-    result[sessionKey] = entries.map((entry, i) => ({
-      turn: i + 1,
-      session_key: sessionKey,
-      timestamp: entry["@timestamp"],
-      ...entry.attributes,
-    }));
+
+    // Bucket each session's llm_response rows into the turn they belong to:
+    // gateway_ws_turn is always logged after all of that turn's provider
+    // calls complete (confirmed real ordering, see docs/eval-harness-design.md),
+    // so "every llm_response between the previous turn's timestamp (or
+    // session start) and this turn's timestamp" is that turn's provider calls.
+    const providerRows = (providerRowsBySession.get(sessionKey) ?? [])
+      .slice()
+      .sort((a, b) => a["@timestamp"].localeCompare(b["@timestamp"]));
+    let providerIdx = 0;
+
+    result[sessionKey] = entries.map((entry, i) => {
+      let providerCalls = 0;
+      let providerDurationMs = 0;
+      while (
+        providerIdx < providerRows.length &&
+        providerRows[providerIdx]["@timestamp"].localeCompare(entry["@timestamp"]) <= 0
+      ) {
+        providerCalls++;
+        providerDurationMs += providerRows[providerIdx].zeroclaw?.duration_ms ?? 0;
+        providerIdx++;
+      }
+      return {
+        turn: i + 1,
+        session_key: sessionKey,
+        timestamp: entry["@timestamp"],
+        ...entry.attributes,
+        provider_calls: providerCalls,
+        provider_duration_ms: providerDurationMs,
+      };
+    });
   }
 
   return {
