@@ -35,8 +35,9 @@ code, not a standalone product.
 
 Two sources already exist per Handoff 5, neither needs new infra:
 
-- **Client-side**: Nutq's own log panel. Currently only logs "committed transcript" and "reply
-  complete." Needs new instrumentation (see section 4) before it's useful for staged latency.
+- **Client-side**: Nutq's own log panel, now backed by real structured instrumentation (see section
+  4): nine timestamped `EvalEvent` types plus `send_trigger`, kept in memory and exportable as JSONL
+  via a "Download events JSONL" button (hidden unless the page is loaded with `?eval=1`).
 - **Server-side**: `runtime-trace.jsonl` inside the ZeroClaw container
   (`/zeroclaw-data/.zeroclaw/data/state/runtime-trace.jsonl`). Writes regardless of `RUST_LOG`
   level, already has real per-request timing and real token counts. No changes needed here, just a
@@ -62,11 +63,21 @@ plan):**
 - `tts_start` (`SpeechSynthesisUtterance.onstart` fires; not yet confirmed live, sandbox environment
   has no working Web Speech API voices, needs verification on a real desktop browser)
 
-Each event: `{event, timestamp_ms, session_id}`. Session ID needs to be generated client-side per
-recording and threaded through so server-side trace entries can be joined back to it (the `/ws/chat`
-protocol doesn't currently carry a correlation ID either direction, per Handoff 4's protocol notes;
-worth checking whether one exists before inventing a new one, and adding a client-generated one to
-the outbound message frame if not).
+Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
+from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side
+session ID is threaded through events, and none is needed, see section 8's resolution (session-level
+correlation comes from the already-received `session_id` in `session_start`; per-turn correlation
+uses send-order matching against `runtime-trace.jsonl`, not a per-event ID).
+
+The one field currently using that extra-fields mechanism: `ws_message_sent` carries
+`send_trigger: "manual" | "auto_silence"`, recording whether the turn ended via the mic button's
+release or the 5000ms silence auto-send timer (`SILENCE_COMMIT_MS`, `src/main.ts`). Both paths funnel
+through one shared `finishListening(trigger)` function, so this is a real, threaded parameter, not an
+inference.
+
+**Export:** events are kept in an in-memory array (`evalEvents`, `src/main.ts`), not just serialized
+into the log panel's text, and can be downloaded as real JSONL via a button in the Logs card header.
+The button is hidden unless the page URL has `?eval=1`, so ordinary users never see it.
 
 ## 5. Metrics, One by One
 
@@ -86,22 +97,64 @@ callback of its own.
 
 Given this, `stt_committed` is used as the practical anchor for user-perceived latency instead of
 `speech_end`. This slightly understates true perceived latency by however much STT inference time
-was baked into reaching that commit, documented here rather than treated as exact:
+was baked into reaching that commit, documented here rather than treated as exact.
 
-- Dispatch latency: `ws_message_sent - stt_committed` (should be near zero; flags if not)
-- Time-to-first-token: `first_chunk_received - ws_message_sent`
-- Full completion time: `done_received - ws_message_sent`
+**Superseded by a second finding, since main.ts now accumulates multiple commits per turn:**
+`sendTranscript()` is called once per press-to-release (or press-to-auto-send) session, not once per
+`stt_committed`, so a single turn can carry zero, one, or several `stt_committed` events before its
+`ws_message_sent`. The formulas below anchor on the **last** `stt_committed` before `ws_message_sent`,
+implemented in `eval/runner/join-latency.mjs`, not the first (which is what "stt_committed" without
+qualification would have meant when this section was first written, back when there was only ever
+one per turn).
+
+`speech_end`'s ordering problem is also resolved differently than originally planned, not by
+dropping it, but by picking which boundary event actually marks "end of user speech" based on how
+the turn ended (`send_trigger`, section 4):
+
+- **`auto_silence` turns**: the silence timer is armed by `speech_end` itself (it's the event that
+  starts the 5000ms countdown), so the last `speech_end` before `ws_message_sent` is unambiguously
+  the right boundary.
+- **`manual` turns**: prefer the `speech_end` that closes the last utterance (the normal case, user
+  paused briefly then released). If no `speech_end` ever fired for that last utterance, the user
+  released mid-utterance, while still actively talking, fall back to `mic_button_release` instead.
+
+Staged latency, as actually implemented:
+
+- STT tail: `last stt_committed - end_of_speech` (end_of_speech per the rule above; can be negative,
+  reported as-is rather than clamped, a negative value means the commit landed before the boundary
+  event, itself a data-quality signal worth surfacing, not an error to hide)
+- Dispatch-to-first-chunk: `first_chunk_received - ws_message_sent`
+- Full completion: `done_received - ws_message_sent`
 - TTS start delay: `tts_start - done_received`
-- User-perceived latency (the number that matters): `tts_start - stt_committed`
+- Post-trigger: `tts_start - ws_message_sent` (the whole visible-to-the-user tail after sending, one
+  number covering dispatch + completion + TTS delay together)
+- User-perceived latency (the number that matters): `tts_start - last stt_committed`
 
-`speech_end` is still logged (alongside `speech_start`) but treated as informational only, not part
-of the formulas above, since its ordering relative to `stt_committed` isn't guaranteed. It remains
-useful for spotting cases where the VAD boundary and the buffer's commit trigger diverge widely,
-which may itself be worth surfacing in the report as a data-quality signal rather than discarding.
+Every turn is tagged with `send_trigger` and `manual`/`auto_silence` turns are reported as separate
+blocks (`by_trigger` in `join-latency.mjs`'s output), not pooled into one aggregate, since the two
+paths have structurally different end-of-speech semantics above and pooling them would blur that.
 
 Separately, `mic_button_press`/`mic_button_release` are logged from the UI's click handler. These are
-UI-action timestamps, not speech boundaries, kept for a possible future UX metric (how long users
-hold the button relative to how long they actually speak) but not used in any latency formula here.
+UI-action timestamps, not speech boundaries in the normal case, kept for a possible future UX metric
+(how long users hold the button relative to how long they actually speak), but `mic_button_release`
+is now also used directly as the end-of-speech fallback for mid-utterance manual releases, above.
+
+**No clock-offset measurement has been performed** between the browser's `Date.now()` and the
+ZeroClaw container's `@timestamp` clock. `join-latency.mjs` never subtracts a client timestamp from
+a server timestamp; client-only stages use client timestamps exclusively, server-internal timing
+(section 5.1 continued, below) uses server timestamps exclusively, and the two are reported side by
+side. This is stated explicitly in the script's own output, not just here.
+
+**The trace has no server-side "first token" signal.** Checked directly against a live
+`runtime-trace.jsonl`: the server logs `llm_request` (when it dispatches the prompt to the provider)
+and `llm_response` (when the *complete* response comes back from the provider, carrying
+`duration_ms` for that call), not per-chunk. There is no row logged when the server starts streaming
+the first chunk to the client, so client-side `first_chunk_received` has no server-side counterpart
+to compare against, only `dispatch_to_first_chunk` (client-only, above) exists for that leg.
+`eval/runner/parse-trace.mjs` now additionally captures `llm_request`/`llm_response` per turn as
+`provider_calls` (count) and `provider_duration_ms` (summed), additive to its existing
+`gateway_ws_turn` output, useful for reporting provider round-trip time as part of server-internal
+timing, but still not comparable to any client timestamp.
 
 A future experiment, not undertaken as part of this instrumentation work: switching
 `MicrophoneTranscriber` to `useVAD=true` might resolve the race at the source by having a single
@@ -241,9 +294,12 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
    multiturn_context cases uses send-order matching instead of a client-generated ID, since a proper
    fix would require a zeroclaw fork change, which stays parked per standing instruction. See
    section 8 for the full resolution.
-3. Build the `runtime-trace.jsonl` parser, joined against client-side events by session ID.
-4. Build the staged latency calculation and a minimal report (just this metric first, prove the
-   join works end to end).
+3. Done: `eval/runner/parse-trace.mjs` parses `runtime-trace.jsonl` into per-session, per-turn
+   records (`gateway_ws_turn`, additively extended with `provider_calls`/`provider_duration_ms`
+   from `llm_request`/`llm_response`).
+4. Done: `eval/runner/join-latency.mjs` joins client events (exported via `?eval=1`) against
+   `parse-trace.mjs`'s output by session_key and send-order, computes the staged latency numbers
+   from section 5.1 per turn, tagged by `send_trigger`. Verified against a real recorded session.
 5. Add WER (needs `jiwer` or equivalent, plus the first handful of real eval cases with reference
    transcripts).
 6. Add answer correctness and intent preservation (needs the judge-model decision resolved first).
