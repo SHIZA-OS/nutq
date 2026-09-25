@@ -44,6 +44,7 @@ const liveTranscriptEl = $<HTMLDivElement>("live-transcript");
 const committedTranscriptEl = $<HTMLDivElement>("committed-transcript");
 const replyBoxEl = $<HTMLDivElement>("reply-box");
 const logEl = $<HTMLPreElement>("log");
+const evalDownloadBtn = $<HTMLButtonElement>("eval-download-btn");
 
 function log(msg: string) {
   const line = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
@@ -73,10 +74,37 @@ type EvalEvent =
   | "done_received"
   | "tts_start";
 
-function logEvent(event: EvalEvent) {
-  const record = { event, timestamp_ms: Date.now() };
+type EvalEventRecord = { event: EvalEvent; timestamp_ms: number; [extra: string]: unknown };
+
+// Kept in memory (not just the log panel's text) so the events can be
+// exported as real JSONL. See downloadEvalEventsBtn below: only shown behind
+// ?eval=1, this array itself always fills regardless of the query param,
+// since it's cheap and harmless to keep even when the button is hidden.
+const evalEvents: EvalEventRecord[] = [];
+
+function logEvent(event: EvalEvent, extra?: Record<string, unknown>) {
+  const record: EvalEventRecord = { event, timestamp_ms: Date.now(), ...extra };
+  evalEvents.push(record);
   log(`EVENT ${JSON.stringify(record)}`);
 }
+
+// Export button: hidden by default, only shown for eval harness runs
+// (?eval=1) so ordinary users never see internal instrumentation UI.
+if (new URLSearchParams(window.location.search).get("eval") === "1") {
+  evalDownloadBtn.hidden = false;
+}
+
+evalDownloadBtn.addEventListener("click", () => {
+  const jsonl = evalEvents.map((r) => JSON.stringify(r)).join("\n") + "\n";
+  const blob = new Blob([jsonl], { type: "application/x-ndjson" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `nutq-events-${Date.now()}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(url);
+  log(`Downloaded ${evalEvents.length} events as JSONL`);
+});
 
 let socket: WebSocket | null = null;
 let replyBuffer = "";
@@ -369,7 +397,9 @@ const RESPONSE_STYLE_PREFIX =
   "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. " +
   "Be concise but don't cut off mid-thought.\n\n";
 
-function sendTranscript(text: string) {
+type SendTrigger = "manual" | "auto_silence";
+
+function sendTranscript(text: string, trigger: SendTrigger) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     log("Cannot send: not connected");
     return;
@@ -379,8 +409,8 @@ function sendTranscript(text: string) {
   receivedFirstChunkThisTurn = false;
   const frame = { type: "message", content: RESPONSE_STYLE_PREFIX + text };
   socket.send(JSON.stringify(frame));
-  logEvent("ws_message_sent");
-  log(`Sent: ${text}`);
+  logEvent("ws_message_sent", { send_trigger: trigger });
+  log(`Sent (${trigger}): ${text}`);
 }
 
 function speak(text: string) {
@@ -427,14 +457,16 @@ function clearSilenceTimer() {
 // accumulated sessionTranscript once, and resets the button back to "Start
 // listening". Shared by the manual button-release path and the automatic
 // silence-timeout path so the stop/flush/send sequence lives in one place.
-async function finishListening() {
+// trigger records which path called it, so ws_message_sent (and downstream
+// eval reporting) can tell manual releases apart from silence auto-sends.
+async function finishListening(trigger: SendTrigger) {
   if (!listening) return;
   listening = false;
   clearSilenceTimer();
   micBtn.textContent = "Start listening";
   await transcriber!.stop();
   if (sessionTranscript) {
-    sendTranscript(sessionTranscript);
+    sendTranscript(sessionTranscript, trigger);
   }
   sessionTranscript = "";
 }
@@ -476,7 +508,7 @@ function initTranscriber() {
         silenceTimer = setTimeout(() => {
           silenceTimer = null;
           log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
-          finishListening();
+          finishListening("auto_silence");
         }, SILENCE_COMMIT_MS);
       },
       onTranscriptionUpdated(text: string) {
@@ -530,7 +562,7 @@ micBtn.addEventListener("click", async () => {
     await startMicrophone(transcriber!);
   } else {
     logEvent("mic_button_release");
-    await finishListening();
+    await finishListening("manual");
   }
 });
 

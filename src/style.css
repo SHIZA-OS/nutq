@@ -399,6 +399,18 @@ a {
   margin: 0 0 1.1rem;
 }
 
+.card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.card-title-row .card-title {
+  margin: 0 0 1.1rem;
+}
+
 label {
   display: block;
 }
@@ -516,6 +528,21 @@ button {
 .btn-solid:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.9rem;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--text);
 }
 
 .sub {
