@@ -293,6 +293,18 @@ pairBtn.addEventListener("click", () => {
   pair();
 });
 
+// For display only (log panel + console via log()): never the URL actually
+// used to connect. Keeps a short prefix of the token so the log still shows
+// which token was used, without exposing the full bearer value. A plain
+// string replace, not URLSearchParams.set(), which would percent-encode the
+// "…" into an unreadable "%E2%80%A6".
+function redactedUrlForDisplay(url: string): string {
+  const parsed = new URL(url);
+  const token = parsed.searchParams.get("token");
+  if (!token) return url;
+  return url.replace(`token=${encodeURIComponent(token)}`, `token=${token.slice(0, 3)}…REDACTED`);
+}
+
 function connect() {
   let url: string;
   try {
@@ -303,7 +315,7 @@ function connect() {
     return;
   }
 
-  log(`Connecting to ${url}`);
+  log(`Connecting to ${redactedUrlForDisplay(url)}`);
   setStatus(connStatus, "connecting…", "idle");
   receivedSessionStart = false;
   socket = new WebSocket(url);
