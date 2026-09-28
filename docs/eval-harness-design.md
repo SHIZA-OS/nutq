@@ -77,7 +77,31 @@ inference.
 
 **Export:** events are kept in an in-memory array (`evalEvents`, `src/main.ts`), not just serialized
 into the log panel's text, and can be downloaded as real JSONL via a button in the Logs card header.
-The button is hidden unless the page URL has `?eval=1`, so ordinary users never see it.
+The button is hidden unless the page URL has `?eval=1`, so ordinary users never see it. `evalEvents`
+itself is only pushed to when `?eval=1` is set (`isEvalMode`), so an ordinary session's array stays
+empty for its whole lifetime rather than growing unbounded; the log panel's plain-text output is
+identical in both modes, this only affects the in-memory array and the JSONL export.
+
+**Failure-signal events, added for session completion rate (section 5.5):** the original nine events
+above only covered the success path. None of `socket.onerror`, `socket.onclose`, the server's
+`"error"`/`"aborted"` frames, or an uncaught JS exception were structured `EvalEvent` entries before
+this, only plain `log()` text invisible to the JSONL export. Added:
+
+- `ws_error` (`socket.onerror`)
+- `ws_closed` (`socket.onclose`), carrying `{code, reason, received_session_start}` — the last field
+  distinguishes a drop after a real session was established (`received_session_start: true`) from an
+  immediate rejection before one ever started (e.g. the 1006-on-bad-token case documented in
+  [ARCHITECTURE.md](ARCHITECTURE.md)), which come from the same close code but mean different things
+- `turn_error_frame` (server's `"error"` frame), carrying `{message}`
+- `turn_aborted` (server's `"aborted"` frame)
+- `js_error`, from a global `window.onerror` and `unhandledrejection` handler — previously an
+  uncaught JS exception had zero visibility anywhere, not even the log panel
+
+**Token redaction:** the "Connecting to ..." log line (log panel + console) used to print the full
+`ws://` URL including the real `zc_...` bearer token in plain text. `redactedUrlForDisplay()` masks
+the token to `zc_…REDACTED` for that log line only; the actual `WebSocket` connection still uses the
+real, unredacted URL. Verified live against a real ZeroClaw instance: the log line reads
+`token=zc_…REDACTED` and the connection still succeeds.
 
 ## 5. Metrics, One by One
 
@@ -200,20 +224,70 @@ correctness verdicts. A mismatch where the reference passes but the STT-driven r
 intent-preservation failure attributable to STT noise, not the LLM.
 
 ### 5.5 Session completion rate
-Percentage of eval runs that reach `done_received` without a connection drop, timeout, or unhandled
-client error. Given the real debugging history in Handoff 5 (opaque 1006 closes, CORS blocking `/pair`
-silently, stale containers), this metric earns its place; connection reliability has been a genuine,
-repeated problem in this project, not a hypothetical one. Log the failure mode alongside the binary
-pass/fail (auth rejection, timeout, WS close code, JS exception) so a completion-rate drop is
-diagnosable, not just a number that went down.
+Given the real debugging history in Handoff 5 (opaque 1006 closes, CORS blocking `/pair` silently,
+stale containers), this metric earns its place; connection reliability has been a genuine, repeated
+problem in this project, not a hypothetical one.
 
-### 5.6 Cost per turn
-Pull real token counts from `runtime-trace.jsonl` per session, split input and output (per Handoff
-5's own note: they're priced roughly 5x apart on Haiku, lumping them hides which side actually drives
-cost). Multiply by real published Anthropic pricing for whichever model is under test. Do not
-estimate or round the pricing figures; pull them fresh at report-generation time rather than hardcode
-them into the harness, since pricing changes and a stale hardcoded number would silently misreport
-cost later.
+**Implemented in `eval/runner/completion.mjs`**, built on `join-latency.mjs`'s client/server join plus
+the raw client events (the failure-signal events from section 4). Every `gateway_ws_turn` trace row
+already tags itself with a real outcome (`event.outcome: "success"|"failure"`, `event.action:
+"complete"|"fail"|"cancel"`, `crates/zeroclaw-gateway/src/ws.rs`), which `parse-trace.mjs` now carries
+into its per-turn records (previously read and discarded). Per turn:
+
+- **`completed`**: matched server row with `event.outcome == "success"`.
+- **`failed_provider`**: matched server row with `event.action == "fail"` (a provider/agent error;
+  the server sends an `"error"` frame instead of `"done"`).
+- **`cancelled`**: matched server row with `event.action == "cancel"` (the user interrupted the turn
+  server-side; the server sends an `"aborted"` frame).
+- **`dropped`**: no server row at all for that turn, plus a client-observed `ws_closed`/`ws_error`
+  before `done_received` — the connection died before `ws.rs`'s own success/fail/cancel trace write
+  ever ran, so nothing is recorded server-side for this attempt. See section 8 for a known limitation
+  in how this interacts with `join-latency.mjs`'s positional send-order matching.
+- **`unmatched_unknown_outcome`** / **`unmatched_no_signal`**: safety buckets for a matched row with
+  neither a recognized outcome/action, or an unmatched turn with no client failure signal either.
+  Per the standing rule on unattributable trace rows (section 8), nothing is dropped silently; these
+  buckets exist so a gap surfaces as a number, not as a turn that quietly vanishes from the count.
+
+A failure signal observed *before* any turn was ever sent (connect, never send, connection drops) is
+reported as a `session_level_events` entry, not invented as a phantom turn.
+
+**Summary**, per session: turn completion rate (`completed / total_turns`), and a stricter
+`strict_session_completed` flag (every turn in the session completed). Verified against the real
+recorded 3-turn session (the same one `join-latency.mjs` was verified against): 3/3 completed,
+`turn_completion_rate: 1`, `strict_session_completed: true`.
+
+### 5.6 Cost per turn — out of scope for Nutq's harness
+
+**Decided out of scope, superseding the original plan below.** Cost per turn is a function of which
+ZeroClaw instance and which model is under test, not of Nutq itself; Nutq's own real cost is local
+compute (STT inference, browser resource use), which is what section 5.7's client-side resource
+footprint metric already covers. A harness metric that reports someone else's model bill isn't
+measuring Nutq.
+
+Two findings from the investigation that led to this decision, worth keeping on record:
+
+- **ZeroClaw's `cost_usd` silently reports `0.0` when no pricing source is configured, with no flag
+  distinguishing that from a genuinely free turn.** Traced the rate-resolution path
+  (`crates/zeroclaw-config/src/cost/types.rs`, `crates/zeroclaw-runtime/src/agent/cost.rs`): rates
+  come from `[cost.rates]` in `config.toml`, then a live-pricing snapshot (only populated if a
+  provider sets `live_pricing = true`), then a local `pricing.json` catalog. In the deployment tested
+  against, none of the three exist — no `[cost]` section, no `live_pricing` flag, no `pricing.json` on
+  disk — so every rate falls through to `0.0` and `cost_usd` computes as a real `0.0 + 0.0 + 0.0`, not
+  a missing/null value. The engine internally computes a `pricing_available` boolean
+  (`unpriced.tokens == 0`) but never writes it to the trace, so a downstream reader has no way to tell
+  "free" apart from "unpriced." Cross-checked against Anthropic's published pricing
+  (`https://platform.claude.com/docs/en/about-claude/pricing`, checked 2026-09-28): Claude Haiku 4.5
+  is $1/MTok input, $5/MTok output, so the recorded session's three turns should have cost roughly
+  $0.02 each (~$0.06 total) by that published rate, against ZeroClaw's reported $0.00 for all three.
+  This is a `zeroclaw` fork gap, not a Nutq one, and per standing instruction upstream work on the fork
+  stays parked; it's recorded here rather than worked around silently in the harness.
+- **Token shape on the default agent: roughly 19.6k input tokens against roughly 30 output tokens per
+  turn.** From the same recorded 3-turn session: turn input/output token pairs were 19,618/32,
+  19,718/24, and 19,812/45. The input side is dominated by whatever system prompt and context the
+  default agent carries into every turn; the output side is a short spoken-style reply, consistent
+  with a voice interface. Worth knowing if cost per turn is ever revisited outside Nutq's own harness:
+  on Haiku's 5x input/output price skew, the input side is what would actually drive spend here, not
+  the reply length.
 
 ### 5.7 Client-side resource footprint
 Browser-side measurement: peak memory (`performance.memory` where available, Chrome-only, flag this
@@ -293,6 +367,15 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
   `session_key`, relying on chronological ordering within a session rather than an explicit ID.
   Worth a one-time sanity check when the parser is built, confirming entries never arrive
   out of send-order for a single session before trusting this at scale.
+  **Known limitation, surfaced by `completion.mjs`'s `dropped` outcome (section 5.5):** a genuinely
+  dropped turn (connection dies before `ws.rs` ever writes a `gateway_ws_turn` row for that attempt)
+  means the server array has one fewer entry than the client array from that point on. Positional
+  send-order matching then misaligns every subsequent turn in the same session with the wrong server
+  row, not just the dropped one. Not hit in the sessions verified so far (the dropped turn tested was
+  the last turn of its session, where the misalignment can't manifest), but a real gap for any
+  multiturn session where a drop happens mid-session rather than at the end. Not fixed here; would
+  need `join-latency.mjs`'s correlation logic to detect a gap and re-sync, not something implemented
+  yet.
 - **Not every trace row is attributable.** Some entries (e.g. `"task spawned"`) log with an empty
   `"zeroclaw": {}` and no `session_key` at all. The parser must filter to only rows where
   `session_key` is present, and should report a count of skipped/unattributable rows per run as a
@@ -316,6 +399,6 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
 5. Add WER (needs `jiwer` or equivalent, plus the first handful of real eval cases with reference
    transcripts).
 6. Add answer correctness and intent preservation (needs the judge-model decision resolved first).
-7. Add session completion rate and cost per turn (both purely derived from data already flowing
-   through the pipeline by this point).
+7. Done: `eval/runner/completion.mjs`, session completion rate (section 5.5). Cost per turn is out of
+   scope for Nutq's harness (section 5.6).
 8. Add client-side resource footprint last, it's the most browser-dependent and least critical piece.
