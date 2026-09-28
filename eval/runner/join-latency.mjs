@@ -132,6 +132,25 @@ function segmentTurns(events) {
 
     const ms = (a, b) => (a != null && b != null ? b - a : null);
 
+    // user_perceived: what the user actually experiences as latency, which
+    // differs by how the turn ended. Anchoring on last_stt_committed (the old
+    // behavior, kept below as commit_to_audio) is wrong in both directions:
+    // it eats the user's own pre-tap pause on manual turns, and it hides the
+    // forced-flush time after a mid-utterance tap.
+    let userPerceivedMs = null;
+    let userPerceivedNote = null;
+    let timerWaitMs = null;
+    if (sendTrigger === "auto_silence") {
+      // The wait is deliberate (SILENCE_COMMIT_MS), not perceived latency,
+      // so it's surfaced separately rather than folded into user_perceived.
+      userPerceivedMs = ms(sendEvent.timestamp_ms, ttsStart?.timestamp_ms);
+      timerWaitMs = ms(endOfSpeech?.timestamp_ms, sendEvent.timestamp_ms);
+    } else if (lastMicRelease) {
+      userPerceivedMs = ms(lastMicRelease.timestamp_ms, ttsStart?.timestamp_ms);
+    } else {
+      userPerceivedNote = "manual turn has no mic_button_release event; user_perceived not computed";
+    }
+
     turns.push({
       turn: t + 1,
       send_trigger: sendTrigger,
@@ -150,8 +169,11 @@ function segmentTurns(events) {
         full_completion: ms(sendEvent.timestamp_ms, done?.timestamp_ms),
         tts_start_delay: ms(done?.timestamp_ms, ttsStart?.timestamp_ms),
         post_trigger: ms(sendEvent.timestamp_ms, ttsStart?.timestamp_ms),
-        user_perceived: ms(lastSttCommitted?.timestamp_ms, ttsStart?.timestamp_ms),
+        commit_to_audio: ms(lastSttCommitted?.timestamp_ms, ttsStart?.timestamp_ms),
+        user_perceived: userPerceivedMs,
+        timer_wait_ms: timerWaitMs,
       },
+      user_perceived_note: userPerceivedNote,
       missing_client_events: missing,
     });
   }
@@ -203,6 +225,7 @@ export function joinLatency({ events, sessions }, sessionKey) {
       send_trigger: c.send_trigger,
       client: c.client,
       stages_ms: c.stages_ms,
+      user_perceived_note: c.user_perceived_note,
       missing_client_events: c.missing_client_events,
       server: {
         session_key: key,

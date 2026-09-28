@@ -128,7 +128,20 @@ Staged latency, as actually implemented:
 - TTS start delay: `tts_start - done_received`
 - Post-trigger: `tts_start - ws_message_sent` (the whole visible-to-the-user tail after sending, one
   number covering dispatch + completion + TTS delay together)
-- User-perceived latency (the number that matters): `tts_start - last stt_committed`
+- Commit-to-audio (formerly called "user-perceived latency" in this doc, kept for reference, not
+  dropped): `tts_start - last stt_committed`
+- **User-perceived latency (the number that matters), revised after live verification against a real
+  3-turn session:** anchoring on `last stt_committed` proved wrong in both directions. It eats the
+  user's own pause before tapping the mic button on a manual turn (inflating the number with dead
+  time that isn't latency), and it excludes the forced-flush time after a mid-utterance tap (hiding
+  real latency). The definition now differs by `send_trigger`:
+  - **Manual turns**: `tts_start - mic_button_release`. If no `mic_button_release` event exists for
+    the turn, `user_perceived` is `null` and `user_perceived_note` explains why; there is no silent
+    fallback.
+  - **auto_silence turns**: `user_perceived` equals `post_trigger` (`tts_start - ws_message_sent`).
+    The deliberate 5000ms silence wait is not perceived latency, since the user isn't waiting on the
+    system during it, so it's excluded and reported separately as `timer_wait_ms`:
+    `ws_message_sent - speech_end` (`speech_end` is what arms the timer, see above).
 
 Every turn is tagged with `send_trigger` and `manual`/`auto_silence` turns are reported as separate
 blocks (`by_trigger` in `join-latency.mjs`'s output), not pooled into one aggregate, since the two

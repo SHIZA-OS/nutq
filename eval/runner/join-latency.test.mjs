@@ -34,7 +34,10 @@ test("manual turn with a clean speech_end anchors on speech_end, not mic_button_
   assert.equal(t.stages_ms.full_completion, 690); // 2200 - 1510
   assert.equal(t.stages_ms.tts_start_delay, 50); // 2250 - 2200
   assert.equal(t.stages_ms.post_trigger, 740); // 2250 - 1510
-  assert.equal(t.stages_ms.user_perceived, 1300); // 2250 - 950
+  assert.equal(t.stages_ms.commit_to_audio, 1300); // 2250 - 950
+  assert.equal(t.stages_ms.user_perceived, 750); // 2250 - 1500 (mic_button_release)
+  assert.equal(t.stages_ms.timer_wait_ms, null); // manual turn, not applicable
+  assert.equal(t.user_perceived_note, null);
   assert.deepEqual(t.missing_client_events, []);
 });
 
@@ -57,6 +60,33 @@ test("manual turn released mid-utterance (no speech_end) falls back to mic_butto
   assert.equal(t.client.end_of_speech_source, "mic_button_release");
   assert.equal(t.client.end_of_speech_ms, 600);
   assert.equal(t.stages_ms.stt_tail, -200); // 400 - 600: commit landed before release, reported as-is
+  assert.equal(t.stages_ms.user_perceived, 650); // 1250 - 600 (mic_button_release)
+  assert.equal(t.user_perceived_note, null);
+});
+
+test("manual turn with no mic_button_release at all leaves user_perceived null with a reason, never a silent fallback", () => {
+  const events = [
+    { event: "mic_button_press", timestamp_ms: 0 },
+    { event: "speech_start", timestamp_ms: 100 },
+    { event: "speech_end", timestamp_ms: 900 },
+    { event: "stt_committed", timestamp_ms: 950 },
+    // no mic_button_release event at all
+    { event: "ws_message_sent", timestamp_ms: 1510, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 1800 },
+    { event: "done_received", timestamp_ms: 2200 },
+    { event: "tts_start", timestamp_ms: 2250 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, "t1")] };
+
+  const result = joinLatency({ events, sessions }, SK);
+  const t = result.turns[0];
+
+  assert.equal(t.stages_ms.user_perceived, null);
+  assert.equal(t.stages_ms.commit_to_audio, 1300); // 2250 - 950, unaffected
+  assert.equal(
+    t.user_perceived_note,
+    "manual turn has no mic_button_release event; user_perceived not computed",
+  );
 });
 
 test("auto_silence turn anchors end-of-speech on speech_end (the event that armed the timer)", () => {
@@ -79,6 +109,10 @@ test("auto_silence turn anchors end-of-speech on speech_end (the event that arme
   assert.equal(t.client.end_of_speech_source, "speech_end");
   assert.equal(t.client.end_of_speech_ms, 800);
   assert.equal(t.stages_ms.stt_tail, 50); // 850 - 800
+  assert.equal(t.stages_ms.user_perceived, 650); // 6450 - 5800 (post_trigger)
+  assert.equal(t.stages_ms.post_trigger, 650);
+  assert.equal(t.stages_ms.timer_wait_ms, 5000); // 5800 - 800
+  assert.equal(t.user_perceived_note, null);
 });
 
 test("by_trigger buckets turns separately and unmatched turns are reported, not dropped", () => {
