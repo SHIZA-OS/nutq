@@ -1,0 +1,278 @@
+{
+  "date": "2026-09-28",
+  "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+  "join_latency": {
+    "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+    "turns": [
+      {
+        "turn": 1,
+        "send_trigger": "manual",
+        "client": {
+          "end_of_speech_ms": 1790600357134,
+          "end_of_speech_source": "speech_end",
+          "last_stt_committed_ms": 1790600357461,
+          "ws_message_sent_ms": 1790600359916,
+          "first_chunk_received_ms": 1790600361829,
+          "done_received_ms": 1790600362173,
+          "tts_start_ms": 1790600363704
+        },
+        "stages_ms": {
+          "stt_tail": 327,
+          "dispatch_to_first_chunk": 1913,
+          "full_completion": 2257,
+          "tts_start_delay": 1531,
+          "post_trigger": 3788,
+          "commit_to_audio": 6243,
+          "user_perceived": 3800,
+          "timer_wait_ms": null
+        },
+        "user_perceived_note": null,
+        "missing_client_events": [],
+        "server": {
+          "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+          "timestamp": "2026-09-28T12:59:22.173Z",
+          "trace_id": "b755ed01-6275-4a75-b38d-fad9ca59bdfe",
+          "model": "claude-haiku-4-5-20251001",
+          "input_tokens": 19618,
+          "output_tokens": 32,
+          "tokens_used": 19650,
+          "cost_usd": 0,
+          "provider_calls": 1,
+          "provider_duration_ms": 2193
+        }
+      },
+      {
+        "turn": 2,
+        "send_trigger": "manual",
+        "client": {
+          "end_of_speech_ms": 1790600384651,
+          "end_of_speech_source": "mic_button_release",
+          "last_stt_committed_ms": 1790600385257,
+          "ws_message_sent_ms": 1790600385260,
+          "first_chunk_received_ms": 1790600386124,
+          "done_received_ms": 1790600386421,
+          "tts_start_ms": 1790600387229
+        },
+        "stages_ms": {
+          "stt_tail": 606,
+          "dispatch_to_first_chunk": 864,
+          "full_completion": 1161,
+          "tts_start_delay": 808,
+          "post_trigger": 1969,
+          "commit_to_audio": 1972,
+          "user_perceived": 2578,
+          "timer_wait_ms": null
+        },
+        "user_perceived_note": null,
+        "missing_client_events": [],
+        "server": {
+          "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+          "timestamp": "2026-09-28T12:59:46.420Z",
+          "trace_id": "6ebf235f-6c0a-4251-8b7b-3dd9981ee4c3",
+          "model": "claude-haiku-4-5-20251001",
+          "input_tokens": 19718,
+          "output_tokens": 24,
+          "tokens_used": 19742,
+          "cost_usd": 0,
+          "provider_calls": 1,
+          "provider_duration_ms": 1151
+        }
+      },
+      {
+        "turn": 3,
+        "send_trigger": "auto_silence",
+        "client": {
+          "end_of_speech_ms": 1790600400675,
+          "end_of_speech_source": "speech_end",
+          "last_stt_committed_ms": 1790600400668,
+          "ws_message_sent_ms": 1790600405695,
+          "first_chunk_received_ms": 1790600406604,
+          "done_received_ms": 1790600407082,
+          "tts_start_ms": 1790600408019
+        },
+        "stages_ms": {
+          "stt_tail": -7,
+          "dispatch_to_first_chunk": 909,
+          "full_completion": 1387,
+          "tts_start_delay": 937,
+          "post_trigger": 2324,
+          "commit_to_audio": 7351,
+          "user_perceived": 2324,
+          "timer_wait_ms": 5020
+        },
+        "user_perceived_note": null,
+        "missing_client_events": [],
+        "server": {
+          "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+          "timestamp": "2026-09-28T13:00:07.082Z",
+          "trace_id": "22aed108-cdeb-4125-abac-5eb3e520ff5c",
+          "model": "claude-haiku-4-5-20251001",
+          "input_tokens": 19812,
+          "output_tokens": 45,
+          "tokens_used": 19857,
+          "cost_usd": 0,
+          "provider_calls": 1,
+          "provider_duration_ms": 1373
+        }
+      }
+    ],
+    "by_trigger": {
+      "manual": [
+        {
+          "turn": 1,
+          "send_trigger": "manual",
+          "client": {
+            "end_of_speech_ms": 1790600357134,
+            "end_of_speech_source": "speech_end",
+            "last_stt_committed_ms": 1790600357461,
+            "ws_message_sent_ms": 1790600359916,
+            "first_chunk_received_ms": 1790600361829,
+            "done_received_ms": 1790600362173,
+            "tts_start_ms": 1790600363704
+          },
+          "stages_ms": {
+            "stt_tail": 327,
+            "dispatch_to_first_chunk": 1913,
+            "full_completion": 2257,
+            "tts_start_delay": 1531,
+            "post_trigger": 3788,
+            "commit_to_audio": 6243,
+            "user_perceived": 3800,
+            "timer_wait_ms": null
+          },
+          "user_perceived_note": null,
+          "missing_client_events": [],
+          "server": {
+            "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+            "timestamp": "2026-09-28T12:59:22.173Z",
+            "trace_id": "b755ed01-6275-4a75-b38d-fad9ca59bdfe",
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": 19618,
+            "output_tokens": 32,
+            "tokens_used": 19650,
+            "cost_usd": 0,
+            "provider_calls": 1,
+            "provider_duration_ms": 2193
+          }
+        },
+        {
+          "turn": 2,
+          "send_trigger": "manual",
+          "client": {
+            "end_of_speech_ms": 1790600384651,
+            "end_of_speech_source": "mic_button_release",
+            "last_stt_committed_ms": 1790600385257,
+            "ws_message_sent_ms": 1790600385260,
+            "first_chunk_received_ms": 1790600386124,
+            "done_received_ms": 1790600386421,
+            "tts_start_ms": 1790600387229
+          },
+          "stages_ms": {
+            "stt_tail": 606,
+            "dispatch_to_first_chunk": 864,
+            "full_completion": 1161,
+            "tts_start_delay": 808,
+            "post_trigger": 1969,
+            "commit_to_audio": 1972,
+            "user_perceived": 2578,
+            "timer_wait_ms": null
+          },
+          "user_perceived_note": null,
+          "missing_client_events": [],
+          "server": {
+            "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+            "timestamp": "2026-09-28T12:59:46.420Z",
+            "trace_id": "6ebf235f-6c0a-4251-8b7b-3dd9981ee4c3",
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": 19718,
+            "output_tokens": 24,
+            "tokens_used": 19742,
+            "cost_usd": 0,
+            "provider_calls": 1,
+            "provider_duration_ms": 1151
+          }
+        }
+      ],
+      "auto_silence": [
+        {
+          "turn": 3,
+          "send_trigger": "auto_silence",
+          "client": {
+            "end_of_speech_ms": 1790600400675,
+            "end_of_speech_source": "speech_end",
+            "last_stt_committed_ms": 1790600400668,
+            "ws_message_sent_ms": 1790600405695,
+            "first_chunk_received_ms": 1790600406604,
+            "done_received_ms": 1790600407082,
+            "tts_start_ms": 1790600408019
+          },
+          "stages_ms": {
+            "stt_tail": -7,
+            "dispatch_to_first_chunk": 909,
+            "full_completion": 1387,
+            "tts_start_delay": 937,
+            "post_trigger": 2324,
+            "commit_to_audio": 7351,
+            "user_perceived": 2324,
+            "timer_wait_ms": 5020
+          },
+          "user_perceived_note": null,
+          "missing_client_events": [],
+          "server": {
+            "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+            "timestamp": "2026-09-28T13:00:07.082Z",
+            "trace_id": "22aed108-cdeb-4125-abac-5eb3e520ff5c",
+            "model": "claude-haiku-4-5-20251001",
+            "input_tokens": 19812,
+            "output_tokens": 45,
+            "tokens_used": 19857,
+            "cost_usd": 0,
+            "provider_calls": 1,
+            "provider_duration_ms": 1373
+          }
+        }
+      ],
+      "unknown": []
+    },
+    "unmatched": {
+      "client_turns_without_server_row": [],
+      "server_turns_without_client_send": []
+    },
+    "meta": {
+      "clock_offset_measured": false,
+      "note": "No clock-offset measurement was performed between the browser's Date.now() and the ZeroClaw container's @timestamp clock. stages_ms above are computed exclusively from client timestamps; server.* fields are raw server data, never subtracted against a client timestamp."
+    }
+  },
+  "completion": {
+    "session_key": "gw_c5986c81-130d-419b-90d9-55ee0d1f3cf0",
+    "turns": [
+      {
+        "turn": 1,
+        "outcome": "completed",
+        "server_outcome": "success",
+        "server_action": "complete"
+      },
+      {
+        "turn": 2,
+        "outcome": "completed",
+        "server_outcome": "success",
+        "server_action": "complete"
+      },
+      {
+        "turn": 3,
+        "outcome": "completed",
+        "server_outcome": "success",
+        "server_action": "complete"
+      }
+    ],
+    "counts": {
+      "completed": 3
+    },
+    "session_level_events": [],
+    "summary": {
+      "total_turns": 3,
+      "turn_completion_rate": 1,
+      "strict_session_completed": true
+    }
+  }
+}
