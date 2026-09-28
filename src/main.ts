@@ -77,20 +77,20 @@ type EvalEvent =
 type EvalEventRecord = { event: EvalEvent; timestamp_ms: number; [extra: string]: unknown };
 
 // Kept in memory (not just the log panel's text) so the events can be
-// exported as real JSONL. See downloadEvalEventsBtn below: only shown behind
-// ?eval=1, this array itself always fills regardless of the query param,
-// since it's cheap and harmless to keep even when the button is hidden.
+// exported as real JSONL. Only filled when ?eval=1 is set, otherwise it
+// would grow unbounded for the lifetime of every ordinary session.
+const isEvalMode = new URLSearchParams(window.location.search).get("eval") === "1";
 const evalEvents: EvalEventRecord[] = [];
 
 function logEvent(event: EvalEvent, extra?: Record<string, unknown>) {
   const record: EvalEventRecord = { event, timestamp_ms: Date.now(), ...extra };
-  evalEvents.push(record);
+  if (isEvalMode) evalEvents.push(record);
   log(`EVENT ${JSON.stringify(record)}`);
 }
 
 // Export button: hidden by default, only shown for eval harness runs
 // (?eval=1) so ordinary users never see internal instrumentation UI.
-if (new URLSearchParams(window.location.search).get("eval") === "1") {
+if (isEvalMode) {
   evalDownloadBtn.hidden = false;
 }
 
