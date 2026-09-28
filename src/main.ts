@@ -72,7 +72,12 @@ type EvalEvent =
   | "ws_message_sent"
   | "first_chunk_received"
   | "done_received"
-  | "tts_start";
+  | "tts_start"
+  | "ws_error"
+  | "ws_closed"
+  | "turn_error_frame"
+  | "turn_aborted"
+  | "js_error";
 
 type EvalEventRecord = { event: EvalEvent; timestamp_ms: number; [extra: string]: unknown };
 
@@ -87,6 +92,16 @@ function logEvent(event: EvalEvent, extra?: Record<string, unknown>) {
   if (isEvalMode) evalEvents.push(record);
   log(`EVENT ${JSON.stringify(record)}`);
 }
+
+// Uncaught JS errors were previously invisible to the eval harness entirely
+// (no log() call, no logEvent). These are the only global catch-all; a
+// caught error already logged by its own call site is not re-logged here.
+window.onerror = (message) => {
+  logEvent("js_error", { message: String(message) });
+};
+window.addEventListener("unhandledrejection", (ev) => {
+  logEvent("js_error", { message: String(ev.reason) });
+});
 
 // Export button: hidden by default, only shown for eval harness runs
 // (?eval=1) so ordinary users never see internal instrumentation UI.
@@ -333,9 +348,11 @@ function connect() {
         break;
       case "aborted":
         log("Turn aborted by server");
+        logEvent("turn_aborted");
         break;
       case "error":
         log(`Server error: ${parsed.message ?? JSON.stringify(parsed)}`);
+        logEvent("turn_error_frame", { message: parsed.message ?? null });
         break;
       case "approval_request": {
         const tool = parsed.tool ?? "(unknown tool)";
@@ -375,11 +392,17 @@ function connect() {
 
   socket.onerror = () => {
     log("WebSocket error");
+    logEvent("ws_error");
     setStatus(connStatus, "error", "error");
   };
 
   socket.onclose = (ev) => {
     log(`WebSocket closed (code=${ev.code} reason="${ev.reason}")`);
+    logEvent("ws_closed", {
+      code: ev.code,
+      reason: ev.reason,
+      received_session_start: receivedSessionStart,
+    });
     if (ev.code === 1006 && !receivedSessionStart) {
       log(
         "Connection closed immediately, possibly an authentication rejection — if you have a " +
