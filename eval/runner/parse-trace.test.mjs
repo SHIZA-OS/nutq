@@ -81,3 +81,44 @@ test("buckets llm_response rows (provider_calls, provider_duration_ms) into the 
     ],
   );
 });
+
+test("carries event.outcome/event.action per turn, null when the row has no event block", () => {
+  const lines = [
+    JSON.stringify({
+      "@timestamp": "t1",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_c" },
+      event: { action: "complete", outcome: "success" },
+    }),
+    JSON.stringify({
+      "@timestamp": "t2",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_c" },
+      event: { action: "fail", outcome: "failure" },
+    }),
+    JSON.stringify({
+      "@timestamp": "t3",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_c" },
+      event: { action: "cancel", outcome: "failure" },
+    }),
+    // no event block at all -> both fields null, not thrown/omitted
+    JSON.stringify({
+      "@timestamp": "t4",
+      message: "gateway_ws_turn",
+      attributes: { session_key: "gw_c" },
+    }),
+  ];
+
+  const { sessions } = parseTrace(lines.join("\n"));
+
+  assert.deepEqual(
+    sessions["gw_c"].map((t) => [t.outcome, t.action]),
+    [
+      ["success", "complete"],
+      ["failure", "fail"],
+      ["failure", "cancel"],
+      [null, null],
+    ],
+  );
+});

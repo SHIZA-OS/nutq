@@ -98,6 +98,14 @@ export function parseTrace(raw) {
         ...entry.attributes,
         provider_calls: providerCalls,
         provider_duration_ms: providerDurationMs,
+        // Additive: every gateway_ws_turn row already carries a real outcome
+        // discriminator (outcome: "success"|"failure", action: "complete"|
+        // "fail"|"cancel"), but it was being read and thrown away. A fail/
+        // cancel row carries no token/cost attrs at all, so completion-rate
+        // logic (eval/runner/completion.mjs) needs this to tell "no tokens
+        // because it failed" apart from "no tokens because unpriced".
+        outcome: entry.event?.outcome ?? null,
+        action: entry.event?.action ?? null,
       };
     });
   }
