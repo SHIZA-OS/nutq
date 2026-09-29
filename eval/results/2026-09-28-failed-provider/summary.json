@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-28",
+  "session_key": "gw_fad8b607-d608-4d46-bbe1-5fde17e6113c",
+  "completion": {
+    "session_key": "gw_fad8b607-d608-4d46-bbe1-5fde17e6113c",
+    "turns": [
+      {
+        "turn": 1,
+        "outcome": "failed_provider",
+        "server_outcome": "failure",
+        "server_action": "fail"
+      }
+    ],
+    "counts": {
+      "failed_provider": 1
+    },
+    "session_level_events": [],
+    "summary": {
+      "total_turns": 1,
+      "turn_completion_rate": 0,
+      "strict_session_completed": false
+    }
+  }
+}
