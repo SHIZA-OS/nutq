@@ -66,6 +66,7 @@ function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "err
 type EvalEvent =
   | "mic_button_press"
   | "mic_button_release"
+  | "session_start"
   | "speech_start"
   | "speech_end"
   | "stt_committed"
@@ -348,6 +349,7 @@ function connect() {
       case "session_start":
         receivedSessionStart = true;
         log(`Session started (resumed=${parsed.resumed}, session_id=${parsed.session_id})`);
+        logEvent("session_start", { session_id: parsed.session_id ?? null, resumed: parsed.resumed ?? null });
         break;
       case "connected":
         log("Server acknowledged connect frame");

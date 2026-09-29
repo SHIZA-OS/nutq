@@ -97,6 +97,14 @@ this, only plain `log()` text invisible to the JSONL export. Added:
 - `js_error`, from a global `window.onerror` and `unhandledrejection` handler — previously an
   uncaught JS exception had zero visibility anywhere, not even the log panel
 
+**Session identity event:** `session_start` (the server's `"session_start"` frame), carrying
+`{session_id, resumed}`. ZeroClaw derives `session_key = "gw_" + session_id`, where `session_id` is the
+`?session_id=` query param if the client sent one and a fresh UUID v4 otherwise (`ws.rs`, at the top of
+`handle_socket`). Nutq never sends `session_id`, so each connection gets a new UUID and `resumed` is
+false in practice. Recording it in the events file is what lets `join-latency.mjs` name the session
+without `--session` (section 5.1). It is a session-level event, not a turn stage; nothing in the
+latency math reads it.
+
 **Token redaction:** the "Connecting to ..." log line (log panel + console) used to print the full
 `ws://` URL including the real `zc_...` bearer token in plain text. `redactedUrlForDisplay()` masks
 the token to `zc_…REDACTED` for that log line only; the actual `WebSocket` connection still uses the
