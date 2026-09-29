@@ -212,6 +212,15 @@ wsUrlInput.addEventListener("change", () => {
   loadSavedTokenForCurrentUrl();
 });
 
+const authTokenToggle = $<HTMLButtonElement>("auth-token-toggle");
+authTokenToggle.addEventListener("click", () => {
+  const reveal = authTokenInput.type === "password";
+  authTokenInput.type = reveal ? "text" : "password";
+  authTokenToggle.textContent = reveal ? "Hide" : "Show";
+  authTokenToggle.setAttribute("aria-pressed", String(reveal));
+  authTokenToggle.setAttribute("aria-label", reveal ? "Hide pairing token" : "Show pairing token");
+});
+
 authTokenInput.addEventListener("input", () => {
   tokenAutoFilled = false;
 });

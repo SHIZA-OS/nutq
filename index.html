@@ -111,7 +111,24 @@
         <div class="token-row">
           <label class="field-block grow">
             Pairing token (optional)
-            <input id="auth-token" type="text" placeholder="bearer token, if required" />
+            <span class="input-wrap">
+              <input
+                id="auth-token"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="bearer token, if required"
+              />
+              <button
+                id="auth-token-toggle"
+                type="button"
+                class="btn-ghost input-toggle"
+                aria-pressed="false"
+                aria-label="Show pairing token"
+              >
+                Show
+              </button>
+            </span>
           </label>
           <button id="connect-btn" type="button" class="btn-solid">Connect</button>
         </div>
