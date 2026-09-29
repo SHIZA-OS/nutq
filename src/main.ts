@@ -153,6 +153,26 @@ function pairingStorageKey(gatewayUrl: string): string {
   return `nutq:pairing-token:${gatewayUrl}`;
 }
 
+// Show/Hide toggle for a masked (type=password) token field. Returns a reset
+// that re-masks the field, so a revealed state never carries over to the next value.
+function wireRevealToggle(input: HTMLInputElement, toggle: HTMLButtonElement, noun: string) {
+  const setRevealed = (reveal: boolean) => {
+    input.type = reveal ? "text" : "password";
+    toggle.textContent = reveal ? "Hide" : "Show";
+    toggle.setAttribute("aria-pressed", String(reveal));
+    toggle.setAttribute("aria-label", `${reveal ? "Hide" : "Show"} ${noun}`);
+  };
+  toggle.addEventListener("click", () => setRevealed(input.type === "password"));
+  return () => setRevealed(false);
+}
+
+wireRevealToggle(authTokenInput, $<HTMLButtonElement>("auth-token-toggle"), "pairing token");
+const remaskFallbackToken = wireRevealToggle(
+  pairFallbackTokenInput,
+  $<HTMLButtonElement>("pair-fallback-token-toggle"),
+  "pasted token",
+);
+
 // True while the token field holds a value we filled in ourselves (from
 // storage or a fresh pairing), rather than something the user typed. Used to
 // decide whether to clear it when the gateway URL changes.
@@ -176,6 +196,7 @@ function showPairFallback(httpBase: string, code: string) {
 function hidePairFallback() {
   pairFallback.hidden = true;
   pairFallbackTokenInput.value = "";
+  remaskFallbackToken();
 }
 
 pairFallbackSaveBtn.addEventListener("click", () => {
@@ -211,15 +232,6 @@ wsUrlInput.addEventListener("change", () => {
     log("Gateway URL changed: cleared the previous pairing token, it's only valid for the instance it was paired with.");
   }
   loadSavedTokenForCurrentUrl();
-});
-
-const authTokenToggle = $<HTMLButtonElement>("auth-token-toggle");
-authTokenToggle.addEventListener("click", () => {
-  const reveal = authTokenInput.type === "password";
-  authTokenInput.type = reveal ? "text" : "password";
-  authTokenToggle.textContent = reveal ? "Hide" : "Show";
-  authTokenToggle.setAttribute("aria-pressed", String(reveal));
-  authTokenToggle.setAttribute("aria-label", reveal ? "Hide pairing token" : "Show pairing token");
 });
 
 authTokenInput.addEventListener("input", () => {

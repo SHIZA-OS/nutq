@@ -90,7 +90,24 @@
           <pre id="pair-fallback-curl" class="transcript-box code-block"></pre>
           <label class="field-block">
             Paste token from curl output
-            <input id="pair-fallback-token" type="text" placeholder="zc_..." />
+            <span class="input-wrap">
+              <input
+                id="pair-fallback-token"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="zc_..."
+              />
+              <button
+                id="pair-fallback-token-toggle"
+                type="button"
+                class="btn-ghost input-toggle"
+                aria-pressed="false"
+                aria-label="Show pasted token"
+              >
+                Show
+              </button>
+            </span>
           </label>
           <button id="pair-fallback-save-btn" type="button" class="btn-solid">Save token</button>
         </div>
