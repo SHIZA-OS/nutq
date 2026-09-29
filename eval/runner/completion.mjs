@@ -6,9 +6,11 @@
 // docs/eval-harness-design.md section 5.5.
 //
 // Usage:
-//   node completion.mjs <events.jsonl> [--trace path/to/trace.jsonl] [--session gw_...]
+//   node completion.mjs <events.jsonl> [--trace path/to/trace.jsonl] [--session gw_... | --no-server-session]
 //
 // Same trace/session resolution as join-latency.mjs (see its header comment).
+// --no-server-session is how a genuinely dropped turn is classified: it has no
+// server row, hence no session_key in the trace to pass to --session.
 
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -27,11 +29,12 @@ function readTrace(localPath) {
 }
 
 function parseArgs(argv) {
-  const args = { eventsPath: null, tracePath: null, sessionKey: null };
+  const args = { eventsPath: null, tracePath: null, sessionKey: null, noServerSession: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--trace") args.tracePath = argv[++i];
     else if (argv[i] === "--session") args.sessionKey = argv[++i];
+    else if (argv[i] === "--no-server-session") args.noServerSession = true;
     else rest.push(argv[i]);
   }
   args.eventsPath = rest[0];
@@ -85,8 +88,8 @@ function turnWindows(events) {
   return { windows, preamble: events.slice(0, preambleEnd) };
 }
 
-export function classifyCompletion({ events, sessions }, sessionKey) {
-  const joined = joinLatency({ events, sessions }, sessionKey);
+export function classifyCompletion({ events, sessions }, sessionKey, opts = {}) {
+  const joined = joinLatency({ events, sessions }, sessionKey, opts);
   const serverTurns = sessions[joined.session_key] ?? [];
   const { windows, preamble } = turnWindows(events);
 
@@ -163,17 +166,17 @@ export function classifyCompletion({ events, sessions }, sessionKey) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = parseArgs(process.argv.slice(2));
   if (!args.eventsPath) {
-    console.error("Usage: node completion.mjs <events.jsonl> [--trace path] [--session gw_...]");
+    console.error("Usage: node completion.mjs <events.jsonl> [--trace path] [--session gw_... | --no-server-session]");
     process.exit(1);
   }
 
   const { events, malformed } = loadEvents(args.eventsPath);
-  const traceRaw = readTrace(args.tracePath);
+  const traceRaw = args.noServerSession ? "" : readTrace(args.tracePath);
   const { sessions, meta: traceMeta } = parseTrace(traceRaw);
 
   let result;
   try {
-    result = classifyCompletion({ events, sessions }, args.sessionKey);
+    result = classifyCompletion({ events, sessions }, args.sessionKey, { noServerSession: args.noServerSession });
   } catch (e) {
     console.error(`completion: ${e.message}`);
     process.exit(1);

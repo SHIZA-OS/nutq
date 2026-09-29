@@ -118,3 +118,56 @@ test("a ws_closed before any turn was ever sent is a session-level event, not a 
   assert.equal(result.summary.turn_completion_rate, null);
   assert.equal(result.summary.strict_session_completed, false);
 });
+
+// A dropped turn writes no gateway_ws_turn row, so parseTrace never yields a
+// session for it. --no-server-session (opts.noServerSession) is the only way
+// to classify it; `sessions` here is what parseTrace really returns for it.
+const NO_SERVER = { noServerSession: true };
+
+test("noServerSession: failure event and no done_received classifies as dropped", () => {
+  const events = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "mic_button_release", timestamp_ms: 155 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "ws_closed", timestamp_ms: 400, code: 1006, reason: "", received_session_start: true },
+  ];
+
+  const result = classifyCompletion({ events, sessions: {} }, null, NO_SERVER);
+
+  assert.equal(result.session_key, null);
+  assert.equal(result.turns[0].outcome, "dropped");
+  assert.deepEqual(result.turns[0].failure_events, ["ws_closed"]);
+  assert.equal(result.counts.dropped, 1);
+  assert.equal(result.summary.turn_completion_rate, 0);
+});
+
+test("noServerSession: no failure event classifies as unmatched_no_signal, not dropped", () => {
+  const events = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+  ];
+
+  const result = classifyCompletion({ events, sessions: {} }, null, NO_SERVER);
+
+  assert.equal(result.turns[0].outcome, "unmatched_no_signal");
+  assert.equal(result.counts.unmatched_no_signal, 1);
+});
+
+test("noServerSession ignores sessions present in the trace (no inference)", () => {
+  const events = [
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "ws_closed", timestamp_ms: 400, code: 1006 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+
+  const result = classifyCompletion({ events, sessions }, null, NO_SERVER);
+
+  assert.equal(result.turns[0].outcome, "dropped");
+});
+
+test("noServerSession together with a session key is an error", () => {
+  assert.throws(
+    () => classifyCompletion({ events: [], sessions: {} }, SK, NO_SERVER),
+    /mutually exclusive/,
+  );
+});

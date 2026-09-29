@@ -5,12 +5,18 @@
 // docs/eval-harness-design.md sections 4, 5.1, 8.
 //
 // Usage:
-//   node join-latency.mjs <events.jsonl> [--trace path/to/trace.jsonl] [--session gw_...]
+//   node join-latency.mjs <events.jsonl> [--trace path/to/trace.jsonl] [--session gw_... | --no-server-session]
 //
 // If --trace is omitted, reads live from the "zeroclaw" container (same as
 // parse-trace.mjs's default). If --session is omitted, the trace must
 // contain exactly one session, or the script fails loud and lists the
 // session_keys found rather than guessing which one the events belong to.
+//
+// --no-server-session: this events file belongs to a session with no server
+// rows at all (a genuinely dropped turn writes no gateway_ws_turn row, so it
+// has no session_key in the trace to pick). Every client turn goes into
+// client_turns_without_server_row; nothing is inferred from timestamps.
+// Mutually exclusive with --session.
 //
 // IMPORTANT: client event timestamps (Date.now(), main.ts) and server trace
 // timestamps (@timestamp, runtime-trace.jsonl) are NEVER subtracted from
@@ -36,11 +42,12 @@ function readTrace(localPath) {
 }
 
 function parseArgs(argv) {
-  const args = { eventsPath: null, tracePath: null, sessionKey: null };
+  const args = { eventsPath: null, tracePath: null, sessionKey: null, noServerSession: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--trace") args.tracePath = argv[++i];
     else if (argv[i] === "--session") args.sessionKey = argv[++i];
+    else if (argv[i] === "--no-server-session") args.noServerSession = true;
     else rest.push(argv[i]);
   }
   args.eventsPath = rest[0];
@@ -199,9 +206,12 @@ function pickSession(sessions, requestedKey) {
   );
 }
 
-export function joinLatency({ events, sessions }, sessionKey) {
-  const key = pickSession(sessions, sessionKey);
-  const serverTurns = sessions[key]; // already ordered by @timestamp, per parse-trace.mjs
+export function joinLatency({ events, sessions }, sessionKey, { noServerSession = false } = {}) {
+  if (noServerSession && sessionKey) {
+    throw new Error("--no-server-session and --session are mutually exclusive");
+  }
+  const key = noServerSession ? null : pickSession(sessions, sessionKey);
+  const serverTurns = noServerSession ? [] : sessions[key]; // already ordered by @timestamp, per parse-trace.mjs
   const clientTurns = segmentTurns(events);
 
   const joined = [];
@@ -268,17 +278,17 @@ export function joinLatency({ events, sessions }, sessionKey) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const args = parseArgs(process.argv.slice(2));
   if (!args.eventsPath) {
-    console.error("Usage: node join-latency.mjs <events.jsonl> [--trace path] [--session gw_...]");
+    console.error("Usage: node join-latency.mjs <events.jsonl> [--trace path] [--session gw_... | --no-server-session]");
     process.exit(1);
   }
 
   const { events, malformed } = loadEvents(args.eventsPath);
-  const traceRaw = readTrace(args.tracePath);
+  const traceRaw = args.noServerSession ? "" : readTrace(args.tracePath);
   const { sessions, meta: traceMeta } = parseTrace(traceRaw);
 
   let result;
   try {
-    result = joinLatency({ events, sessions }, args.sessionKey);
+    result = joinLatency({ events, sessions }, args.sessionKey, { noServerSession: args.noServerSession });
   } catch (e) {
     console.error(`join-latency: ${e.message}`);
     process.exit(1);

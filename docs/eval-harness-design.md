@@ -243,6 +243,14 @@ into its per-turn records (previously read and discarded). Per turn:
   before `done_received` — the connection died before `ws.rs`'s own success/fail/cancel trace write
   ever ran, so nothing is recorded server-side for this attempt. See section 8 for a known limitation
   in how this interacts with `join-latency.mjs`'s positional send-order matching.
+  **A dropped turn has no server session by construction**: no `gateway_ws_turn` row means no
+  `session_key` for `parse-trace.mjs` to attribute, so the trace has nothing to pass to `--session`.
+  Classify it with `--no-server-session` on `completion.mjs` (or `join-latency.mjs`): the events file
+  is declared to belong to a session with no server rows, every client turn goes into
+  `client_turns_without_server_row`, and nothing is inferred from timestamps or across the
+  client/container clocks. The flag is mutually exclusive with `--session`. It is only right for an
+  events file that is a single session with no server rows at all; a mid-session drop is the
+  positional-matching limitation in section 8, not this flag's job.
 - **`unmatched_unknown_outcome`** / **`unmatched_no_signal`**: safety buckets for a matched row with
   neither a recognized outcome/action, or an unmatched turn with no client failure signal either.
   Per the standing rule on unattributable trace rows (section 8), nothing is dropped silently; these
