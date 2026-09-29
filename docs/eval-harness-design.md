@@ -117,6 +117,17 @@ real, unredacted URL. Verified live against a real ZeroClaw instance: the log li
 Derived entirely from the timestamp events in section 4, joined with `runtime-trace.jsonl` server
 timestamps for the same session ID.
 
+**Which session is joined.** If the events file carries a `session_start` event (section 4), the
+session is derived from it (`session_key = "gw_" + session_id`) and picked automatically, with no
+flag. If the trace has no rows for that session, it is treated as `--no-server-session` (the
+`session_key` in the output is still the derived one, and `session_source` says which rule applied:
+`events_session_id`, `events_session_id_no_server_rows`, `session_argument`,
+`no_server_session_flag`, or `trace_single_session`). `--session` may not contradict the events
+file's `session_id` (error), and `--no-server-session` plus `--session` stays an error. A file with
+several different `session_id`s (Nutq reconnected within one recording) is not auto-picked: pass
+`--session`. Events files recorded before `session_start` existed have no `session_id` and behave as
+before: `--session`, `--no-server-session`, or a trace with exactly one session.
+
 **Revised anchor, confirmed via live testing (not the original assumption):** `speech_end` (wired to
 Moonshine's `onSpeechEnd`, the Silero VAD's utterance-boundary callback) and `stt_committed` are not
 reliably ordered. In streaming mode (`useVAD=false`), transcript commits are gated by the frame
@@ -256,7 +267,9 @@ into its per-turn records (previously read and discarded). Per turn:
   Classify it with `--no-server-session` on `completion.mjs` (or `join-latency.mjs`): the events file
   is declared to belong to a session with no server rows, every client turn goes into
   `client_turns_without_server_row`, and nothing is inferred from timestamps or across the
-  client/container clocks. The flag is mutually exclusive with `--session`. It is only right for an
+  client/container clocks. For events files that carry a `session_start` `session_id`, the flag is
+  no longer needed: a session absent from the trace is detected automatically (section 5.1). The flag
+  is still the way to classify older files, and is mutually exclusive with `--session`. It is only right for an
   events file that is a single session with no server rows at all; a mid-session drop is the
   positional-matching limitation in section 8, not this flag's job.
 - **`unmatched_unknown_outcome`** / **`unmatched_no_signal`**: safety buckets for a matched row with

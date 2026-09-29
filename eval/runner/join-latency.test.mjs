@@ -147,3 +147,76 @@ test("by_trigger buckets turns separately and unmatched turns are reported, not 
   assert.deepEqual(result.unmatched.server_turns_without_client_send, []);
   assert.equal(result.meta.clock_offset_measured, false);
 });
+
+// --- session_id carried by the events file (session_start event) -------------
+
+const SID = "11111111-2222-3333-4444-555555555555";
+const SESSION_KEY = `gw_${SID}`;
+const sendEvents = (extra = []) => [
+  ...extra,
+  { event: "stt_committed", timestamp_ms: 150 },
+  { event: "mic_button_release", timestamp_ms: 155 },
+  { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+];
+const startEvent = (id = SID) => ({ event: "session_start", timestamp_ms: 10, session_id: id, resumed: false });
+
+test("session_id in the events file picks its session automatically", () => {
+  const sessions = {
+    gw_other: [{ turn: 1, session_key: "gw_other", timestamp: "t1" }],
+    [SESSION_KEY]: [{ turn: 1, session_key: SESSION_KEY, timestamp: "t2", trace_id: "want" }],
+  };
+
+  const result = joinLatency({ events: sendEvents([startEvent()]), sessions });
+
+  assert.equal(result.session_key, SESSION_KEY);
+  assert.equal(result.session_source, "events_session_id");
+  assert.equal(result.turns[0].server.trace_id, "want");
+});
+
+test("session_id whose session has no server rows behaves like --no-server-session", () => {
+  // The trace holds only an unrelated session: must NOT be guessed as ours.
+  const sessions = { gw_other: [{ turn: 1, session_key: "gw_other", timestamp: "t1" }] };
+
+  const result = joinLatency({ events: sendEvents([startEvent()]), sessions });
+
+  assert.equal(result.session_key, SESSION_KEY);
+  assert.equal(result.session_source, "events_session_id_no_server_rows");
+  assert.deepEqual(result.turns, []);
+  assert.deepEqual(result.unmatched.client_turns_without_server_row, [1]);
+});
+
+test("events files without session_id keep the old behavior", () => {
+  const one = { [SK]: [serverTurn(1, "t1")] };
+  assert.equal(joinLatency({ events: sendEvents(), sessions: one }).session_key, SK);
+  assert.equal(joinLatency({ events: sendEvents(), sessions: one }).session_source, "trace_single_session");
+
+  const two = { [SK]: [serverTurn(1, "t1")], gw_b: [] };
+  assert.throws(() => joinLatency({ events: sendEvents(), sessions: two }), /pass --session/);
+  assert.equal(joinLatency({ events: sendEvents(), sessions: two }, SK).session_key, SK);
+  assert.equal(joinLatency({ events: sendEvents(), sessions: two }, null, { noServerSession: true }).session_key, null);
+});
+
+test("--session contradicting the events file's session_id is an error", () => {
+  const sessions = { gw_other: [{ turn: 1, session_key: "gw_other", timestamp: "t1" }] };
+  assert.throws(
+    () => joinLatency({ events: sendEvents([startEvent()]), sessions }, "gw_other"),
+    /contradicts the events file/,
+  );
+});
+
+test("--session matching the events file's session_id is accepted; the mutual exclusion still holds", () => {
+  const sessions = { [SESSION_KEY]: [{ turn: 1, session_key: SESSION_KEY, timestamp: "t1" }] };
+  const events = sendEvents([startEvent()]);
+
+  assert.equal(joinLatency({ events, sessions }, SESSION_KEY).session_source, "session_argument");
+  assert.throws(() => joinLatency({ events, sessions }, SESSION_KEY, { noServerSession: true }), /mutually exclusive/);
+});
+
+test("an events file spanning several session_ids needs an explicit --session", () => {
+  const other = "99999999-2222-3333-4444-555555555555";
+  const events = sendEvents([startEvent(), startEvent(other)]);
+  const sessions = { [SESSION_KEY]: [{ turn: 1, session_key: SESSION_KEY, timestamp: "t1" }] };
+
+  assert.throws(() => joinLatency({ events, sessions }), /2 different session_start session_ids/);
+  assert.equal(joinLatency({ events, sessions }, SESSION_KEY).session_key, SESSION_KEY);
+});

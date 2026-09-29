@@ -12,6 +12,12 @@
 // contain exactly one session, or the script fails loud and lists the
 // session_keys found rather than guessing which one the events belong to.
 //
+// If the events file carries a session_start event (Nutq logs session_id and
+// resumed), the session is derived from it ("gw_" + session_id) and picked
+// automatically; if the trace has no rows for it, that is treated as
+// --no-server-session. --session may not contradict it. Files without a
+// session_start event behave exactly as before.
+//
 // --no-server-session: this events file belongs to a session with no server
 // rows at all (a genuinely dropped turn writes no gateway_ws_turn row, so it
 // has no session_key in the trace to pick). Every client turn goes into
@@ -206,12 +212,53 @@ function pickSession(sessions, requestedKey) {
   );
 }
 
-export function joinLatency({ events, sessions }, sessionKey, { noServerSession = false } = {}) {
+// ZeroClaw derives session_key as "gw_" + session_id (ws.rs, top of
+// handle_socket), so a session_start event's session_id names the session.
+const GW_SESSION_PREFIX = "gw_";
+
+function eventsSessionKeys(events) {
+  const keys = new Set();
+  for (const e of events) {
+    if (e.event === "session_start" && typeof e.session_id === "string") keys.add(GW_SESSION_PREFIX + e.session_id);
+  }
+  return [...keys];
+}
+
+// Decides which server session (if any) the client events are joined to.
+// Explicit arguments win, but may not contradict a session_id the events file
+// itself carries. Old events files (no session_start) fall through to the
+// pre-existing pickSession behavior.
+function resolveSession(events, sessions, sessionKey, noServerSession) {
   if (noServerSession && sessionKey) {
     throw new Error("--no-server-session and --session are mutually exclusive");
   }
-  const key = noServerSession ? null : pickSession(sessions, sessionKey);
-  const serverTurns = noServerSession ? [] : sessions[key]; // already ordered by @timestamp, per parse-trace.mjs
+  const fromEvents = eventsSessionKeys(events);
+  if (sessionKey && fromEvents.length > 0 && !fromEvents.includes(sessionKey)) {
+    throw new Error(
+      `--session ${sessionKey} contradicts the events file's session_start session_id (${fromEvents.join(", ")})`,
+    );
+  }
+  if (noServerSession) return { key: null, hasServerRows: false, source: "no_server_session_flag" };
+  if (sessionKey) return { key: pickSession(sessions, sessionKey), hasServerRows: true, source: "session_argument" };
+  if (fromEvents.length === 1) {
+    const key = fromEvents[0];
+    // A dropped turn writes no gateway_ws_turn row, so its session may be absent
+    // from the trace entirely: that is the no-server-session case, not an error.
+    return sessions[key]
+      ? { key, hasServerRows: true, source: "events_session_id" }
+      : { key, hasServerRows: false, source: "events_session_id_no_server_rows" };
+  }
+  if (fromEvents.length > 1) {
+    throw new Error(
+      `events file has ${fromEvents.length} different session_start session_ids (${fromEvents.join(", ")}); pass --session to pick one`,
+    );
+  }
+  return { key: pickSession(sessions, null), hasServerRows: true, source: "trace_single_session" };
+}
+
+export function joinLatency({ events, sessions }, sessionKey, { noServerSession = false } = {}) {
+  const { key, hasServerRows, source } = resolveSession(events, sessions, sessionKey, noServerSession);
+  const serverTurns = hasServerRows ? sessions[key] : []; // already ordered by @timestamp, per parse-trace.mjs
   const clientTurns = segmentTurns(events);
 
   const joined = [];
@@ -254,6 +301,7 @@ export function joinLatency({ events, sessions }, sessionKey, { noServerSession 
 
   return {
     session_key: key,
+    session_source: source,
     turns: joined,
     by_trigger: {
       manual: joined.filter((t) => t.send_trigger === "manual"),

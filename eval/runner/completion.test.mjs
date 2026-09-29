@@ -171,3 +171,19 @@ test("noServerSession together with a session key is an error", () => {
     /mutually exclusive/,
   );
 });
+
+test("session_id in the events file with no server rows classifies as dropped without any flag", () => {
+  const events = [
+    { event: "session_start", timestamp_ms: 10, session_id: "abc", resumed: false },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "ws_closed", timestamp_ms: 400, code: 1006, reason: "", received_session_start: true },
+  ];
+  // The trace only knows an unrelated session; it must not be adopted.
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+
+  const result = classifyCompletion({ events, sessions }, null);
+
+  assert.equal(result.session_key, "gw_abc");
+  assert.equal(result.turns[0].outcome, "dropped");
+  assert.equal(result.counts.dropped, 1);
+});
