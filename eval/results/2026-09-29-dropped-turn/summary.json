@@ -1,0 +1,36 @@
+{
+  "date": "2026-09-29",
+  "session_key": null,
+  "invocation": "completion.mjs --no-server-session",
+  "completion": {
+    "session_key": null,
+    "turns": [
+      {
+        "turn": 1,
+        "outcome": "dropped",
+        "failure_events": [
+          "ws_closed"
+        ]
+      }
+    ],
+    "counts": {
+      "dropped": 1
+    },
+    "session_level_events": [],
+    "summary": {
+      "total_turns": 1,
+      "turn_completion_rate": 0,
+      "strict_session_completed": false
+    }
+  },
+  "trace_evidence": {
+    "client_ws_message_sent_utc": "13:58:04.388",
+    "client_ws_closed_utc": "13:58:05.758",
+    "client_ws_closed_code": 1006,
+    "server_llm_request_utc": "13:58:04.440Z",
+    "server_llm_request_trace_id": "2a56cbcd-bfb0-4fcd-aeab-064bb153e403",
+    "gateway_ws_turn_row_for_this_turn": false,
+    "next_daemon_start_utc": "13:59:26.734Z",
+    "clock_offset_measured": false
+  }
+}
