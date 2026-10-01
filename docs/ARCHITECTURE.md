@@ -93,12 +93,12 @@ This is ZeroClaw's real, observed WebSocket protocol for chat, not a synthesized
 **Server → client.** The server sends a sequence of typed JSON messages over the life of a
 turn:
 
-- `session_start` — a new session has begun.
-- `connected` — the connection/handshake is established.
-- `chunk` — a piece of the agent's streamed reply.
-- `done` — the reply is complete.
-- `aborted` — the turn was aborted.
-- `error` — something went wrong server-side.
+- `session_start`: a new session has begun.
+- `connected`: the connection/handshake is established.
+- `chunk`: a piece of the agent's streamed reply.
+- `done`: the reply is complete.
+- `aborted`: the turn was aborted.
+- `error`: something went wrong server-side.
 
 ## Gotcha: pairing code vs. bearer token
 
