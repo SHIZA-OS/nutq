@@ -70,6 +70,8 @@ type EvalEvent =
   | "speech_start"
   | "speech_end"
   | "stt_committed"
+  | "transcript_final"
+  | "stt_model"
   | "ws_message_sent"
   | "first_chunk_received"
   | "done_received"
@@ -85,7 +87,17 @@ type EvalEventRecord = { event: EvalEvent; timestamp_ms: number; [extra: string]
 // Kept in memory (not just the log panel's text) so the events can be
 // exported as real JSONL. Only filled when ?eval=1 is set, otherwise it
 // would grow unbounded for the lifetime of every ordinary session.
-const isEvalMode = new URLSearchParams(window.location.search).get("eval") === "1";
+const urlParams = new URLSearchParams(window.location.search);
+const isEvalMode = urlParams.get("eval") === "1";
+// Eval-only: enables the mic button without a gateway and skips the send, so
+// WER runs never touch ZeroClaw. Does nothing unless eval=1 is also set.
+const isNoSend = isEvalMode && urlParams.get("nosend") === "1";
+const DEFAULT_MODEL = "model/base";
+// Eval-only: ?model= picks the Moonshine model. model.ts only sets the layer/head
+// shape for URLs containing "tiny" or "base", so anything else would load with
+// an undefined shape; reject it up front instead.
+const sttModel = (isEvalMode && urlParams.get("model")) || DEFAULT_MODEL;
+const sttModelValid = sttModel.includes("tiny") || sttModel.includes("base");
 const evalEvents: EvalEventRecord[] = [];
 
 function logEvent(event: EvalEvent, extra?: Record<string, unknown>) {
@@ -108,6 +120,15 @@ window.addEventListener("unhandledrejection", (ev) => {
 // (?eval=1) so ordinary users never see internal instrumentation UI.
 if (isEvalMode) {
   evalDownloadBtn.hidden = false;
+}
+
+if (!sttModelValid) {
+  const msg = `Invalid model "${sttModel}": must contain "tiny" or "base"`;
+  setStatus(micStatus, msg, "error");
+  log(msg);
+} else {
+  if (isEvalMode) logEvent("stt_model", { model: sttModel });
+  if (isNoSend) micBtn.disabled = false;
 }
 
 evalDownloadBtn.addEventListener("click", () => {
@@ -523,7 +544,9 @@ async function finishListening(trigger: SendTrigger) {
   clearSilenceTimer();
   micBtn.textContent = "Start listening";
   await transcriber!.stop();
-  if (sessionTranscript) {
+  // Logged even when empty: a total miss counts as data.
+  if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
+  if (sessionTranscript && !isNoSend) {
     sendTranscript(sessionTranscript, trigger);
   }
   sessionTranscript = "";
@@ -532,7 +555,7 @@ async function finishListening(trigger: SendTrigger) {
 function initTranscriber() {
   setStatus(micStatus, "loading model…", "idle");
   transcriber = new Transcriber(
-    "model/base",
+    sttModel,
     {
       onPermissionsRequested() {
         log("Requesting microphone permission");
@@ -573,7 +596,7 @@ function initTranscriber() {
         liveTranscriptEl.textContent = text;
       },
       onTranscriptionCommitted(text: string) {
-        logEvent("stt_committed");
+        logEvent("stt_committed", isEvalMode ? { text } : undefined);
         liveTranscriptEl.textContent = "";
         sessionTranscript = sessionTranscript ? `${sessionTranscript} ${text}` : text;
         committedTranscriptEl.textContent = sessionTranscript;
