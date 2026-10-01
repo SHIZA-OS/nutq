@@ -58,3 +58,27 @@ rather than assumed from what was written to `config.toml`:
 - `RUST_LOG=debug` removed (was set temporarily for the runtime-trace debugging above).
 - `require_pairing` re-enabled to `true` (its default, per
   [ARCHITECTURE.md](ARCHITECTURE.md)).
+
+## Eval: WER replay mode and model load order (2026-10-01)
+
+- **WER replay mode** (041f146). `?eval=1&nosend=1` runs the mic without a gateway and
+  skips the send; `?model=` picks the Moonshine model; `stt_committed` carries its text;
+  new `transcript_final` and `stt_model` events. See the eval section of
+  [ARCHITECTURE.md](ARCHITECTURE.md).
+- **Bug found by a Chrome fake-audio run.** The mic opened before the model finished
+  loading, and audio during the load was silently dropped (nothing reads the stream until
+  the end of `load()`). A test clip played once on mic open produced no speech at all.
+- **Fix.** The model and VAD now load first; the mic opens only afterward, and the button
+  is disabled until the model is ready and the socket is open (or nosend mode). Normal
+  mode loads on Connect, eval mode at page load. A failed load is retried on the next
+  Connect, which needed a small local fix in the vendored `model.ts`.
+- **Verified** (all with a throwaway local WebSocket stub, no contact with ZeroClaw): load
+  starts on Connect, not before; button stays disabled until both connected and loaded;
+  a server-initiated close disables it again; a forced first-request failure shows the
+  error state and the next Connect loads successfully. In eval nosend mode, the original
+  unpadded test clip was transcribed in full with model/base: "A quick brown pox jumps over
+  the lazy dog." (reference: "The quick brown fox jumps over the lazy dog.").
+- **Observation:** cold-profile model load took roughly 27 to 38 s across the runs; warm
+  cache about 4 to 7 s. Not a benchmark.
+- **Open:** on a failed load the vendored library reports "This platform ... is not
+  supported", which is misleading for a network failure. Not changed.

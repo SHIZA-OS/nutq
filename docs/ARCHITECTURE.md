@@ -16,6 +16,60 @@ transcription, and only text crosses the network:
    built-in Web Speech API. This is a placeholder, not the intended long-term TTS; see
    [ROADMAP.md](ROADMAP.md) for the plan to replace it with Piper.
 
+## Model load order and mic gating
+
+The Moonshine model and the VAD must both be loaded before the mic opens. Audio that
+arrives earlier is dropped, not buffered: the vendored `Transcriber` only connects the mic
+stream to the VAD at the end of `load()`, so anything spoken during a load is lost. Nutq
+therefore loads first and opens the mic second:
+
+1. **Load starts** (trigger depends on mode, below). `ensureModelLoaded()` in
+   `src/main.ts` calls `transcriber.load()` once. A `loadPromise` guard reuses an in-flight
+   or finished load, so a second trigger never loads twice.
+2. **Mic button stays disabled** until the model is ready AND the socket is open (or
+   nosend eval mode is on). The status reads "loading model…" and the hint says so.
+3. **On click**, `getUserMedia` and `attachStream` run, then `start()`. Because the load
+   already finished, `start()` does not load again.
+
+**When loading starts.**
+
+- Normal mode: when Connect is clicked, in parallel with the connection. Before that the
+  hint reads "Connect to load the speech model".
+- Eval mode (`?eval=1`): at page load, honoring `?model=`.
+
+**Load failure.** The status shows "model load failed" and the button stays disabled. The
+guard is cleared, so the next Connect retries. This needed a small local edit to the
+vendored `src/vendor/model.ts`: `MoonshineModel` cached its rejected load promise and left
+its loading flag set, so a retry could never succeed. `loadModel()` now clears both on
+failure.
+
+**Observation, not a benchmark.** On a fresh browser profile (nothing cached), the model
+load took roughly 27 to 38 s in the runs made while building this (four measurements, one
+machine, network not controlled). A warm cache was faster (about 4 to 7 s in earlier
+runs). Treat these as a sense of scale only.
+
+## Eval mode: WER replay
+
+`?eval=1` turns on eval instrumentation (a download button for the events as JSONL).
+Two extra parameters exist for replaying recorded audio without touching ZeroClaw:
+
+- `?eval=1&nosend=1`: enables the mic button without a gateway and skips the send, so a
+  run never reaches ZeroClaw. It has no effect without `eval=1`.
+- `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
+  must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
+
+Events added for WER measurement:
+
+- `stt_model` `{ model }`: logged once at page load.
+- `stt_committed` `{ text }`: each committed piece, with its text, in eval mode.
+- `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
+  logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
+  the text is empty, so a total miss counts as data.
+
+Runner note: wait for the mic button to enable (status "ready") before starting audio. With
+Chrome's `--use-file-for-fake-audio-capture=<wav>%noloop`, the file plays once from the
+moment the mic opens, and the mic now opens only after the load.
+
 ## The `/ws/chat` protocol
 
 This is ZeroClaw's real, observed WebSocket protocol for chat, not a synthesized spec.
