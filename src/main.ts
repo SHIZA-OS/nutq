@@ -122,13 +122,32 @@ if (isEvalMode) {
   evalDownloadBtn.hidden = false;
 }
 
+// The mic is only usable once the model and VAD are loaded (the mic never opens
+// before that, so no speech is lost to a load) and there is somewhere to send:
+// an open socket, or nosend eval mode.
+let modelState: "loading" | "ready" | "failed" = sttModelValid ? "loading" : "failed";
+let socketOpen = false;
+let loadPromise: Promise<void> | null = null;
+const micHint = $<HTMLParagraphElement>("mic-hint");
+
+function updateMicState() {
+  micBtn.disabled = !(modelState === "ready" && (socketOpen || isNoSend));
+  micHint.textContent =
+    modelState === "failed"
+      ? "Speech model unavailable"
+      : modelState === "loading"
+        ? "Loading the speech model, one moment"
+        : micBtn.disabled
+          ? "Connect to start listening"
+          : "Tap to start listening";
+}
+
 if (!sttModelValid) {
   const msg = `Invalid model "${sttModel}": must contain "tiny" or "base"`;
   setStatus(micStatus, msg, "error");
   log(msg);
-} else {
-  if (isEvalMode) logEvent("stt_model", { model: sttModel });
-  if (isNoSend) micBtn.disabled = false;
+} else if (isEvalMode) {
+  logEvent("stt_model", { model: sttModel });
 }
 
 evalDownloadBtn.addEventListener("click", () => {
@@ -366,7 +385,8 @@ function connect() {
   socket.onopen = () => {
     log("WebSocket open");
     setStatus(connStatus, "connected", "ok");
-    micBtn.disabled = false;
+    socketOpen = true;
+    updateMicState();
   };
 
   socket.onmessage = (ev) => {
@@ -467,7 +487,8 @@ function connect() {
       );
     }
     setStatus(connStatus, "disconnected", "warn");
-    micBtn.disabled = true;
+    socketOpen = false;
+    updateMicState();
     socket = null;
   };
 }
@@ -553,7 +574,6 @@ async function finishListening(trigger: SendTrigger) {
 }
 
 function initTranscriber() {
-  setStatus(micStatus, "loading model…", "idle");
   transcriber = new Transcriber(
     sttModel,
     {
@@ -609,6 +629,27 @@ function initTranscriber() {
   );
 }
 
+// Loads the model and VAD once; later calls reuse the same load. Never opens the mic.
+function ensureModelLoaded() {
+  if (loadPromise || !sttModelValid) return;
+  modelState = "loading";
+  setStatus(micStatus, "loading model…", "warn");
+  initTranscriber();
+  loadPromise = transcriber!.load().then(
+    () => {
+      modelState = "ready";
+      updateMicState();
+    },
+    (e) => {
+      modelState = "failed";
+      setStatus(micStatus, "model load failed", "error");
+      log(`Model load failed: ${e}`);
+      updateMicState();
+    },
+  );
+  updateMicState();
+}
+
 // MicrophoneTranscriber used to do this getUserMedia + attachStream dance
 // internally inside its own start(); the vendored base Transcriber has no
 // getUserMedia of its own (see src/vendor/transcriber.ts), so it's ported
@@ -632,9 +673,7 @@ async function startMicrophone(t: Transcriber) {
 }
 
 micBtn.addEventListener("click", async () => {
-  if (!transcriber) {
-    initTranscriber();
-  }
+  if (modelState !== "ready") return;
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
@@ -647,5 +686,7 @@ micBtn.addEventListener("click", async () => {
   }
 });
 
+ensureModelLoaded(); // interim trigger: page load
+updateMicState();
 loadSavedTokenForCurrentUrl();
 log("Page loaded. Configure the gateway URL/agent/token above, then Connect.");
