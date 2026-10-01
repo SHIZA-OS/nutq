@@ -125,7 +125,7 @@ if (isEvalMode) {
 // The mic is only usable once the model and VAD are loaded (the mic never opens
 // before that, so no speech is lost to a load) and there is somewhere to send:
 // an open socket, or nosend eval mode.
-let modelState: "loading" | "ready" | "failed" = sttModelValid ? "loading" : "failed";
+let modelState: "idle" | "loading" | "ready" | "failed" = sttModelValid ? "idle" : "failed";
 let socketOpen = false;
 let loadPromise: Promise<void> | null = null;
 const micHint = $<HTMLParagraphElement>("mic-hint");
@@ -135,11 +135,13 @@ function updateMicState() {
   micHint.textContent =
     modelState === "failed"
       ? "Speech model unavailable"
-      : modelState === "loading"
-        ? "Loading the speech model, one moment"
-        : micBtn.disabled
-          ? "Connect to start listening"
-          : "Tap to start listening";
+      : modelState === "idle"
+        ? "Connect to load the speech model"
+        : modelState === "loading"
+          ? "Loading the speech model, one moment"
+          : micBtn.disabled
+            ? "Connect to start listening"
+            : "Tap to start listening";
 }
 
 if (!sttModelValid) {
@@ -377,6 +379,7 @@ function connect() {
     return;
   }
 
+  ensureModelLoaded(); // in parallel with the connection; reuses an in-flight or finished load
   log(`Connecting to ${redactedUrlForDisplay(url)}`);
   setStatus(connStatus, "connecting…", "idle");
   receivedSessionStart = false;
@@ -634,7 +637,7 @@ function ensureModelLoaded() {
   if (loadPromise || !sttModelValid) return;
   modelState = "loading";
   setStatus(micStatus, "loading model…", "warn");
-  initTranscriber();
+  if (!transcriber) initTranscriber(); // reused on retry
   loadPromise = transcriber!.load().then(
     () => {
       modelState = "ready";
@@ -642,6 +645,7 @@ function ensureModelLoaded() {
     },
     (e) => {
       modelState = "failed";
+      loadPromise = null; // the next Connect retries; the failed state stays visible until then
       setStatus(micStatus, "model load failed", "error");
       log(`Model load failed: ${e}`);
       updateMicState();
@@ -686,7 +690,7 @@ micBtn.addEventListener("click", async () => {
   }
 });
 
-ensureModelLoaded(); // interim trigger: page load
+if (isEvalMode) ensureModelLoaded(); // eval: load at page load so a runner can wait for ready
 updateMicState();
 loadSavedTokenForCurrentUrl();
 log("Page loaded. Configure the gateway URL/agent/token above, then Connect.");

@@ -135,7 +135,13 @@ export default class MoonshineModel {
      */
     public async loadModel(): Promise<void> {
         if (!this.loadPromise) {
-            this.loadPromise = this.load();
+            // Local edit: on failure, clear the cached promise and loading flag so a
+            // later call retries instead of returning the same rejection forever.
+            this.loadPromise = this.load().catch((e) => {
+                this.loadPromise = null;
+                this.isModelLoading = false;
+                throw e;
+            });
         }
         return this.loadPromise;
     }
