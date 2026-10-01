@@ -1,0 +1,37 @@
+{"id":"fws-01","category":"first_word_soft","condition":"quiet","reference":"The meeting starts at nine in the morning."}
+{"id":"fws-02","category":"first_word_soft","condition":"quiet","reference":"A cup of coffee would be nice right now."}
+{"id":"fws-03","category":"first_word_soft","condition":"quiet","reference":"It's going to rain later this afternoon."}
+{"id":"fws-04","category":"first_word_soft","condition":"quiet","reference":"So what time does the store close today?"}
+{"id":"fws-05","category":"first_word_soft","condition":"quiet","reference":"The train leaves from platform four."}
+{"id":"fst-01","category":"first_word_strong","condition":"quiet","reference":"Seven people are coming to dinner tonight."}
+{"id":"fst-02","category":"first_word_strong","condition":"quiet","reference":"Monday is the busiest day of the week."}
+{"id":"fst-03","category":"first_word_strong","condition":"quiet","reference":"Please remind me to call the bank tomorrow."}
+{"id":"fst-04","category":"first_word_strong","condition":"quiet","reference":"Twelve students passed the final exam."}
+{"id":"fst-05","category":"first_word_strong","condition":"quiet","reference":"Bring the blue folder to the office."}
+{"id":"pw-01","category":"problem_words","condition":"quiet","reference":"The quick brown fox jumps over the lazy dog."}
+{"id":"pw-02","category":"problem_words","condition":"quiet","reference":"A fox ran quickly across the field."}
+{"id":"pw-03","category":"problem_words","condition":"quiet","reference":"She jumps rope every morning before school."}
+{"id":"pw-04","category":"problem_words","condition":"quiet","reference":"Click the button and wait for a quick reply."}
+{"id":"aq-01","category":"assistant_query","condition":"quiet","reference":"What is the capital of Australia?"}
+{"id":"aq-02","category":"assistant_query","condition":"quiet","reference":"How many minutes are in a day?"}
+{"id":"aq-03","category":"assistant_query","condition":"quiet","reference":"Set a timer for ten minutes."}
+{"id":"aq-04","category":"assistant_query","condition":"quiet","reference":"Tell me a short fact about the moon."}
+{"id":"aq-05","category":"assistant_query","condition":"quiet","reference":"What is the difference between a virus and bacteria?"}
+{"id":"aq-06","category":"assistant_query","condition":"quiet","reference":"Translate good morning into Spanish."}
+{"id":"num-01","category":"numbers","condition":"quiet","reference":"Add twenty five and seventeen."}
+{"id":"num-02","category":"numbers","condition":"quiet","reference":"My flight is at half past six."}
+{"id":"num-03","category":"numbers","condition":"quiet","reference":"Call me back in fifteen minutes."}
+{"id":"cas-01","category":"casual","condition":"quiet","reference":"Um, can you tell me what day it is?"}
+{"id":"cas-02","category":"casual","condition":"quiet","reference":"Hey, uh, what's the weather looking like?"}
+{"id":"cas-03","category":"casual","condition":"quiet","reference":"Wait, no, I meant the other one."}
+{"id":"sh-01","category":"short","condition":"quiet","reference":"Yes."}
+{"id":"sh-02","category":"short","condition":"quiet","reference":"Stop."}
+{"id":"sh-03","category":"short","condition":"quiet","reference":"Thank you."}
+{"id":"sh-04","category":"short","condition":"quiet","reference":"What?"}
+{"id":"sil-01","category":"silence","condition":"quiet","reference":""}
+{"id":"bn-01","category":"background_noise","condition":"background_noise","reference":"What is the capital of Australia?"}
+{"id":"bn-02","category":"background_noise","condition":"background_noise","reference":"How many minutes are in a day?"}
+{"id":"bn-03","category":"background_noise","condition":"background_noise","reference":"Set a timer for ten minutes."}
+{"id":"bn-04","category":"background_noise","condition":"background_noise","reference":"The meeting starts at nine in the morning."}
+{"id":"bn-05","category":"background_noise","condition":"background_noise","reference":"Seven people are coming to dinner tonight."}
+{"id":"bn-06","category":"background_noise","condition":"background_noise","reference":"The quick brown fox jumps over the lazy dog."}
