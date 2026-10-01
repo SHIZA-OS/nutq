@@ -1,5 +1,6 @@
-// @ts-nocheck — vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Only transcriber.ts has a deliberate local edit (VAD threshold passthrough).
+// @ts-nocheck
+// Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough), model.ts (loadModel retry after failure).
 
 /**
  * Errors that can occur during usage of MoonshineJS, along with a descriptive message.

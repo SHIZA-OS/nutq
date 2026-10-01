@@ -88,13 +88,13 @@ above only covered the success path. None of `socket.onerror`, `socket.onclose`,
 this, only plain `log()` text invisible to the JSONL export. Added:
 
 - `ws_error` (`socket.onerror`)
-- `ws_closed` (`socket.onclose`), carrying `{code, reason, received_session_start}` — the last field
+- `ws_closed` (`socket.onclose`), carrying `{code, reason, received_session_start}`: the last field
   distinguishes a drop after a real session was established (`received_session_start: true`) from an
   immediate rejection before one ever started (e.g. the 1006-on-bad-token case documented in
   [ARCHITECTURE.md](ARCHITECTURE.md)), which come from the same close code but mean different things
 - `turn_error_frame` (server's `"error"` frame), carrying `{message}`
 - `turn_aborted` (server's `"aborted"` frame)
-- `js_error`, from a global `window.onerror` and `unhandledrejection` handler — previously an
+- `js_error`, from a global `window.onerror` and `unhandledrejection` handler; previously an
   uncaught JS exception had zero visibility anywhere, not even the log panel
 
 **Session identity event:** `session_start` (the server's `"session_start"` frame), carrying
@@ -259,7 +259,7 @@ into its per-turn records (previously read and discarded). Per turn:
 - **`cancelled`**: matched server row with `event.action == "cancel"` (the user interrupted the turn
   server-side; the server sends an `"aborted"` frame).
 - **`dropped`**: no server row at all for that turn, plus a client-observed `ws_closed`/`ws_error`
-  before `done_received` — the connection died before `ws.rs`'s own success/fail/cancel trace write
+  before `done_received`: the connection died before `ws.rs`'s own success/fail/cancel trace write
   ever ran, so nothing is recorded server-side for this attempt. See section 8 for a known limitation
   in how this interacts with `join-latency.mjs`'s positional send-order matching.
   **A dropped turn has no server session by construction**: no `gateway_ws_turn` row means no
@@ -285,7 +285,7 @@ reported as a `session_level_events` entry, not invented as a phantom turn.
 recorded 3-turn session (the same one `join-latency.mjs` was verified against): 3/3 completed,
 `turn_completion_rate: 1`, `strict_session_completed: true`.
 
-### 5.6 Cost per turn — out of scope for Nutq's harness
+### 5.6 Cost per turn: out of scope for Nutq's harness
 
 **Decided out of scope, superseding the original plan below.** Cost per turn is a function of which
 ZeroClaw instance and which model is under test, not of Nutq itself; Nutq's own real cost is local
@@ -300,8 +300,8 @@ Two findings from the investigation that led to this decision, worth keeping on 
   (`crates/zeroclaw-config/src/cost/types.rs`, `crates/zeroclaw-runtime/src/agent/cost.rs`): rates
   come from `[cost.rates]` in `config.toml`, then a live-pricing snapshot (only populated if a
   provider sets `live_pricing = true`), then a local `pricing.json` catalog. In the deployment tested
-  against, none of the three exist — no `[cost]` section, no `live_pricing` flag, no `pricing.json` on
-  disk — so every rate falls through to `0.0` and `cost_usd` computes as a real `0.0 + 0.0 + 0.0`, not
+  against, none of the three exist: no `[cost]` section, no `live_pricing` flag, no `pricing.json` on
+  disk, so every rate falls through to `0.0` and `cost_usd` computes as a real `0.0 + 0.0 + 0.0`, not
   a missing/null value. The engine internally computes a `pricing_available` boolean
   (`unpriced.tokens == 0`) but never writes it to the trace, so a downstream reader has no way to tell
   "free" apart from "unpriced." Cross-checked against Anthropic's published pricing

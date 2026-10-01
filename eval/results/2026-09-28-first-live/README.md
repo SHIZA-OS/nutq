@@ -58,4 +58,4 @@ today's harness code against that same raw data, not a re-recording.
   `events-drop-test-no-message.jsonl` (the no-message drop test's single `ws_closed` event), and
   `trace-gw_c5986c81.jsonl` (the live `runtime-trace.jsonl` rows for this session only).
 - `summary.json` (committed): `join-latency.mjs` and `completion.mjs` output for the 3-turn session.
-  Numbers and outcomes only — no transcript text, no reply content, no tokens/secrets.
+  Numbers and outcomes only; no transcript text, no reply content, no tokens/secrets.

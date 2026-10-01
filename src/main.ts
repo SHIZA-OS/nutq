@@ -484,7 +484,7 @@ function connect() {
     });
     if (ev.code === 1006 && !receivedSessionStart) {
       log(
-        "Connection closed immediately, possibly an authentication rejection — if you have a " +
+        "Connection closed immediately, possibly an authentication rejection: if you have a " +
           "saved pairing token, it may be invalid, expired, or the instance may not require " +
           "pairing at all. Try re-pairing or check with your ZeroClaw operator.",
       );

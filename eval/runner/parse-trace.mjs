@@ -65,7 +65,7 @@ export function parseTrace(raw) {
   }
 
   // Order by @timestamp, not trace_id (trace_id is assigned per logging
-  // call-site, not per-turn — confirmed finding, docs/eval-harness-design.md §8).
+  // call-site, not per-turn; confirmed finding, docs/eval-harness-design.md §8).
   const result = {};
   for (const [sessionKey, entries] of turnsBySession) {
     entries.sort((a, b) => a["@timestamp"].localeCompare(b["@timestamp"]));

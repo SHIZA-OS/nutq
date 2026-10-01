@@ -1,4 +1,5 @@
-// @ts-nocheck — vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
+// @ts-nocheck
+// Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
 // this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
