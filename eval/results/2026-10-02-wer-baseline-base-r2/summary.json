@@ -103,7 +103,16 @@
     "n_has_digits": 8,
     "n_commit_mismatch": 0,
     "first_word_ok": 16,
-    "first_word_ok_rate": 0.4444444444444444
+    "first_word_ok_rate": 0.4444444444444444,
+    "num_norm": {
+      "ref_words": 234,
+      "S": 36,
+      "D": 7,
+      "I": 7,
+      "wer": 0.21367521367521367,
+      "first_word_ok": 17,
+      "first_word_ok_rate": 0.4722222222222222
+    }
   },
   "by_category": {
     "first_word_soft": {
@@ -118,7 +127,16 @@
       "n_has_digits": 2,
       "n_commit_mismatch": 0,
       "first_word_ok": 1,
-      "first_word_ok_rate": 0.2
+      "first_word_ok_rate": 0.2,
+      "num_norm": {
+        "ref_words": 38,
+        "S": 6,
+        "D": 2,
+        "I": 0,
+        "wer": 0.21052631578947367,
+        "first_word_ok": 1,
+        "first_word_ok_rate": 0.2
+      }
     },
     "first_word_strong": {
       "n_cases": 5,
@@ -132,7 +150,16 @@
       "n_has_digits": 1,
       "n_commit_mismatch": 0,
       "first_word_ok": 1,
-      "first_word_ok_rate": 0.2
+      "first_word_ok_rate": 0.2,
+      "num_norm": {
+        "ref_words": 36,
+        "S": 7,
+        "D": 1,
+        "I": 1,
+        "wer": 0.25,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 0.4
+      }
     },
     "problem_words": {
       "n_cases": 4,
@@ -146,7 +173,16 @@
       "n_has_digits": 0,
       "n_commit_mismatch": 0,
       "first_word_ok": 2,
-      "first_word_ok_rate": 0.5
+      "first_word_ok_rate": 0.5,
+      "num_norm": {
+        "ref_words": 32,
+        "S": 6,
+        "D": 0,
+        "I": 1,
+        "wer": 0.21875,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 0.5
+      }
     },
     "assistant_query": {
       "n_cases": 6,
@@ -160,7 +196,16 @@
       "n_has_digits": 1,
       "n_commit_mismatch": 0,
       "first_word_ok": 3,
-      "first_word_ok_rate": 0.5
+      "first_word_ok_rate": 0.5,
+      "num_norm": {
+        "ref_words": 41,
+        "S": 2,
+        "D": 1,
+        "I": 1,
+        "wer": 0.0975609756097561,
+        "first_word_ok": 3,
+        "first_word_ok_rate": 0.5
+      }
     },
     "numbers": {
       "n_cases": 3,
@@ -174,7 +219,16 @@
       "n_has_digits": 2,
       "n_commit_mismatch": 0,
       "first_word_ok": 1,
-      "first_word_ok_rate": 0.3333333333333333
+      "first_word_ok_rate": 0.3333333333333333,
+      "num_norm": {
+        "ref_words": 18,
+        "S": 3,
+        "D": 0,
+        "I": 1,
+        "wer": 0.2222222222222222,
+        "first_word_ok": 1,
+        "first_word_ok_rate": 0.3333333333333333
+      }
     },
     "casual": {
       "n_cases": 3,
@@ -188,7 +242,16 @@
       "n_has_digits": 0,
       "n_commit_mismatch": 0,
       "first_word_ok": 3,
-      "first_word_ok_rate": 1
+      "first_word_ok_rate": 1,
+      "num_norm": {
+        "ref_words": 21,
+        "S": 1,
+        "D": 0,
+        "I": 1,
+        "wer": 0.09523809523809523,
+        "first_word_ok": 3,
+        "first_word_ok_rate": 1
+      }
     },
     "short": {
       "n_cases": 4,
@@ -202,7 +265,16 @@
       "n_has_digits": 0,
       "n_commit_mismatch": 0,
       "first_word_ok": 2,
-      "first_word_ok_rate": 0.5
+      "first_word_ok_rate": 0.5,
+      "num_norm": {
+        "ref_words": 5,
+        "S": 0,
+        "D": 2,
+        "I": 0,
+        "wer": 0.4,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 0.5
+      }
     },
     "background_noise": {
       "n_cases": 6,
@@ -216,7 +288,16 @@
       "n_has_digits": 2,
       "n_commit_mismatch": 0,
       "first_word_ok": 3,
-      "first_word_ok_rate": 0.5
+      "first_word_ok_rate": 0.5,
+      "num_norm": {
+        "ref_words": 43,
+        "S": 11,
+        "D": 1,
+        "I": 2,
+        "wer": 0.32558139534883723,
+        "first_word_ok": 3,
+        "first_word_ok_rate": 0.5
+      }
     }
   },
   "by_condition": {
@@ -232,7 +313,16 @@
       "n_has_digits": 6,
       "n_commit_mismatch": 0,
       "first_word_ok": 13,
-      "first_word_ok_rate": 0.43333333333333335
+      "first_word_ok_rate": 0.43333333333333335,
+      "num_norm": {
+        "ref_words": 191,
+        "S": 25,
+        "D": 6,
+        "I": 5,
+        "wer": 0.18848167539267016,
+        "first_word_ok": 14,
+        "first_word_ok_rate": 0.4666666666666667
+      }
     },
     "background_noise": {
       "n_cases": 6,
@@ -246,19 +336,36 @@
       "n_has_digits": 2,
       "n_commit_mismatch": 0,
       "first_word_ok": 3,
-      "first_word_ok_rate": 0.5
+      "first_word_ok_rate": 0.5,
+      "num_norm": {
+        "ref_words": 43,
+        "S": 11,
+        "D": 1,
+        "I": 2,
+        "wer": 0.32558139534883723,
+        "first_word_ok": 3,
+        "first_word_ok_rate": 0.5
+      }
     }
   },
   "first_word": {
     "first_word_soft": {
       "n_scored": 5,
       "first_word_ok": 1,
-      "first_word_ok_rate": 0.2
+      "first_word_ok_rate": 0.2,
+      "num_norm": {
+        "first_word_ok": 1,
+        "first_word_ok_rate": 0.2
+      }
     },
     "first_word_strong": {
       "n_scored": 5,
       "first_word_ok": 1,
-      "first_word_ok_rate": 0.2
+      "first_word_ok_rate": 0.2,
+      "num_norm": {
+        "first_word_ok": 2,
+        "first_word_ok_rate": 0.4
+      }
     }
   },
   "silence": {
@@ -335,6 +442,14 @@
           "hyp": "morning"
         }
       ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.125,
+        "first_word_ok": false
+      },
       "burst_affected": true
     },
     {
@@ -401,7 +516,15 @@
           "ref": "now",
           "hyp": "now"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 9,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "fws-03",
@@ -457,7 +580,15 @@
           "ref": "afternoon",
           "hyp": "afternoon"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 0.14285714285714285,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fws-04",
@@ -518,7 +649,15 @@
           "ref": "today",
           "hyp": "today"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 3,
+        "D": 1,
+        "I": 0,
+        "wer": 0.5,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fws-05",
@@ -569,7 +708,15 @@
           "ref": "four",
           "hyp": "4"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 2,
+        "D": 0,
+        "I": 0,
+        "wer": 0.3333333333333333,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fst-01",
@@ -625,7 +772,15 @@
           "ref": "tonight",
           "hyp": "tonight"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.14285714285714285,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fst-02",
@@ -691,7 +846,15 @@
           "ref": "week",
           "hyp": "week"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 1,
+        "D": 0,
+        "I": 1,
+        "wer": 0.25,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fst-03",
@@ -752,7 +915,15 @@
           "ref": "tomorrow",
           "hyp": "tumor"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 5,
+        "D": 1,
+        "I": 0,
+        "wer": 0.75,
+        "first_word_ok": false
+      }
     },
     {
       "id": "fst-04",
@@ -803,7 +974,15 @@
           "ref": "exam",
           "hyp": "exam"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "fst-05",
@@ -859,7 +1038,15 @@
           "ref": "office",
           "hyp": "office"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "pw-01",
@@ -925,7 +1112,15 @@
           "ref": "dog",
           "hyp": "door"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 9,
+        "S": 3,
+        "D": 0,
+        "I": 0,
+        "wer": 0.3333333333333333,
+        "first_word_ok": false
+      }
     },
     {
       "id": "pw-02",
@@ -981,7 +1176,15 @@
           "ref": "field",
           "hyp": "field"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 2,
+        "D": 0,
+        "I": 0,
+        "wer": 0.2857142857142857,
+        "first_word_ok": true
+      }
     },
     {
       "id": "pw-03",
@@ -1042,7 +1245,15 @@
           "ref": "school",
           "hyp": "school"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 1,
+        "D": 0,
+        "I": 1,
+        "wer": 0.2857142857142857,
+        "first_word_ok": false
+      }
     },
     {
       "id": "pw-04",
@@ -1108,7 +1319,15 @@
           "ref": "reply",
           "hyp": "reply"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 9,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "aq-01",
@@ -1159,7 +1378,15 @@
           "ref": "australia",
           "hyp": "australia"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "aq-02",
@@ -1215,7 +1442,15 @@
           "ref": "day",
           "hyp": "day"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 0.14285714285714285,
+        "first_word_ok": false
+      }
     },
     {
       "id": "aq-03",
@@ -1266,7 +1501,15 @@
           "ref": "minutes",
           "hyp": "minutes"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.16666666666666666,
+        "first_word_ok": false
+      }
     },
     {
       "id": "aq-04",
@@ -1327,7 +1570,15 @@
           "ref": "moon",
           "hyp": "moon"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "aq-05",
@@ -1393,7 +1644,15 @@
           "ref": "bacteria",
           "hyp": "bacteria"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 9,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "aq-06",
@@ -1444,7 +1703,15 @@
           "ref": "spanish",
           "hyp": "spanish"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 5,
+        "S": 1,
+        "D": 0,
+        "I": 1,
+        "wer": 0.4,
+        "first_word_ok": false
+      }
     },
     {
       "id": "num-01",
@@ -1490,7 +1757,15 @@
           "ref": "seventeen",
           "hyp": "17"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 5,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.2,
+        "first_word_ok": false
+      }
     },
     {
       "id": "num-02",
@@ -1551,7 +1826,15 @@
           "ref": "six",
           "hyp": "six"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 2,
+        "D": 0,
+        "I": 1,
+        "wer": 0.42857142857142855,
+        "first_word_ok": false
+      }
     },
     {
       "id": "num-03",
@@ -1602,7 +1885,15 @@
           "ref": "minutes",
           "hyp": "minutes"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "cas-01",
@@ -1663,7 +1954,15 @@
           "ref": "is",
           "hyp": "is"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.125,
+        "first_word_ok": true
+      }
     },
     {
       "id": "cas-02",
@@ -1719,7 +2018,15 @@
           "ref": "like",
           "hyp": "like"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 0,
+        "D": 0,
+        "I": 1,
+        "wer": 0.16666666666666666,
+        "first_word_ok": true
+      }
     },
     {
       "id": "cas-03",
@@ -1775,7 +2082,15 @@
           "ref": "one",
           "hyp": "one"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "sh-01",
@@ -1801,7 +2116,15 @@
           "ref": "yes",
           "hyp": "yes"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "sh-02",
@@ -1827,7 +2150,15 @@
           "ref": "stop",
           "hyp": null
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": false
+      }
     },
     {
       "id": "sh-03",
@@ -1858,7 +2189,15 @@
           "ref": "you",
           "hyp": "you"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 2,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
     },
     {
       "id": "sh-04",
@@ -1884,7 +2223,15 @@
           "ref": "what",
           "hyp": null
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": false
+      }
     },
     {
       "id": "sil-01",
@@ -1950,6 +2297,14 @@
           "hyp": "australia"
         }
       ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      },
       "burst_affected": true
     },
     {
@@ -2006,7 +2361,15 @@
           "ref": "day",
           "hyp": "in"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 2,
+        "D": 0,
+        "I": 0,
+        "wer": 0.2857142857142857,
+        "first_word_ok": true
+      }
     },
     {
       "id": "bn-03",
@@ -2058,6 +2421,14 @@
           "hyp": "minutes"
         }
       ],
+      "num_norm": {
+        "ref_words": 6,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.16666666666666666,
+        "first_word_ok": true
+      },
       "burst_affected": true
     },
     {
@@ -2119,7 +2490,15 @@
           "ref": "morning",
           "hyp": "morning"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 8,
+        "S": 2,
+        "D": 1,
+        "I": 0,
+        "wer": 0.375,
+        "first_word_ok": false
+      }
     },
     {
       "id": "bn-05",
@@ -2175,7 +2554,15 @@
           "ref": "tonight",
           "hyp": "tonight"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 7,
+        "S": 1,
+        "D": 0,
+        "I": 0,
+        "wer": 0.14285714285714285,
+        "first_word_ok": false
+      }
     },
     {
       "id": "bn-06",
@@ -2251,7 +2638,15 @@
           "ref": "dog",
           "hyp": "dog"
         }
-      ]
+      ],
+      "num_norm": {
+        "ref_words": 9,
+        "S": 5,
+        "D": 0,
+        "I": 2,
+        "wer": 0.7777777777777778,
+        "first_word_ok": false
+      }
     }
   ],
   "burst_affected": [
@@ -2278,18 +2673,35 @@
       "n_has_digits": 6,
       "n_commit_mismatch": 0,
       "first_word_ok": 14,
-      "first_word_ok_rate": 0.42424242424242425
+      "first_word_ok_rate": 0.42424242424242425,
+      "num_norm": {
+        "ref_words": 214,
+        "S": 34,
+        "D": 7,
+        "I": 7,
+        "wer": 0.22429906542056074,
+        "first_word_ok": 15,
+        "first_word_ok_rate": 0.45454545454545453
+      }
     },
     "first_word": {
       "first_word_soft": {
         "n_scored": 4,
         "first_word_ok": 1,
-        "first_word_ok_rate": 0.25
+        "first_word_ok_rate": 0.25,
+        "num_norm": {
+          "first_word_ok": 1,
+          "first_word_ok_rate": 0.25
+        }
       },
       "first_word_strong": {
         "n_scored": 5,
         "first_word_ok": 1,
-        "first_word_ok_rate": 0.2
+        "first_word_ok_rate": 0.2,
+        "num_norm": {
+          "first_word_ok": 2,
+          "first_word_ok_rate": 0.4
+        }
       }
     }
   }

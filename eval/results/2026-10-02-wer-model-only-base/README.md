@@ -59,4 +59,31 @@ fws-01, bn-01 and bn-03 begin with a loud recording burst (near full-scale, deca
 | first_word_ok, first_word_soft | 5/5 | 4/4 |
 | first_word_ok, first_word_strong | 2/5 | 2/5 |
 
-Reproduce: a throwaway driver (not committed) importing `/src/vendor/model.ts` through the Vite dev server with `page.evaluate`.
+Command: `node eval/runner/run-model-only.mjs --label model-only-base --model model/base`
+
+## number_normalization
+
+Scoring change, not a pipeline change. This run's raw events are untouched; only `wer.mjs` changed.
+It now also reports `num_norm`: 1 and 2 digit integers are turned into words on both sides before alignment (12 -> twelve, 25 -> twenty five).
+The raw figures above are the old scoring and are unchanged. `has_digits` still flags the raw hypothesis.
+
+| | all cases | excluding burst_affected |
+|---|---|---|
+| corpus WER, raw | 28.2% | 24.8% |
+| corpus WER, num_norm | 24.4% | 21.0% |
+| first_word_soft first_word_ok | 5/5 raw, 5/5 num_norm | 4/4 raw, 4/4 num_norm |
+| first_word_strong first_word_ok | 2/5 raw, 3/5 num_norm | 2/5 raw, 3/5 num_norm |
+
+Cases whose hypothesis contains digits:
+
+| id | WER raw | WER num_norm | hypothesis |
+|---|---|---|---|
+| fws-01 (burst_affected) | 12.5% | 0.0% | "The meeting starts at 9 in the morning" |
+| fws-05 | 33.3% | 16.7% | "The train leads from platform 4." |
+| fst-01 | 14.3% | 0.0% | "7 people are coming to dinner tonight." |
+| aq-03 | 16.7% | 0.0% | "Set a timer for 10 minutes." |
+| num-01 | 80.0% | 20.0% | "At 25 and 17." |
+| num-03 | 16.7% | 0.0% | "Call me back in 15 minutes" |
+| bn-04 | 37.5% | 25.0% | "The meeting started 9 in the morning." |
+
+Not handled: integers of 3 or more digits, ordinals, decimals and times (none occur in these runs).
