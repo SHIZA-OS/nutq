@@ -29,7 +29,7 @@ import { chromium } from "playwright-core";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "./wer.mjs";
+import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection, burstSection } from "./wer.mjs";
 import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
@@ -101,7 +101,7 @@ function readme({ args, date, summary, run }) {
     "",
     "Command: `" + `node eval/runner/run-model-only.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + (args.trim !== null ? ` --trim-from-trigger ${args.trim} --triggers ${args.triggers}` : "") + "`",
     "",
-  ].join("\n") + numNormSection(summary);
+  ].join("\n") + burstSection(summary) + numNormSection(summary);
 }
 
 async function main() {

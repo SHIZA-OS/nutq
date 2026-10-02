@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalize, normalizeNumbers, numNormSection, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { normalize, normalizeNumbers, numNormSection, burstSection, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 // Event shapes copied from a real run (verify-base-unpadded): stt_model,
 // mic_button_press, speech_start, stt_committed {text}, speech_end,
@@ -271,4 +271,21 @@ test("numNormSection: raw and num_norm side by side, burst column only when flag
   // a numeral the rule does not cover is called out, not hidden
   const big = { id: "x", category: "numbers", condition: "quiet", reference: "Call six hundred." };
   assert.match(numNormSection(scoreRun([big], { x: turn(["x"], "Call 600.") })), /unconverted digit tokens remain in: x\)/);
+});
+
+test("burstSection: empty without flags, otherwise the all vs excluding-burst table", () => {
+  const fws = { id: "fws-01", category: "first_word_soft", condition: "quiet", reference: "The meeting starts at nine." }; // 5 words
+  const fst = { id: "fst-01", category: "first_word_strong", condition: "quiet", reference: "Seven people are coming." }; // 4 words
+  const events = {
+    "fws-01": turn(["x"], "meeting starts at nine."), // 1 error, first word wrong
+    "fst-01": turn(["x"], "Seven people are coming."),
+  };
+  assert.equal(burstSection(scoreRun([fws, fst], events)), "");
+  const s = burstSection(scoreRun([fws, fst], events, { "fws-01": ["burst_affected"] }));
+  assert.match(s, /^\n## burst_affected\n\nfws-01 begin with a loud recording burst/);
+  assert.match(s, /\| corpus WER \(excl\. silence\) \| 11\.1% \(9 ref words\) \| 0\.0% \(4 ref words\) \|\n/);
+  assert.match(s, /\| first_word_ok, first_word_soft \| 0\/1 \| 0\/0 \|\n/);
+  assert.match(s, /\| first_word_ok, first_word_strong \| 1\/1 \| 1\/1 \|\n$/);
+  const two = burstSection(scoreRun([fws, fst], events, { "fws-01": ["burst_affected"], "fst-01": ["burst_affected"] }));
+  assert.match(two, /\nfws-01 and fst-01 begin with/);
 });

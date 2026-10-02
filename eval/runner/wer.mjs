@@ -249,6 +249,36 @@ export function scoreRun(cases, eventsById, flags = {}) {
   return out;
 }
 
+// README section for the burst_affected flag: all cases against the same run without the flagged ones.
+// ponytail: the burst description is specific to the current recordings (fws-01, bn-01, bn-03);
+// move it next to the flags in recording-flags.json if another flag needs its own text.
+export function burstSection(summary) {
+  if (!summary.excluding_burst_affected) return "";
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const all = summary.overall_excluding_silence;
+  const ex = summary.excluding_burst_affected.overall_excluding_silence;
+  const ids = summary.burst_affected;
+  const list = ids.length > 1 ? `${ids.slice(0, -1).join(", ")} and ${ids.at(-1)}` : ids[0];
+  const fw = (k) => {
+    const a = summary.first_word[k];
+    const b = summary.excluding_burst_affected.first_word[k];
+    return `| first_word_ok, ${k} | ${a.first_word_ok}/${a.n_scored} | ${b.first_word_ok}/${b.n_scored} |`;
+  };
+  return [
+    "",
+    "## burst_affected",
+    "",
+    `${list} begin with a loud recording burst (near full-scale, decaying over 0.7 s to 2.5 s) before speech. They are kept in the corpus deliberately and flagged \`burst_affected\` in summary.json.`,
+    "",
+    "| | all cases | excluding burst_affected |",
+    "|---|---|---|",
+    `| corpus WER (excl. silence) | ${pct(all.wer)} (${all.ref_words} ref words) | ${pct(ex.wer)} (${ex.ref_words} ref words) |`,
+    fw("first_word_soft"),
+    fw("first_word_strong"),
+    "",
+  ].join("\n");
+}
+
 // README section comparing raw and number-normalized scoring, shared by run-wer.mjs and run-model-only.mjs.
 // ponytail: no cross-run mean; that needs several runs, so add it by hand when a baseline spans repeats.
 export function numNormSection(summary) {
