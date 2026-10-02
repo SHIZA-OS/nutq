@@ -49,6 +49,16 @@ Nothing was sent to ZeroClaw. Hypothesis text is included because the cases are 
 
 Command: `node eval/runner/run-wer.mjs --label pre-roll-r3 --model model/base`
 
+## burst_affected
+
+fws-01, bn-01 and bn-03 begin with a loud recording burst (near full-scale, decaying over 0.7 s to 2.5 s) before speech. They are kept in the corpus deliberately and flagged `burst_affected` in summary.json.
+
+| | all cases | excluding burst_affected |
+|---|---|---|
+| corpus WER (excl. silence) | 17.9% (234 ref words) | 15.4% (214 ref words) |
+| first_word_ok, first_word_soft | 5/5 | 4/4 |
+| first_word_ok, first_word_strong | 3/5 | 3/5 |
+
 ## number_normalization
 
 Scoring change, not a pipeline change. This run's raw events are untouched; only `wer.mjs` changed.
@@ -75,17 +85,9 @@ Cases whose hypothesis contains digits:
 
 Not handled: integers of 3 or more digits, ordinals, decimals and times (none occur in these runs).
 
-## burst_affected
+## pre_roll (added by hand)
 
-fws-01, bn-01 and bn-03 begin with a loud recording burst (near full-scale, decaying over 0.7 s to 2.5 s) before speech. They are kept in the corpus deliberately and flagged `burst_affected` in summary.json.
-
-| | all cases | excluding burst_affected |
-|---|---|---|
-| corpus WER (excl. silence), raw | 17.9% (234 ref words) | 15.4% (214 ref words) |
-| first_word_ok, first_word_soft | 5/5 | 4/4 |
-| first_word_ok, first_word_strong | 3/5 | 3/5 |
-
-## pre_roll
+Added by hand after the runs with a one-off script that is not in the repo. `run-wer.mjs` does not generate this section, because it compares several runs. The sections above it are generated.
 
 Pipeline run with the 4 frame pre-roll (128 ms; `PRE_ROLL_FRAMES` in src/main.ts, commit 2783344, first pass, not calibrated). Same 37 cases, same recordings and the same settings as `baseline-base-r1` to `r3` (VAD thresholds unchanged). Eval mode logs a `pre_roll { frames }` event on every speech start.
 

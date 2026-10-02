@@ -65,7 +65,7 @@ Scoring change, not a pipeline change. This run's raw events are untouched; only
 It now also reports `num_norm`: 1 and 2 digit integers are turned into words on both sides before alignment (12 -> twelve, 25 -> twenty five).
 The raw figures above are the old scoring and are unchanged. `has_digits` still flags the raw hypothesis.
 
-**Pipeline baseline, mean of the 3 repeats (r1 to r3), all 37 cases: 27.5% raw (the old baseline), 23.5% number-normalized.** Excluding burst_affected: 27.6% raw, 24.0% number-normalized.
+**Pipeline baseline, mean of the 3 repeats (r1 to r3), all 37 cases: 27.5% raw (the old baseline), 23.5% number-normalized.** Excluding burst_affected: 27.6% raw, 24.0% number-normalized. (This mean line was added by hand after the runs; `run-wer.mjs` does not generate it.)
 
 | | all cases | excluding burst_affected |
 |---|---|---|
