@@ -11,8 +11,12 @@
 // stt_committed events (text) from the events file. Scoring rules:
 //   - normalize both sides: lowercase, hyphens split into words, apostrophes
 //     removed (it's -> its), other punctuation stripped, whitespace collapsed,
-//     fillers (um umm uh uhh er erm) removed. Numbers are NOT normalized;
-//     a hypothesis containing digits is flagged has_digits.
+//     fillers (um umm uh uhh er erm) removed. This is the raw scoring (S, D, I,
+//     wer, first_word_ok at the top level), and it does not touch numbers; a
+//     hypothesis containing digits is flagged has_digits.
+//   - num_norm is the same scoring after turning 1 and 2 digit integers into words
+//     on both sides (12 -> twelve, 25 -> twenty five). It sits next to the raw
+//     figures, per case and in every aggregate, so raw results stay comparable.
 //   - word-level edit distance with backtrace gives S/D/I and aligned pairs.
 //   - no transcript_final (or no events file) -> status "no_transcript",
 //     counted separately, never skipped. Empty transcript text -> all deletions.
@@ -38,6 +42,21 @@ export function normalize(text) {
     .replace(/[^\p{L}\p{N}\s]/gu, " ")
     .split(/\s+/)
     .filter((w) => w && !FILLERS.has(w));
+}
+
+const ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(" ");
+const TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split(" ");
+
+// 1 and 2 digit integer tokens -> words; every other token is left alone.
+// ponytail: covers every numeral in the data (4 7 9 10 12 15 17 25). Not handled: 3+ digits,
+// ordinals (2nd), decimals, times. They stay as digits (still flagged has_digits); extend when a case needs one.
+export function normalizeNumbers(words) {
+  return words.flatMap((w) => {
+    if (!/^\d{1,2}$/.test(w)) return [w];
+    const n = Number(w);
+    if (n < 20) return [ONES[n]];
+    return n % 10 ? [TENS[(n / 10) | 0], ONES[n % 10]] : [TENS[n / 10]];
+  });
 }
 
 // Word-level Levenshtein with backtrace. Ties prefer match/substitution, then
@@ -112,6 +131,8 @@ export function scoreCase(c, events) {
 
   const { pairs, S, D, I } = align(refWords, hypWords);
   const firstRef = pairs.find((p) => p.ref !== null);
+  const refN = normalizeNumbers(refWords);
+  const n = align(refN, normalizeNumbers(hypWords));
   return {
     ...out,
     status: "scored",
@@ -123,6 +144,14 @@ export function scoreCase(c, events) {
     wer: (S + D + I) / refWords.length,
     first_word_ok: firstRef?.op === "ok",
     alignment: pairs,
+    num_norm: {
+      ref_words: refN.length,
+      S: n.S,
+      D: n.D,
+      I: n.I,
+      wer: (n.S + n.D + n.I) / refN.length,
+      first_word_ok: n.pairs.find((p) => p.ref !== null)?.op === "ok",
+    },
   };
 }
 
@@ -131,6 +160,10 @@ function groupAgg(results) {
   const sum = (k) => scored.reduce((a, r) => a + r[k], 0);
   const refWords = sum("ref_words");
   const errors = sum("S") + sum("D") + sum("I");
+  const nsum = (k) => scored.reduce((a, r) => a + r.num_norm[k], 0);
+  const nRefWords = nsum("ref_words");
+  const nErrors = nsum("S") + nsum("D") + nsum("I");
+  const nFirstOk = scored.filter((r) => r.num_norm.first_word_ok).length;
   return {
     n_cases: results.length,
     n_scored: scored.length,
@@ -144,6 +177,15 @@ function groupAgg(results) {
     n_commit_mismatch: results.filter((r) => r.commit_mismatch === true).length,
     first_word_ok: scored.filter((r) => r.first_word_ok).length,
     first_word_ok_rate: scored.length ? scored.filter((r) => r.first_word_ok).length / scored.length : null,
+    num_norm: {
+      ref_words: nRefWords,
+      S: nsum("S"),
+      D: nsum("D"),
+      I: nsum("I"),
+      wer: nRefWords ? nErrors / nRefWords : null,
+      first_word_ok: nFirstOk,
+      first_word_ok_rate: scored.length ? nFirstOk / scored.length : null,
+    },
   };
 }
 
@@ -172,7 +214,12 @@ export function scoreRun(cases, eventsById, flags = {}) {
   const silence = results.filter(isSilence);
   const fw = (cat) => {
     const a = groupAgg(results.filter((r) => r.category === cat));
-    return { n_scored: a.n_scored, first_word_ok: a.first_word_ok, first_word_ok_rate: a.first_word_ok_rate };
+    return {
+      n_scored: a.n_scored,
+      first_word_ok: a.first_word_ok,
+      first_word_ok_rate: a.first_word_ok_rate,
+      num_norm: { first_word_ok: a.num_norm.first_word_ok, first_word_ok_rate: a.num_norm.first_word_ok_rate },
+    };
   };
   const burst = results.filter((r) => r.burst_affected).map((r) => r.id);
   const out = {
@@ -256,14 +303,14 @@ function main(argv) {
   for (const r of summary.cases) {
     const detail =
       r.status === "scored"
-        ? `WER ${pct(r.wer)} S${r.S} D${r.D} I${r.I} first_word_ok=${r.first_word_ok}`
+        ? `WER ${pct(r.wer)} (num_norm ${pct(r.num_norm.wer)}) S${r.S} D${r.D} I${r.I} first_word_ok=${r.first_word_ok}`
         : r.status === "silence"
           ? `words_produced=${r.words_produced} (expected 0)`
           : `${r.reason}`;
     console.error(`${r.id.padEnd(8)} ${r.status.padEnd(13)} ${detail}  ${JSON.stringify(r.hypothesis ?? "")}`);
   }
   console.error(
-    `overall (excl. silence): WER ${pct(summary.overall_excluding_silence.wer)}, ` +
+    `overall (excl. silence): WER ${pct(summary.overall_excluding_silence.wer)} (num_norm ${pct(summary.overall_excluding_silence.num_norm.wer)}), ` +
       `${summary.meta.n_scored} scored, ${summary.meta.n_no_transcript} no_transcript. Wrote ${out}`,
   );
 }

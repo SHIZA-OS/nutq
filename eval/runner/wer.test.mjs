@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalize, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { normalize, normalizeNumbers, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 // Event shapes copied from a real run (verify-base-unpadded): stt_model,
 // mic_button_press, speech_start, stt_committed {text}, speech_end,
@@ -196,4 +196,58 @@ test("no flags means no burst_affected keys in the summary", () => {
   assert.equal("burst_affected" in run, false);
   assert.equal("excluding_burst_affected" in run, false);
   assert.equal("burst_affected" in run.cases[0], false);
+});
+
+// Every numeral seen in the hypotheses of the 3 pipeline repeats and the model-only run.
+test("normalizeNumbers: 1 and 2 digit integers become words, covering every real token", () => {
+  const real = { 4: "four", 7: "seven", 9: "nine", 10: "ten", 12: "twelve", 15: "fifteen", 17: "seventeen", 25: "twenty five" };
+  for (const [digits, words] of Object.entries(real)) assert.deepEqual(normalizeNumbers([digits]), words.split(" "), digits);
+  assert.deepEqual(normalizeNumbers(["0", "20", "99"]), ["zero", "twenty", "ninety", "nine"]);
+  // everything else is left alone: words, 3+ digits, mixed tokens
+  assert.deepEqual(normalizeNumbers(["nine", "100", "2nd", "a"]), ["nine", "100", "2nd", "a"]);
+});
+
+test("number-normalized scoring sits next to the raw scoring, which is unchanged", () => {
+  // fst-04, r1: "12" was the first word
+  const fst04 = { id: "fst-04", category: "first_word_strong", condition: "quiet", reference: "Twelve students passed the final exam." };
+  const a = scoreCase(fst04, turn(["12 students passed the final exam."], "12 students passed the final exam."));
+  assert.equal(a.has_digits, true);
+  assert.equal(a.hypothesis, "12 students passed the final exam."); // raw hypothesis kept
+  assert.deepEqual([a.S, a.D, a.I, a.wer, a.first_word_ok], [1, 0, 0, 1 / 6, false]);
+  assert.deepEqual([a.num_norm.S, a.num_norm.D, a.num_norm.I, a.num_norm.wer, a.num_norm.first_word_ok], [0, 0, 0, 0, true]);
+
+  // num-01, r1: "At 25 and 17." against "Add twenty five and seventeen."
+  const num01 = { id: "num-01", category: "numbers", condition: "quiet", reference: "Add twenty five and seventeen." };
+  const b = scoreCase(num01, turn(["At 25 and 17."], "At 25 and 17."));
+  assert.equal(b.wer, 4 / 5);
+  assert.deepEqual([b.num_norm.S, b.num_norm.D, b.num_norm.I], [1, 0, 0]); // only add/at is wrong
+  assert.equal(b.num_norm.wer, 1 / 5);
+  assert.equal(b.num_norm.ref_words, 5);
+
+  // fws-05, r1: 4 and two stray letters
+  const fws05 = { id: "fws-05", category: "first_word_soft", condition: "quiet", reference: "The train leaves from platform four." };
+  const c = scoreCase(fws05, turn(["x"], "A train leads from platform 4. P. P"));
+  assert.equal(c.wer, 5 / 6);
+  assert.equal(c.num_norm.wer, 4 / 6);
+
+  // no digits: both views agree
+  const d = scoreCase(FOX, turn(["A quick brown pox jumps over the lazy dog."], "A quick brown pox jumps over the lazy dog."));
+  assert.equal(d.num_norm.wer, d.wer);
+});
+
+test("aggregates carry raw and number-normalized corpus WER, including first_word", () => {
+  const fst04 = { id: "fst-04", category: "first_word_strong", condition: "quiet", reference: "Twelve students passed the final exam." }; // 6 words
+  const aq03 = { id: "aq-03", category: "quick_questions", condition: "quiet", reference: "Set a timer for ten minutes." }; // 6 words
+  const run = scoreRun([fst04, aq03], {
+    "fst-04": turn(["x"], "12 students passed the final exam."), // raw 1 err, normalized 0
+    "aq-03": turn(["x"], "At a time of 10 mins."), // raw 5 err (set/at, timer/time, for/of, ten/10, minutes/mins), normalized 4
+  });
+  const o = run.overall_excluding_silence;
+  assert.equal(o.wer, 6 / 12);
+  assert.equal(o.num_norm.wer, 4 / 12);
+  assert.equal(o.num_norm.ref_words, 12);
+  assert.equal(o.n_has_digits, 2);
+  assert.equal(run.by_category.first_word_strong.num_norm.wer, 0);
+  assert.equal(run.first_word.first_word_strong.first_word_ok_rate, 0);
+  assert.equal(run.first_word.first_word_strong.num_norm.first_word_ok_rate, 1);
 });
