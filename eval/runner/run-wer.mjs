@@ -23,7 +23,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseJsonl, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "./wer.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
 const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
@@ -178,7 +178,7 @@ function readme({ args, date, summary, run }) {
     "",
     "Command: `" + `node eval/runner/run-wer.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + "`",
     "",
-  ].join("\n");
+  ].join("\n") + numNormSection(summary);
 }
 
 async function main() {

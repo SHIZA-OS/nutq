@@ -24,7 +24,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseJsonl, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "./wer.mjs";
 
 // ponytail: freePort, startVite and the cleanup hooks are copied from run-wer.mjs.
 // Move them to a shared module if a third driver appears.
@@ -134,7 +134,7 @@ function readme({ args, date, summary, run }) {
     "",
     "Command: `" + `node eval/runner/run-model-only.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + "`",
     "",
-  ].join("\n");
+  ].join("\n") + numNormSection(summary);
 }
 
 async function main() {

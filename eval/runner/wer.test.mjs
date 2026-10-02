@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalize, normalizeNumbers, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { normalize, normalizeNumbers, numNormSection, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 // Event shapes copied from a real run (verify-base-unpadded): stt_model,
 // mic_button_press, speech_start, stt_committed {text}, speech_end,
@@ -250,4 +250,25 @@ test("aggregates carry raw and number-normalized corpus WER, including first_wor
   assert.equal(run.by_category.first_word_strong.num_norm.wer, 0);
   assert.equal(run.first_word.first_word_strong.first_word_ok_rate, 0);
   assert.equal(run.first_word.first_word_strong.num_norm.first_word_ok_rate, 1);
+});
+
+test("numNormSection: raw and num_norm side by side, burst column only when flagged", () => {
+  const fst04 = { id: "fst-04", category: "first_word_strong", condition: "quiet", reference: "Twelve students passed the final exam." };
+  const events = { "fst-04": turn(["x"], "12 students passed the final exam.") };
+  const plain = numNormSection(scoreRun([fst04], events));
+  assert.match(plain, /^\n## number_normalization\n/);
+  assert.match(plain, /Scoring change, not a pipeline change/);
+  assert.match(plain, /\| corpus WER, raw \| 16\.7% \|\n/); // one column, no burst split
+  assert.match(plain, /\| corpus WER, num_norm \| 0\.0% \|\n/);
+  assert.match(plain, /\| first_word_strong first_word_ok \| 0\/1 raw, 1\/1 num_norm \|\n/);
+  assert.match(plain, /\| fst-04 \| 16\.7% \| 0\.0% \| "12 students passed the final exam\." \|/);
+  assert.match(plain, /\(none occur in these runs\)/);
+
+  const flagged = numNormSection(scoreRun([fst04], events, { "fst-04": ["burst_affected"] }));
+  assert.match(flagged, /\| \| all cases \| excluding burst_affected \|/);
+  assert.match(flagged, /\| fst-04 \(burst_affected\) \|/);
+
+  // a numeral the rule does not cover is called out, not hidden
+  const big = { id: "x", category: "numbers", condition: "quiet", reference: "Call six hundred." };
+  assert.match(numNormSection(scoreRun([big], { x: turn(["x"], "Call 600.") })), /unconverted digit tokens remain in: x\)/);
 });

@@ -249,6 +249,48 @@ export function scoreRun(cases, eventsById, flags = {}) {
   return out;
 }
 
+// README section comparing raw and number-normalized scoring, shared by run-wer.mjs and run-model-only.mjs.
+// ponytail: no cross-run mean; that needs several runs, so add it by hand when a baseline spans repeats.
+export function numNormSection(summary) {
+  const pct = (x) => `${(x * 100).toFixed(1)}%`;
+  const cols = summary.excluding_burst_affected ? [summary.overall_excluding_silence, summary.excluding_burst_affected.overall_excluding_silence] : [summary.overall_excluding_silence];
+  const fwCols = summary.excluding_burst_affected ? [summary.first_word, summary.excluding_burst_affected.first_word] : [summary.first_word];
+  const row = (label, f) => `| ${label} | ${cols.map((_, i) => f(i)).join(" | ")} |`;
+  const fw = (k) => (i) => {
+    const f = fwCols[i][k];
+    return `${f.first_word_ok}/${f.n_scored} raw, ${f.num_norm.first_word_ok}/${f.n_scored} num_norm`;
+  };
+  const digitRows = summary.cases
+    .filter((c) => c.status === "scored" && c.has_digits)
+    .map((c) => `| ${c.id}${c.burst_affected ? " (burst_affected)" : ""} | ${pct(c.wer)} | ${pct(c.num_norm.wer)} | ${JSON.stringify(c.hypothesis)} |`);
+  const unconverted = summary.cases.filter((c) => c.status === "scored" && normalizeNumbers(normalize(c.hypothesis)).some((w) => /\d/.test(w))).map((c) => c.id);
+  return [
+    "",
+    "## number_normalization",
+    "",
+    "Scoring change, not a pipeline change. This run's raw events are untouched; only `wer.mjs` changed.",
+    "It now also reports `num_norm`: 1 and 2 digit integers are turned into words on both sides before alignment (12 -> twelve, 25 -> twenty five).",
+    "The raw figures above are the old scoring and are unchanged. `has_digits` still flags the raw hypothesis.",
+    "",
+    summary.excluding_burst_affected ? "| | all cases | excluding burst_affected |" : "| | all cases |",
+    summary.excluding_burst_affected ? "|---|---|---|" : "|---|---|",
+    row("corpus WER, raw", (i) => pct(cols[i].wer)),
+    row("corpus WER, num_norm", (i) => pct(cols[i].num_norm.wer)),
+    row("first_word_soft first_word_ok", fw("first_word_soft")),
+    row("first_word_strong first_word_ok", fw("first_word_strong")),
+    "",
+    "Cases whose hypothesis contains digits:",
+    "",
+    "| id | WER raw | WER num_norm | hypothesis |",
+    "|---|---|---|---|",
+    ...digitRows,
+    "",
+    "Not handled: integers of 3 or more digits, ordinals, decimals and times " +
+      (unconverted.length ? `(unconverted digit tokens remain in: ${unconverted.join(", ")}).` : "(none occur in these runs)."),
+    "",
+  ].join("\n");
+}
+
 export function parseJsonl(text) {
   const rows = [];
   let malformed = 0;
