@@ -17,16 +17,13 @@
 // then wer.mjs scoring writes summary.json and README.md next to it.
 
 import { chromium } from "playwright-core";
-import { spawn } from "node:child_process";
-import { createServer } from "node:net";
-import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "./wer.mjs";
+import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
-const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
 const LOAD_TIMEOUT_MS = 240_000; // cold model download measured at 27 to 38 s; generous margin
 const GRACE_MS = 1_500; // let a late stt_committed land before downloading events
 
@@ -54,49 +51,6 @@ function wavDurationMs(path) {
     off += 8 + size + (size % 2);
   }
   throw new Error(`no data chunk in ${path}`);
-}
-
-async function freePort() {
-  return new Promise((res, rej) => {
-    const s = createServer();
-    s.listen(0, "127.0.0.1", () => {
-      const { port } = s.address();
-      s.close(() => res(port));
-    });
-    s.on("error", rej);
-  });
-}
-
-// Held at module level from the moment of spawn, so the exit and signal hooks
-// below can stop the server even if startup or a later step fails.
-let viteChild = null;
-let userDataDir = null;
-process.on("exit", () => {
-  viteChild?.kill();
-  if (userDataDir) rmSync(userDataDir, { recursive: true, force: true });
-});
-for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => process.exit(sig === "SIGINT" ? 130 : 143));
-}
-
-async function startVite() {
-  const port = await freePort();
-  const child = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
-    cwd: REPO,
-    stdio: "ignore",
-  });
-  viteChild = child;
-  console.error(`dev server PID ${child.pid} on port ${port}`);
-  const url = `http://127.0.0.1:${port}/`;
-  for (let i = 0; i < 100; i++) {
-    if (child.exitCode !== null) throw new Error("vite exited early");
-    try {
-      if ((await fetch(url)).ok) return { child, url };
-    } catch {}
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  child.kill();
-  throw new Error("vite did not become ready");
 }
 
 async function runCase(c, wav, { baseUrl, model, userDataDir, rawDir }) {
@@ -195,7 +149,7 @@ async function main() {
   const outDir = join(REPO, "eval/results", `${date}-wer-${args.label}`);
   const rawDir = join(outDir, "raw");
   mkdirSync(rawDir, { recursive: true });
-  userDataDir = mkdtempSync(join(tmpdir(), "nutq-wer-"));
+  const userDataDir = makeTempDir("nutq-wer-");
 
   const run = { model: args.model, label: args.label, date, audio_dir: args.audioDir.replace(homedir(), "~"), attempted: [], missing_audio: [], errors: [], ended: {} };
   const vite = await startVite();

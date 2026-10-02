@@ -18,18 +18,13 @@
 // is not the model on a tightly segmented utterance.
 
 import { chromium } from "playwright-core";
-import { spawn } from "node:child_process";
-import { createServer } from "node:net";
-import { homedir, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "./wer.mjs";
+import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 
-// ponytail: freePort, startVite and the cleanup hooks are copied from run-wer.mjs.
-// Move them to a shared module if a third driver appears.
 const CHROME = "/usr/bin/google-chrome";
-const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
 
 function parseArgs(argv) {
   const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null };
@@ -64,49 +59,6 @@ function readSamples(path) {
     off += 8 + size + (size % 2);
   }
   throw new Error(`no data chunk in ${path}`);
-}
-
-async function freePort() {
-  return new Promise((res, rej) => {
-    const s = createServer();
-    s.listen(0, "127.0.0.1", () => {
-      const { port } = s.address();
-      s.close(() => res(port));
-    });
-    s.on("error", rej);
-  });
-}
-
-// Held at module level from the moment of spawn, so the exit and signal hooks
-// below can stop the server even if startup or a later step fails.
-let viteChild = null;
-let userDataDir = null;
-process.on("exit", () => {
-  viteChild?.kill();
-  if (userDataDir) rmSync(userDataDir, { recursive: true, force: true });
-});
-for (const sig of ["SIGINT", "SIGTERM"]) {
-  process.on(sig, () => process.exit(sig === "SIGINT" ? 130 : 143));
-}
-
-async function startVite() {
-  const port = await freePort();
-  const child = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
-    cwd: REPO,
-    stdio: "ignore",
-  });
-  viteChild = child;
-  console.error(`dev server PID ${child.pid} on port ${port}`);
-  const url = `http://127.0.0.1:${port}/`;
-  for (let i = 0; i < 100; i++) {
-    if (child.exitCode !== null) throw new Error("vite exited early");
-    try {
-      if ((await fetch(url)).ok) return url;
-    } catch {}
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  child.kill();
-  throw new Error("vite did not become ready");
 }
 
 function readme({ args, date, summary, run }) {
@@ -151,10 +103,10 @@ async function main() {
   const outDir = join(REPO, "eval/results", `${date}-wer-${args.label}`);
   const rawDir = join(outDir, "raw");
   mkdirSync(rawDir, { recursive: true });
-  userDataDir = mkdtempSync(join(tmpdir(), "nutq-modelonly-"));
+  const userDataDir = makeTempDir("nutq-modelonly-");
 
   const run = { model: args.model, label: args.label, date, audio_dir: args.audioDir.replace(homedir(), "~"), attempted: [], missing_audio: [], errors: [] };
-  const url = await startVite();
+  const vite = await startVite();
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: CHROME,
     headless: true,
@@ -162,7 +114,7 @@ async function main() {
   });
   try {
     const page = context.pages()[0] ?? (await context.newPage());
-    await page.goto(url);
+    await page.goto(vite.url);
     const t0 = Date.now();
     await page.evaluate(async (m) => {
       const mod = await import("/src/vendor/model.ts");
@@ -195,7 +147,7 @@ async function main() {
     }
   } finally {
     await context.close();
-    viteChild.kill();
+    vite.child.kill();
     rmSync(userDataDir, { recursive: true, force: true });
   }
 
