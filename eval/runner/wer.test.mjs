@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalize, scoreCase, scoreRun, loadEventsDir } from "./wer.mjs";
+import { normalize, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 // Event shapes copied from a real run (verify-base-unpadded): stt_model,
 // mic_button_press, speech_start, stt_committed {text}, speech_end,
@@ -163,4 +163,37 @@ test("loadEventsDir reads <run>/raw/<id>.events.jsonl", () => {
   const byId = loadEventsDir(dir);
   const sh = { id: "sh-02", category: "short", condition: "quiet", reference: "Stop." };
   assert.equal(scoreCase(sh, byId["sh-02"]).wer, 0);
+});
+
+test("loadFlags: missing file means no flags, present file is read as id -> flags", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wer-flags-"));
+  assert.deepEqual(loadFlags(join(dir, "nope.json")), {});
+  const p = join(dir, "flags.json");
+  writeFileSync(p, JSON.stringify({ "pw-01": ["burst_affected"] }));
+  assert.deepEqual(loadFlags(p), { "pw-01": ["burst_affected"] });
+});
+
+test("burst_affected flag marks cases and adds with/without aggregates", () => {
+  const other = { id: "pw-02", category: "problem_words", condition: "quiet", reference: "A fox ran." };
+  const events = {
+    "pw-01": turn(["A quick brown pox jumps over the lazy dog."], "A quick brown pox jumps over the lazy dog."), // 2 errors / 9
+    "pw-02": turn(["A fox ran."], "A fox ran."), // 0 errors / 3
+  };
+  const run = scoreRun([FOX, other], events, { "pw-01": ["burst_affected"] });
+  assert.deepEqual(run.burst_affected, ["pw-01"]);
+  assert.equal(run.cases.find((c) => c.id === "pw-01").burst_affected, true);
+  assert.equal("burst_affected" in run.cases.find((c) => c.id === "pw-02"), false);
+  assert.equal(run.overall_excluding_silence.wer, 2 / 12);
+  const ex = run.excluding_burst_affected;
+  assert.equal(ex.meta.n_cases, 1);
+  assert.equal(ex.overall_excluding_silence.ref_words, 3);
+  assert.equal(ex.overall_excluding_silence.wer, 0);
+  assert.equal(ex.first_word.first_word_soft.n_scored, 0);
+});
+
+test("no flags means no burst_affected keys in the summary", () => {
+  const run = scoreRun([FOX], { "pw-01": turn(["Stop."], "Stop.") });
+  assert.equal("burst_affected" in run, false);
+  assert.equal("excluding_burst_affected" in run, false);
+  assert.equal("burst_affected" in run.cases[0], false);
 });

@@ -5,7 +5,7 @@
 // button (?eval=1&nosend=1).
 //
 // Usage:
-//   node wer.mjs --run <run-folder> [--cases eval/wer/cases.jsonl] [--only id,id] [--out summary.json]
+//   node wer.mjs --run <run-folder> [--cases eval/wer/cases.jsonl] [--only id,id] [--flags eval/wer/recording-flags.json] [--out summary.json]
 //
 // Per case it reads the last transcript_final event (text, trigger) and the
 // stt_committed events (text) from the events file. Scoring rules:
@@ -19,6 +19,10 @@
 //   - empty reference (silence) -> no WER, words_produced reported (expected 0).
 //   - commit_mismatch: stt_committed texts joined with spaces vs transcript_final.
 //   - corpus-level WER is sum(errors) / sum(ref words), not a mean of per-case WERs.
+//   - eval/wer/recording-flags.json (optional) flags recordings, not cases. Cases flagged
+//     burst_affected get burst_affected: true, and the summary adds burst_affected[] and
+//     excluding_burst_affected (the same aggregates without them).
+//   - re-scoring over an existing summary.json keeps its run block.
 
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -149,9 +153,20 @@ function groupBy(results, key) {
   return Object.fromEntries(Object.entries(groups).map(([k, v]) => [k, groupAgg(v)]));
 }
 
-// cases: parsed cases.jsonl; eventsById: { [id]: parsed events array }
-export function scoreRun(cases, eventsById) {
-  const results = cases.map((c) => scoreCase(c, eventsById[c.id] ?? null));
+// Recording flags describe the recordings, not the scripted cases: { [caseId]: ["burst_affected"] }.
+// A missing file means no flags.
+// ponytail: only "burst_affected" is consumed; other flags are stored but ignored. Add a generic with/without split if a second flag appears.
+export function loadFlags(path = "eval/wer/recording-flags.json") {
+  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+}
+
+// cases: parsed cases.jsonl; eventsById: { [id]: parsed events array }; flags: see loadFlags
+export function scoreRun(cases, eventsById, flags = {}) {
+  const isBurst = (id) => (flags[id] ?? []).includes("burst_affected");
+  const results = cases.map((c) => {
+    const r = scoreCase(c, eventsById[c.id] ?? null);
+    return isBurst(c.id) ? { ...r, burst_affected: true } : r;
+  });
   const isSilence = (r) => normalize(r.reference).length === 0;
   const nonSilence = results.filter((r) => !isSilence(r));
   const silence = results.filter(isSilence);
@@ -159,7 +174,8 @@ export function scoreRun(cases, eventsById) {
     const a = groupAgg(results.filter((r) => r.category === cat));
     return { n_scored: a.n_scored, first_word_ok: a.first_word_ok, first_word_ok_rate: a.first_word_ok_rate };
   };
-  return {
+  const burst = results.filter((r) => r.burst_affected).map((r) => r.id);
+  const out = {
     meta: {
       n_cases: results.length,
       n_scored: results.filter((r) => r.status === "scored").length,
@@ -178,6 +194,12 @@ export function scoreRun(cases, eventsById) {
     commit_mismatch: results.filter((r) => r.commit_mismatch === true).map((r) => r.id),
     cases: results,
   };
+  if (burst.length) {
+    const sub = scoreRun(cases.filter((c) => !isBurst(c.id)), eventsById);
+    out.burst_affected = burst;
+    out.excluding_burst_affected = { meta: sub.meta, overall_excluding_silence: sub.overall_excluding_silence, first_word: sub.first_word };
+  }
+  return out;
 }
 
 export function parseJsonl(text) {
@@ -205,9 +227,10 @@ export function loadEventsDir(dir) {
 }
 
 function main(argv) {
-  const args = { cases: "eval/wer/cases.jsonl", run: null, only: null, out: null };
+  const args = { cases: "eval/wer/cases.jsonl", flags: "eval/wer/recording-flags.json", run: null, only: null, out: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--cases") args.cases = argv[++i];
+    else if (argv[i] === "--flags") args.flags = argv[++i];
     else if (argv[i] === "--run") args.run = argv[++i];
     else if (argv[i] === "--only") args.only = argv[++i].split(",");
     else if (argv[i] === "--out") args.out = argv[++i];
@@ -217,13 +240,16 @@ function main(argv) {
     }
   }
   if (!args.run) {
-    console.error("usage: node wer.mjs --run <run-folder> [--cases file] [--only id,id] [--out summary.json]");
+    console.error("usage: node wer.mjs --run <run-folder> [--cases file] [--flags file] [--only id,id] [--out summary.json]");
     process.exit(2);
   }
   let cases = parseJsonl(readFileSync(args.cases, "utf8")).rows;
   if (args.only) cases = cases.filter((c) => args.only.includes(c.id));
-  const summary = scoreRun(cases, loadEventsDir(args.run));
   const out = args.out ?? join(args.run, "summary.json");
+  const scored = scoreRun(cases, loadEventsDir(args.run), loadFlags(args.flags));
+  // Re-scoring keeps the run block (written by run-wer.mjs) from the summary being replaced.
+  const run = existsSync(out) ? JSON.parse(readFileSync(out, "utf8")).run : undefined;
+  const summary = run ? { run, ...scored } : scored;
   writeFileSync(out, JSON.stringify(summary, null, 2) + "\n");
 
   const pct = (x) => (x === null ? "n/a" : `${(x * 100).toFixed(1)}%`);

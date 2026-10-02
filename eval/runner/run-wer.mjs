@@ -23,7 +23,7 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseJsonl, scoreRun, loadEventsDir } from "./wer.mjs";
+import { parseJsonl, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
 const REPO = resolve(fileURLToPath(import.meta.url), "../../..");
@@ -226,7 +226,7 @@ async function main() {
   }
 
   const scored = cases.filter((c) => run.attempted.includes(c.id));
-  const summary = { run, ...scoreRun(scored, loadEventsDir(outDir)) };
+  const summary = { run, ...scoreRun(scored, loadEventsDir(outDir), loadFlags()) };
   writeFileSync(join(outDir, "summary.json"), JSON.stringify(summary, null, 2) + "\n");
   writeFileSync(join(outDir, "README.md"), readme({ args, date, summary, run }));
   console.error(`wrote ${outDir}/summary.json and README.md`);
