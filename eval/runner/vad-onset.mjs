@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 // Measures how late the VAD triggers after the true speech onset, per recorded case.
-// Read-only: prints a table and summary, writes nothing.
+// Prints a table and summary; writes a file only with --json.
 //
 // Usage:
-//   node eval/runner/vad-onset.mjs [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id]
+//   node eval/runner/vad-onset.mjs [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id] [--json triggers.json]
+//
+// --json writes { frame_samples, positive_threshold, triggers: { <id>: <frame index of the first
+// frame >= 0.65, or null> } }, which run-model-only.mjs --trim-from-trigger reads.
 //
 // Each case WAV is cut into 512-sample frames (32 ms at 16 kHz, the frame size Nutq's
 // Silero v5 uses) and fed frame by frame, offline, to the VAD that the real Transcriber
@@ -28,7 +31,7 @@
 import { chromium } from "playwright-core";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, loadFlags } from "./wer.mjs";
 import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 
@@ -43,10 +46,11 @@ const NUTQ_MIN_SPEECH_FRAMES = 12;
 const MODEL = "model/base"; // key only; the STT model is stubbed
 
 function parseArgs(argv) {
-  const args = { audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null };
+  const args = { audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, json: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
+    else if (argv[i] === "--json") args.json = argv[++i];
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   return args;
@@ -188,6 +192,12 @@ async function main() {
   } finally {
     await context.close();
     vite.child.kill();
+  }
+
+  if (args.json) {
+    const triggers = Object.fromEntries(rows.map((r) => [r.id, r.t65.idx]));
+    writeFileSync(args.json, JSON.stringify({ frame_samples: FRAME, positive_threshold: NUTQ_POSITIVE_THRESHOLD, triggers }, null, 2) + "\n");
+    console.error(`wrote ${args.json}`);
   }
 
   // ---- report

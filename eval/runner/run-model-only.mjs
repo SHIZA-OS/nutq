@@ -7,6 +7,14 @@
 // Usage:
 //   node eval/runner/run-model-only.mjs --label <name> [--model model/base]
 //     [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id]
+//     [--trim-from-trigger <frames> --triggers <file>]
+//
+// --trim-from-trigger starts each WAV at (its VAD trigger frame + <frames>) instead of at
+// sample 0 (a frame is 512 samples, 32 ms; clamped at 0). The trigger frame of each case is
+// the first frame with Silero probability >= 0.65, as written by
+// `node eval/runner/vad-onset.mjs --json <file>`, which is the file --triggers reads. +1 is
+// what the pipeline records today, -3 is a 4 frame pre-roll. A case with no trigger gets no
+// audio and an empty text, like a pipeline run that never detected speech.
 //
 // Output matches run-wer.mjs (eval/results/<date>-wer-<label>/{raw,summary.json,README.md})
 // so wer.mjs scores it unchanged. Events files are synthesized in the run-wer events
@@ -25,17 +33,22 @@ import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection } from "
 import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
+const FRAME = 512; // samples, 32 ms at 16 kHz
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null };
+  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, trim: null, triggers: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
     else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--label") args.label = argv[++i];
+    else if (argv[i] === "--trim-from-trigger") args.trim = Number(argv[++i]);
+    else if (argv[i] === "--triggers") args.triggers = argv[++i];
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (!args.label) throw new Error("--label is required");
+  if (args.trim !== null && !Number.isInteger(args.trim)) throw new Error("--trim-from-trigger takes a whole number of frames");
+  if ((args.trim === null) !== (args.triggers === null)) throw new Error("--trim-from-trigger and --triggers go together");
   return args;
 }
 
@@ -71,7 +84,9 @@ function readme({ args, date, summary, run }) {
   return [
     `# ${date}: WER, model-only (${args.model}), ${args.label}`,
     "",
-    "Each whole recorded WAV (16 kHz mono int16 as Float32) was passed straight to the vendored `MoonshineModel.generate()` (`quantized`, as the Transcriber uses) in a headless page served by the Vite dev server.",
+    args.trim === null
+      ? "Each whole recorded WAV (16 kHz mono int16 as Float32) was passed straight to the vendored `MoonshineModel.generate()` (`quantized`, as the Transcriber uses) in a headless page served by the Vite dev server."
+      : `Each recorded WAV (16 kHz mono int16 as Float32) was trimmed to start ${args.trim} frames (${args.trim * 32} ms) from its VAD trigger frame (first frame with Silero probability >= 0.65, from \`vad-onset.mjs --json\`), then passed to the vendored \`MoonshineModel.generate()\` (\`quantized\`, as the Transcriber uses) in a headless page served by the Vite dev server.`,
     "No VAD, no SpeechBuffer, no Transcriber, no mic path. This isolates the model from the pipeline. Nothing was sent to ZeroClaw.",
     "",
     "Caveat: the files are 8 s long with several seconds of silence around short utterances. The model returned an empty string for many of them (scored as all deletions), so this is not the same as the model on a tightly segmented utterance.",
@@ -84,7 +99,7 @@ function readme({ args, date, summary, run }) {
     "|---|---|---|---|",
     ...rows,
     "",
-    "Command: `" + `node eval/runner/run-model-only.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + "`",
+    "Command: `" + `node eval/runner/run-model-only.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + (args.trim !== null ? ` --trim-from-trigger ${args.trim} --triggers ${args.triggers}` : "") + "`",
     "",
   ].join("\n") + numNormSection(summary);
 }
@@ -106,6 +121,13 @@ async function main() {
   const userDataDir = makeTempDir("nutq-modelonly-");
 
   const run = { model: args.model, label: args.label, date, audio_dir: args.audioDir.replace(homedir(), "~"), attempted: [], missing_audio: [], errors: [] };
+  let triggers = null;
+  if (args.trim !== null) {
+    const t = JSON.parse(readFileSync(args.triggers, "utf8"));
+    if (t.frame_samples !== FRAME) throw new Error(`${args.triggers}: frame_samples is ${t.frame_samples}, expected ${FRAME}`);
+    triggers = t.triggers;
+    run.trim = { frames_from_trigger: args.trim, triggers_file: args.triggers, positive_threshold: t.positive_threshold, clamped_to_start: [], no_trigger: [] };
+  }
   const vite = await startVite();
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: CHROME,
@@ -133,8 +155,19 @@ async function main() {
       }
       run.attempted.push(c.id);
       try {
-        const samples = readSamples(wav);
-        const text = await page.evaluate(async (a) => (await window.__model.generate(new Float32Array(a))) ?? "", samples);
+        let samples = readSamples(wav);
+        if (triggers) {
+          if (!(c.id in triggers)) throw new Error(`no trigger for ${c.id} in ${args.triggers}`);
+          if (triggers[c.id] === null) {
+            run.trim.no_trigger.push(c.id);
+            samples = [];
+          } else {
+            const startFrame = triggers[c.id] + args.trim;
+            if (startFrame < 0) run.trim.clamped_to_start.push(c.id);
+            samples = samples.slice(Math.max(0, startFrame) * FRAME);
+          }
+        }
+        const text = samples.length ? await page.evaluate(async (a) => (await window.__model.generate(new Float32Array(a))) ?? "", samples) : "";
         const rows = [{ event: "stt_model", timestamp_ms: ts++, model: args.model }];
         if (text) rows.push({ event: "stt_committed", timestamp_ms: ts++, text });
         rows.push({ event: "transcript_final", timestamp_ms: ts++, text, trigger: "model_only" });
