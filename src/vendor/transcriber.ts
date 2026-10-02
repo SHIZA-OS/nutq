@@ -1,12 +1,13 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
 import MoonshineError from "./error";
 import { AudioNodeVAD } from "@ricky0123/vad-web";
 import Log from "./log";
+import { PreRoll } from "./pre-roll";
 
 /**
  * Silero VAD sensitivity knobs, forwarded straight through to
@@ -46,7 +47,8 @@ export interface VADThresholdOptions {
  *
  * @property onFrame(probability, frame, ema) - called every frame of audio
  * 
- * @property onSpeechStart() - called when the VAD model detects the start of speech
+ * @property onSpeechStart(preRollFrames) - called when the VAD model detects the start of speech. preRollFrames is how many
+ * buffered frames were prepended to the speech buffer (see the preRollFrames constructor argument)
  *
  * @property onSpeechEnd() - called when the VAD model detects the end of speech
  *
@@ -71,7 +73,7 @@ interface TranscriberCallbacks {
 
     onFrame: (probs, frame, ema) => any;
 
-    onSpeechStart: () => any;
+    onSpeechStart: (preRollFrames: number) => any;
 
     onSpeechEnd: () => any;
 }
@@ -104,8 +106,8 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
     onFrame: function (probs, frame, ema) {
         Log.log("Transcriber.onFrame()");
     },
-    onSpeechStart: function () {
-        Log.log("Transcriber.onSpeechStart()");
+    onSpeechStart: function (preRollFrames: number) {
+        Log.log("Transcriber.onSpeechStart(" + preRollFrames + ")");
     },
     onSpeechEnd: function () {
         Log.log("Transcriber.onSpeechEnd()");
@@ -222,6 +224,7 @@ class Transcriber {
     private useVAD: boolean;
     private mediaStream: MediaStream;
     private speechBuffer: SpeechBuffer;
+    private preRoll: PreRoll;
 
     protected audioContext: AudioContext;
     public isActive: boolean = false;
@@ -280,13 +283,17 @@ class Transcriber {
      * transcriber.attachStream(stream);
      * transcriber.start();
      * ```
+     *
+     * @param preRollFrames How many frames (32 ms each) of audio from just before the VAD fires to prepend to the speech
+     * buffer on every speech start. 0 (the default) keeps upstream behavior. See {@link PreRoll}.
      */
     public constructor(
         modelURL: string,
         callbacks: Partial<TranscriberCallbacks> = {},
         useVAD: boolean = true,
         precision: string = "quantized",
-        vadOptions: VADThresholdOptions = {}
+        vadOptions: VADThresholdOptions = {},
+        preRollFrames: number = 0
     ) {
         this.callbacks = { ...defaultTranscriberCallbacks, ...callbacks };
         // we want to avoid re-downloading the same model weights if we can avoid it
@@ -296,6 +303,7 @@ class Transcriber {
         this.sttModel = Transcriber.models.get(modelURL);
         this.useVAD = useVAD;
         this.vadOptions = vadOptions;
+        this.preRoll = new PreRoll(preRollFrames);
         this.audioContext = new AudioContext();
     }
 
@@ -364,6 +372,10 @@ class Transcriber {
                     // clear buffer (leave some overhang?)
                     this.speechBuffer.flush();
                 }
+            } else {
+                // Not recording. The frame that crosses the VAD threshold lands here too,
+                // because this callback runs before onSpeechStart, so the ring includes it.
+                this.preRoll.push(frame);
             }
         };
 
@@ -375,7 +387,12 @@ class Transcriber {
             },
             onSpeechStart: () => {
                 Log.log("Transcriber.onSpeechStart()");
-                this.callbacks.onSpeechStart();
+                // Prepend the ring on every speech start, then it is empty. Frames recorded while
+                // talking never enter the ring, so nothing already in speechBuffer or already
+                // committed is prepended; take() also returns nothing if speechBuffer has frames.
+                const preRoll = this.preRoll.take(this.speechBuffer.hasFrames());
+                for (const frame of preRoll) this.speechBuffer.set(frame);
+                this.callbacks.onSpeechStart(preRoll.length);
                 isTalking = true;
             },
             // KNOWN ISSUE, deliberately not fixed here: streaming mode
@@ -418,6 +435,15 @@ class Transcriber {
             // a real design decision. Full investigation, live-tested
             // transcripts, and the diagnostic's actual numbers are in this
             // session's history; don't re-derive from scratch.
+            //
+            // The clipped onset that attempt was after is now recovered a
+            // different way: this.preRoll (pre-roll.ts) keeps the last few
+            // frames seen while not talking, including the frame that crossed
+            // the VAD threshold (onFrameProcessed runs before onSpeechStart),
+            // and onSpeechStart prepends them to this.speechBuffer. That works
+            // inside the one buffer this class already commits from, so it does
+            // not depend on vad-web's segment tracking. The two unsynchronized
+            // commit paths described above are untouched and still open.
             onSpeechEnd: (floatArray) => {
                 Log.log("Transcriber.onSpeechEnd()");
                 this.callbacks.onSpeechEnd();
@@ -527,6 +553,8 @@ class Transcriber {
     public async start() {
         if (!this.isActive) {
             this.isActive = true;
+            // The VAD was paused since the last session; whatever the ring holds is stale audio.
+            this.preRoll.clear();
 
             // load model if not loaded
             if (

@@ -24,6 +24,13 @@ const VAD_OPTIONS: VADThresholdOptions = {
   minSpeechFrames: 12,
 };
 
+// Frames of audio from just before the VAD fires that are prepended to the recording on every
+// speech start. One frame is 512 samples at 16 kHz = 32 ms, so 4 frames = 128 ms. This includes
+// the frame that crossed the threshold, which is otherwise never recorded. First pass, not
+// calibrated: eval/runner/vad-onset.mjs on the 37 recorded cases needed 2 frames to reach the
+// energy onset (3 in the worst clean case), so 4 leaves one frame of margin for soft onsets.
+const PRE_ROLL_FRAMES = 4;
+
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const wsUrlInput = $<HTMLInputElement>("ws-url");
@@ -68,6 +75,7 @@ type EvalEvent =
   | "mic_button_release"
   | "session_start"
   | "speech_start"
+  | "pre_roll"
   | "speech_end"
   | "stt_committed"
   | "transcript_final"
@@ -602,8 +610,9 @@ function initTranscriber() {
         log("Transcription stopped");
         setStatus(micStatus, "ready", "ok");
       },
-      onSpeechStart() {
+      onSpeechStart(preRollFrames: number) {
         logEvent("speech_start");
+        if (isEvalMode) logEvent("pre_roll", { frames: preRollFrames });
         clearSilenceTimer();
       },
       onSpeechEnd() {
@@ -629,6 +638,7 @@ function initTranscriber() {
     false, // useVAD=false -> streaming mode
     "quantized",
     VAD_OPTIONS,
+    PRE_ROLL_FRAMES,
   );
 }
 
