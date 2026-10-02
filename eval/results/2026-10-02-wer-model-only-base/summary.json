@@ -1,0 +1,2185 @@
+{
+  "meta": {
+    "n_cases": 37,
+    "n_scored": 36,
+    "n_silence": 1,
+    "n_no_transcript": 0
+  },
+  "overall_excluding_silence": {
+    "n_cases": 36,
+    "n_scored": 36,
+    "n_no_transcript": 0,
+    "ref_words": 234,
+    "S": 16,
+    "D": 48,
+    "I": 2,
+    "wer": 0.28205128205128205,
+    "n_has_digits": 7,
+    "n_commit_mismatch": 0,
+    "first_word_ok": 21,
+    "first_word_ok_rate": 0.5833333333333334
+  },
+  "by_category": {
+    "first_word_soft": {
+      "n_cases": 5,
+      "n_scored": 5,
+      "n_no_transcript": 0,
+      "ref_words": 38,
+      "S": 3,
+      "D": 0,
+      "I": 0,
+      "wer": 0.07894736842105263,
+      "n_has_digits": 2,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 5,
+      "first_word_ok_rate": 1
+    },
+    "first_word_strong": {
+      "n_cases": 5,
+      "n_scored": 5,
+      "n_no_transcript": 0,
+      "ref_words": 36,
+      "S": 3,
+      "D": 0,
+      "I": 0,
+      "wer": 0.08333333333333333,
+      "n_has_digits": 1,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 0.4
+    },
+    "problem_words": {
+      "n_cases": 4,
+      "n_scored": 4,
+      "n_no_transcript": 0,
+      "ref_words": 32,
+      "S": 0,
+      "D": 7,
+      "I": 1,
+      "wer": 0.25,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 3,
+      "first_word_ok_rate": 0.75
+    },
+    "assistant_query": {
+      "n_cases": 6,
+      "n_scored": 6,
+      "n_no_transcript": 0,
+      "ref_words": 41,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.024390243902439025,
+      "n_has_digits": 1,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 6,
+      "first_word_ok_rate": 1
+    },
+    "numbers": {
+      "n_cases": 3,
+      "n_scored": 3,
+      "n_no_transcript": 0,
+      "ref_words": 18,
+      "S": 4,
+      "D": 8,
+      "I": 0,
+      "wer": 0.6666666666666666,
+      "n_has_digits": 2,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 1,
+      "first_word_ok_rate": 0.3333333333333333
+    },
+    "casual": {
+      "n_cases": 3,
+      "n_scored": 3,
+      "n_no_transcript": 0,
+      "ref_words": 21,
+      "S": 0,
+      "D": 8,
+      "I": 1,
+      "wer": 0.42857142857142855,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 0.6666666666666666
+    },
+    "short": {
+      "n_cases": 4,
+      "n_scored": 4,
+      "n_no_transcript": 0,
+      "ref_words": 5,
+      "S": 0,
+      "D": 5,
+      "I": 0,
+      "wer": 1,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": 0
+    },
+    "background_noise": {
+      "n_cases": 6,
+      "n_scored": 6,
+      "n_no_transcript": 0,
+      "ref_words": 43,
+      "S": 5,
+      "D": 20,
+      "I": 0,
+      "wer": 0.5813953488372093,
+      "n_has_digits": 1,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 0.3333333333333333
+    }
+  },
+  "by_condition": {
+    "quiet": {
+      "n_cases": 30,
+      "n_scored": 30,
+      "n_no_transcript": 0,
+      "ref_words": 191,
+      "S": 11,
+      "D": 28,
+      "I": 2,
+      "wer": 0.21465968586387435,
+      "n_has_digits": 6,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 19,
+      "first_word_ok_rate": 0.6333333333333333
+    },
+    "background_noise": {
+      "n_cases": 6,
+      "n_scored": 6,
+      "n_no_transcript": 0,
+      "ref_words": 43,
+      "S": 5,
+      "D": 20,
+      "I": 0,
+      "wer": 0.5813953488372093,
+      "n_has_digits": 1,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 0.3333333333333333
+    }
+  },
+  "first_word": {
+    "first_word_soft": {
+      "n_scored": 5,
+      "first_word_ok": 5,
+      "first_word_ok_rate": 1
+    },
+    "first_word_strong": {
+      "n_scored": 5,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 0.4
+    }
+  },
+  "silence": {
+    "expected_words": 0,
+    "cases": [
+      {
+        "id": "sil-01",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "model_only"
+      }
+    ]
+  },
+  "no_transcript": [],
+  "commit_mismatch": [],
+  "cases": [
+    {
+      "id": "fws-01",
+      "category": "first_word_soft",
+      "condition": "quiet",
+      "reference": "The meeting starts at nine in the morning.",
+      "hypothesis": "The meeting starts at 9 in the morning",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.125,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "meeting",
+          "hyp": "meeting"
+        },
+        {
+          "op": "ok",
+          "ref": "starts",
+          "hyp": "starts"
+        },
+        {
+          "op": "ok",
+          "ref": "at",
+          "hyp": "at"
+        },
+        {
+          "op": "sub",
+          "ref": "nine",
+          "hyp": "9"
+        },
+        {
+          "op": "ok",
+          "ref": "in",
+          "hyp": "in"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "morning",
+          "hyp": "morning"
+        }
+      ],
+      "burst_affected": true
+    },
+    {
+      "id": "fws-02",
+      "category": "first_word_soft",
+      "condition": "quiet",
+      "reference": "A cup of coffee would be nice right now.",
+      "hypothesis": "A cup of coffee would be nice right now.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 9,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "cup",
+          "hyp": "cup"
+        },
+        {
+          "op": "ok",
+          "ref": "of",
+          "hyp": "of"
+        },
+        {
+          "op": "ok",
+          "ref": "coffee",
+          "hyp": "coffee"
+        },
+        {
+          "op": "ok",
+          "ref": "would",
+          "hyp": "would"
+        },
+        {
+          "op": "ok",
+          "ref": "be",
+          "hyp": "be"
+        },
+        {
+          "op": "ok",
+          "ref": "nice",
+          "hyp": "nice"
+        },
+        {
+          "op": "ok",
+          "ref": "right",
+          "hyp": "right"
+        },
+        {
+          "op": "ok",
+          "ref": "now",
+          "hyp": "now"
+        }
+      ]
+    },
+    {
+      "id": "fws-03",
+      "category": "first_word_soft",
+      "condition": "quiet",
+      "reference": "It's going to rain later this afternoon.",
+      "hypothesis": "It's going to rain later this afternoon.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "its",
+          "hyp": "its"
+        },
+        {
+          "op": "ok",
+          "ref": "going",
+          "hyp": "going"
+        },
+        {
+          "op": "ok",
+          "ref": "to",
+          "hyp": "to"
+        },
+        {
+          "op": "ok",
+          "ref": "rain",
+          "hyp": "rain"
+        },
+        {
+          "op": "ok",
+          "ref": "later",
+          "hyp": "later"
+        },
+        {
+          "op": "ok",
+          "ref": "this",
+          "hyp": "this"
+        },
+        {
+          "op": "ok",
+          "ref": "afternoon",
+          "hyp": "afternoon"
+        }
+      ]
+    },
+    {
+      "id": "fws-04",
+      "category": "first_word_soft",
+      "condition": "quiet",
+      "reference": "So what time does the store close today?",
+      "hypothesis": "So what time does the store close today?",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "so",
+          "hyp": "so"
+        },
+        {
+          "op": "ok",
+          "ref": "what",
+          "hyp": "what"
+        },
+        {
+          "op": "ok",
+          "ref": "time",
+          "hyp": "time"
+        },
+        {
+          "op": "ok",
+          "ref": "does",
+          "hyp": "does"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "store",
+          "hyp": "store"
+        },
+        {
+          "op": "ok",
+          "ref": "close",
+          "hyp": "close"
+        },
+        {
+          "op": "ok",
+          "ref": "today",
+          "hyp": "today"
+        }
+      ]
+    },
+    {
+      "id": "fws-05",
+      "category": "first_word_soft",
+      "condition": "quiet",
+      "reference": "The train leaves from platform four.",
+      "hypothesis": "The train leads from platform 4.",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 2,
+      "D": 0,
+      "I": 0,
+      "wer": 0.3333333333333333,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "train",
+          "hyp": "train"
+        },
+        {
+          "op": "sub",
+          "ref": "leaves",
+          "hyp": "leads"
+        },
+        {
+          "op": "ok",
+          "ref": "from",
+          "hyp": "from"
+        },
+        {
+          "op": "ok",
+          "ref": "platform",
+          "hyp": "platform"
+        },
+        {
+          "op": "sub",
+          "ref": "four",
+          "hyp": "4"
+        }
+      ]
+    },
+    {
+      "id": "fst-01",
+      "category": "first_word_strong",
+      "condition": "quiet",
+      "reference": "Seven people are coming to dinner tonight.",
+      "hypothesis": "7 people are coming to dinner tonight.",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.14285714285714285,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "sub",
+          "ref": "seven",
+          "hyp": "7"
+        },
+        {
+          "op": "ok",
+          "ref": "people",
+          "hyp": "people"
+        },
+        {
+          "op": "ok",
+          "ref": "are",
+          "hyp": "are"
+        },
+        {
+          "op": "ok",
+          "ref": "coming",
+          "hyp": "coming"
+        },
+        {
+          "op": "ok",
+          "ref": "to",
+          "hyp": "to"
+        },
+        {
+          "op": "ok",
+          "ref": "dinner",
+          "hyp": "dinner"
+        },
+        {
+          "op": "ok",
+          "ref": "tonight",
+          "hyp": "tonight"
+        }
+      ]
+    },
+    {
+      "id": "fst-02",
+      "category": "first_word_strong",
+      "condition": "quiet",
+      "reference": "Monday is the busiest day of the week.",
+      "hypothesis": "Monte is the busiest day of the week.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.125,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "sub",
+          "ref": "monday",
+          "hyp": "monte"
+        },
+        {
+          "op": "ok",
+          "ref": "is",
+          "hyp": "is"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "busiest",
+          "hyp": "busiest"
+        },
+        {
+          "op": "ok",
+          "ref": "day",
+          "hyp": "day"
+        },
+        {
+          "op": "ok",
+          "ref": "of",
+          "hyp": "of"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "week",
+          "hyp": "week"
+        }
+      ]
+    },
+    {
+      "id": "fst-03",
+      "category": "first_word_strong",
+      "condition": "quiet",
+      "reference": "Please remind me to call the bank tomorrow.",
+      "hypothesis": "Please remind me to call the bank tomorrow.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "please",
+          "hyp": "please"
+        },
+        {
+          "op": "ok",
+          "ref": "remind",
+          "hyp": "remind"
+        },
+        {
+          "op": "ok",
+          "ref": "me",
+          "hyp": "me"
+        },
+        {
+          "op": "ok",
+          "ref": "to",
+          "hyp": "to"
+        },
+        {
+          "op": "ok",
+          "ref": "call",
+          "hyp": "call"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "bank",
+          "hyp": "bank"
+        },
+        {
+          "op": "ok",
+          "ref": "tomorrow",
+          "hyp": "tomorrow"
+        }
+      ]
+    },
+    {
+      "id": "fst-04",
+      "category": "first_word_strong",
+      "condition": "quiet",
+      "reference": "Twelve students passed the final exam.",
+      "hypothesis": "Well students passed the final exam",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.16666666666666666,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "sub",
+          "ref": "twelve",
+          "hyp": "well"
+        },
+        {
+          "op": "ok",
+          "ref": "students",
+          "hyp": "students"
+        },
+        {
+          "op": "ok",
+          "ref": "passed",
+          "hyp": "passed"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "final",
+          "hyp": "final"
+        },
+        {
+          "op": "ok",
+          "ref": "exam",
+          "hyp": "exam"
+        }
+      ]
+    },
+    {
+      "id": "fst-05",
+      "category": "first_word_strong",
+      "condition": "quiet",
+      "reference": "Bring the blue folder to the office.",
+      "hypothesis": "Bring the blue folder to the office",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "bring",
+          "hyp": "bring"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "blue",
+          "hyp": "blue"
+        },
+        {
+          "op": "ok",
+          "ref": "folder",
+          "hyp": "folder"
+        },
+        {
+          "op": "ok",
+          "ref": "to",
+          "hyp": "to"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "office",
+          "hyp": "office"
+        }
+      ]
+    },
+    {
+      "id": "pw-01",
+      "category": "problem_words",
+      "condition": "quiet",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "hypothesis": "The quick brown fox jumps over the lazy dog.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 9,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "quick",
+          "hyp": "quick"
+        },
+        {
+          "op": "ok",
+          "ref": "brown",
+          "hyp": "brown"
+        },
+        {
+          "op": "ok",
+          "ref": "fox",
+          "hyp": "fox"
+        },
+        {
+          "op": "ok",
+          "ref": "jumps",
+          "hyp": "jumps"
+        },
+        {
+          "op": "ok",
+          "ref": "over",
+          "hyp": "over"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "lazy",
+          "hyp": "lazy"
+        },
+        {
+          "op": "ok",
+          "ref": "dog",
+          "hyp": "dog"
+        }
+      ]
+    },
+    {
+      "id": "pw-02",
+      "category": "problem_words",
+      "condition": "quiet",
+      "reference": "A fox ran quickly across the field.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 7,
+      "S": 0,
+      "D": 7,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "a",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "fox",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "ran",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "quickly",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "across",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "the",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "field",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "pw-03",
+      "category": "problem_words",
+      "condition": "quiet",
+      "reference": "She jumps rope every morning before school.",
+      "hypothesis": "She jumps rope every morning before the school.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 1,
+      "wer": 0.14285714285714285,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "she",
+          "hyp": "she"
+        },
+        {
+          "op": "ok",
+          "ref": "jumps",
+          "hyp": "jumps"
+        },
+        {
+          "op": "ok",
+          "ref": "rope",
+          "hyp": "rope"
+        },
+        {
+          "op": "ok",
+          "ref": "every",
+          "hyp": "every"
+        },
+        {
+          "op": "ok",
+          "ref": "morning",
+          "hyp": "morning"
+        },
+        {
+          "op": "ok",
+          "ref": "before",
+          "hyp": "before"
+        },
+        {
+          "op": "ins",
+          "ref": null,
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "school",
+          "hyp": "school"
+        }
+      ]
+    },
+    {
+      "id": "pw-04",
+      "category": "problem_words",
+      "condition": "quiet",
+      "reference": "Click the button and wait for a quick reply.",
+      "hypothesis": "Click the button and wait for a quick reply.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 9,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "click",
+          "hyp": "click"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "button",
+          "hyp": "button"
+        },
+        {
+          "op": "ok",
+          "ref": "and",
+          "hyp": "and"
+        },
+        {
+          "op": "ok",
+          "ref": "wait",
+          "hyp": "wait"
+        },
+        {
+          "op": "ok",
+          "ref": "for",
+          "hyp": "for"
+        },
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "quick",
+          "hyp": "quick"
+        },
+        {
+          "op": "ok",
+          "ref": "reply",
+          "hyp": "reply"
+        }
+      ]
+    },
+    {
+      "id": "aq-01",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "What is the capital of Australia?",
+      "hypothesis": "What is the capital of Australia?",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "what",
+          "hyp": "what"
+        },
+        {
+          "op": "ok",
+          "ref": "is",
+          "hyp": "is"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "capital",
+          "hyp": "capital"
+        },
+        {
+          "op": "ok",
+          "ref": "of",
+          "hyp": "of"
+        },
+        {
+          "op": "ok",
+          "ref": "australia",
+          "hyp": "australia"
+        }
+      ]
+    },
+    {
+      "id": "aq-02",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "How many minutes are in a day?",
+      "hypothesis": "How many minutes are in a day?",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "how",
+          "hyp": "how"
+        },
+        {
+          "op": "ok",
+          "ref": "many",
+          "hyp": "many"
+        },
+        {
+          "op": "ok",
+          "ref": "minutes",
+          "hyp": "minutes"
+        },
+        {
+          "op": "ok",
+          "ref": "are",
+          "hyp": "are"
+        },
+        {
+          "op": "ok",
+          "ref": "in",
+          "hyp": "in"
+        },
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "day",
+          "hyp": "day"
+        }
+      ]
+    },
+    {
+      "id": "aq-03",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "Set a timer for ten minutes.",
+      "hypothesis": "Set a timer for 10 minutes.",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.16666666666666666,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "set",
+          "hyp": "set"
+        },
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "timer",
+          "hyp": "timer"
+        },
+        {
+          "op": "ok",
+          "ref": "for",
+          "hyp": "for"
+        },
+        {
+          "op": "sub",
+          "ref": "ten",
+          "hyp": "10"
+        },
+        {
+          "op": "ok",
+          "ref": "minutes",
+          "hyp": "minutes"
+        }
+      ]
+    },
+    {
+      "id": "aq-04",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "Tell me a short fact about the moon.",
+      "hypothesis": "Tell me a short fact about the moon.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "tell",
+          "hyp": "tell"
+        },
+        {
+          "op": "ok",
+          "ref": "me",
+          "hyp": "me"
+        },
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "short",
+          "hyp": "short"
+        },
+        {
+          "op": "ok",
+          "ref": "fact",
+          "hyp": "fact"
+        },
+        {
+          "op": "ok",
+          "ref": "about",
+          "hyp": "about"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "moon",
+          "hyp": "moon"
+        }
+      ]
+    },
+    {
+      "id": "aq-05",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "What is the difference between a virus and bacteria?",
+      "hypothesis": "What is the difference between a virus and bacteria?",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 9,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "what",
+          "hyp": "what"
+        },
+        {
+          "op": "ok",
+          "ref": "is",
+          "hyp": "is"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "difference",
+          "hyp": "difference"
+        },
+        {
+          "op": "ok",
+          "ref": "between",
+          "hyp": "between"
+        },
+        {
+          "op": "ok",
+          "ref": "a",
+          "hyp": "a"
+        },
+        {
+          "op": "ok",
+          "ref": "virus",
+          "hyp": "virus"
+        },
+        {
+          "op": "ok",
+          "ref": "and",
+          "hyp": "and"
+        },
+        {
+          "op": "ok",
+          "ref": "bacteria",
+          "hyp": "bacteria"
+        }
+      ]
+    },
+    {
+      "id": "aq-06",
+      "category": "assistant_query",
+      "condition": "quiet",
+      "reference": "Translate good morning into Spanish.",
+      "hypothesis": "Translate good morning into Spanish.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 5,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "translate",
+          "hyp": "translate"
+        },
+        {
+          "op": "ok",
+          "ref": "good",
+          "hyp": "good"
+        },
+        {
+          "op": "ok",
+          "ref": "morning",
+          "hyp": "morning"
+        },
+        {
+          "op": "ok",
+          "ref": "into",
+          "hyp": "into"
+        },
+        {
+          "op": "ok",
+          "ref": "spanish",
+          "hyp": "spanish"
+        }
+      ]
+    },
+    {
+      "id": "num-01",
+      "category": "numbers",
+      "condition": "quiet",
+      "reference": "Add twenty five and seventeen.",
+      "hypothesis": "At 25 and 17.",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 5,
+      "S": 3,
+      "D": 1,
+      "I": 0,
+      "wer": 0.8,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "add",
+          "hyp": null
+        },
+        {
+          "op": "sub",
+          "ref": "twenty",
+          "hyp": "at"
+        },
+        {
+          "op": "sub",
+          "ref": "five",
+          "hyp": "25"
+        },
+        {
+          "op": "ok",
+          "ref": "and",
+          "hyp": "and"
+        },
+        {
+          "op": "sub",
+          "ref": "seventeen",
+          "hyp": "17"
+        }
+      ]
+    },
+    {
+      "id": "num-02",
+      "category": "numbers",
+      "condition": "quiet",
+      "reference": "My flight is at half past six.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 7,
+      "S": 0,
+      "D": 7,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "my",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "flight",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "is",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "at",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "half",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "past",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "six",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "num-03",
+      "category": "numbers",
+      "condition": "quiet",
+      "reference": "Call me back in fifteen minutes.",
+      "hypothesis": "Call me back in 15 minutes",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 1,
+      "D": 0,
+      "I": 0,
+      "wer": 0.16666666666666666,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "call",
+          "hyp": "call"
+        },
+        {
+          "op": "ok",
+          "ref": "me",
+          "hyp": "me"
+        },
+        {
+          "op": "ok",
+          "ref": "back",
+          "hyp": "back"
+        },
+        {
+          "op": "ok",
+          "ref": "in",
+          "hyp": "in"
+        },
+        {
+          "op": "sub",
+          "ref": "fifteen",
+          "hyp": "15"
+        },
+        {
+          "op": "ok",
+          "ref": "minutes",
+          "hyp": "minutes"
+        }
+      ]
+    },
+    {
+      "id": "cas-01",
+      "category": "casual",
+      "condition": "quiet",
+      "reference": "Um, can you tell me what day it is?",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 8,
+      "S": 0,
+      "D": 8,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "can",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "you",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "tell",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "me",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "what",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "day",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "it",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "is",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "cas-02",
+      "category": "casual",
+      "condition": "quiet",
+      "reference": "Hey, uh, what's the weather looking like?",
+      "hypothesis": "Hey, oh what's the weather looking like?",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 6,
+      "S": 0,
+      "D": 0,
+      "I": 1,
+      "wer": 0.16666666666666666,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "hey",
+          "hyp": "hey"
+        },
+        {
+          "op": "ins",
+          "ref": null,
+          "hyp": "oh"
+        },
+        {
+          "op": "ok",
+          "ref": "whats",
+          "hyp": "whats"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "weather",
+          "hyp": "weather"
+        },
+        {
+          "op": "ok",
+          "ref": "looking",
+          "hyp": "looking"
+        },
+        {
+          "op": "ok",
+          "ref": "like",
+          "hyp": "like"
+        }
+      ]
+    },
+    {
+      "id": "cas-03",
+      "category": "casual",
+      "condition": "quiet",
+      "reference": "Wait, no, I meant the other one.",
+      "hypothesis": "Wait no i meant the other one",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "wait",
+          "hyp": "wait"
+        },
+        {
+          "op": "ok",
+          "ref": "no",
+          "hyp": "no"
+        },
+        {
+          "op": "ok",
+          "ref": "i",
+          "hyp": "i"
+        },
+        {
+          "op": "ok",
+          "ref": "meant",
+          "hyp": "meant"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "other",
+          "hyp": "other"
+        },
+        {
+          "op": "ok",
+          "ref": "one",
+          "hyp": "one"
+        }
+      ]
+    },
+    {
+      "id": "sh-01",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "Yes.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "yes",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "sh-02",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "Stop.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "stop",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "sh-03",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "Thank you.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 2,
+      "S": 0,
+      "D": 2,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "thank",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "you",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "sh-04",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "What?",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "what",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "sil-01",
+      "category": "silence",
+      "condition": "quiet",
+      "reference": "",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "bn-01",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "What is the capital of Australia?",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 6,
+      "S": 0,
+      "D": 6,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "what",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "is",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "the",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "capital",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "of",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "australia",
+          "hyp": null
+        }
+      ],
+      "burst_affected": true
+    },
+    {
+      "id": "bn-02",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "How many minutes are in a day?",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 7,
+      "S": 0,
+      "D": 7,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "how",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "many",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "minutes",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "are",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "in",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "a",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "day",
+          "hyp": null
+        }
+      ]
+    },
+    {
+      "id": "bn-03",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "Set a timer for ten minutes.",
+      "hypothesis": "",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 6,
+      "S": 0,
+      "D": 6,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "set",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "a",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "timer",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "for",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "ten",
+          "hyp": null
+        },
+        {
+          "op": "del",
+          "ref": "minutes",
+          "hyp": null
+        }
+      ],
+      "burst_affected": true
+    },
+    {
+      "id": "bn-04",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "The meeting starts at nine in the morning.",
+      "hypothesis": "The meeting started 9 in the morning.",
+      "trigger": "model_only",
+      "has_digits": true,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 8,
+      "S": 2,
+      "D": 1,
+      "I": 0,
+      "wer": 0.375,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "meeting",
+          "hyp": "meeting"
+        },
+        {
+          "op": "del",
+          "ref": "starts",
+          "hyp": null
+        },
+        {
+          "op": "sub",
+          "ref": "at",
+          "hyp": "started"
+        },
+        {
+          "op": "sub",
+          "ref": "nine",
+          "hyp": "9"
+        },
+        {
+          "op": "ok",
+          "ref": "in",
+          "hyp": "in"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "morning",
+          "hyp": "morning"
+        }
+      ]
+    },
+    {
+      "id": "bn-05",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "Seven people are coming to dinner tonight.",
+      "hypothesis": "Seven people are coming to dinner tonight",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 7,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "seven",
+          "hyp": "seven"
+        },
+        {
+          "op": "ok",
+          "ref": "people",
+          "hyp": "people"
+        },
+        {
+          "op": "ok",
+          "ref": "are",
+          "hyp": "are"
+        },
+        {
+          "op": "ok",
+          "ref": "coming",
+          "hyp": "coming"
+        },
+        {
+          "op": "ok",
+          "ref": "to",
+          "hyp": "to"
+        },
+        {
+          "op": "ok",
+          "ref": "dinner",
+          "hyp": "dinner"
+        },
+        {
+          "op": "ok",
+          "ref": "tonight",
+          "hyp": "tonight"
+        }
+      ]
+    },
+    {
+      "id": "bn-06",
+      "category": "background_noise",
+      "condition": "background_noise",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "hypothesis": "Akut, Dakwik, Brown folks, jumps, over the lazy dog.",
+      "trigger": "model_only",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 9,
+      "S": 3,
+      "D": 0,
+      "I": 0,
+      "wer": 0.3333333333333333,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "sub",
+          "ref": "the",
+          "hyp": "akut"
+        },
+        {
+          "op": "sub",
+          "ref": "quick",
+          "hyp": "dakwik"
+        },
+        {
+          "op": "ok",
+          "ref": "brown",
+          "hyp": "brown"
+        },
+        {
+          "op": "sub",
+          "ref": "fox",
+          "hyp": "folks"
+        },
+        {
+          "op": "ok",
+          "ref": "jumps",
+          "hyp": "jumps"
+        },
+        {
+          "op": "ok",
+          "ref": "over",
+          "hyp": "over"
+        },
+        {
+          "op": "ok",
+          "ref": "the",
+          "hyp": "the"
+        },
+        {
+          "op": "ok",
+          "ref": "lazy",
+          "hyp": "lazy"
+        },
+        {
+          "op": "ok",
+          "ref": "dog",
+          "hyp": "dog"
+        }
+      ]
+    }
+  ],
+  "burst_affected": [
+    "fws-01",
+    "bn-01",
+    "bn-03"
+  ],
+  "excluding_burst_affected": {
+    "meta": {
+      "n_cases": 34,
+      "n_scored": 33,
+      "n_silence": 1,
+      "n_no_transcript": 0
+    },
+    "overall_excluding_silence": {
+      "n_cases": 33,
+      "n_scored": 33,
+      "n_no_transcript": 0,
+      "ref_words": 214,
+      "S": 15,
+      "D": 36,
+      "I": 2,
+      "wer": 0.24766355140186916,
+      "n_has_digits": 6,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 20,
+      "first_word_ok_rate": 0.6060606060606061
+    },
+    "first_word": {
+      "first_word_soft": {
+        "n_scored": 4,
+        "first_word_ok": 4,
+        "first_word_ok_rate": 1
+      },
+      "first_word_strong": {
+        "n_scored": 5,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 0.4
+      }
+    }
+  }
+}
