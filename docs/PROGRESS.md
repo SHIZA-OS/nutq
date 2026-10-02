@@ -82,3 +82,44 @@ rather than assumed from what was written to `config.toml`:
   cache about 4 to 7 s. Not a benchmark.
 - **Open:** on a failed load the vendored library reports "This platform ... is not
   supported", which is misleading for a network failure. Not changed.
+
+## Eval: WER baseline, number normalization and pre-roll (2026-10-02 to 2026-10-03)
+
+All runs: 37 recorded cases (`eval/wer/cases.jsonl`), model/base, results under
+`eval/results/`. Corpus WER is errors over reference words, silence excluded. `num_norm`
+turns 1 and 2 digit integers into words on both sides (12 -> twelve); the raw figures are kept
+so older numbers stay comparable.
+
+- **Baseline** (`baseline-base-r1` to `r3`, mean of 3 repeats): 27.5% raw, 23.5% number
+  normalized. First word right on the soft cases: 1 of 5 in every repeat. Untrimmed
+  model-only (`model-only-base`): 28.2% raw, 24.4% normalized, with empty output on 10 cases.
+- **Why the first word was lost.** The frame that crosses the VAD threshold was never
+  recorded (see [ARCHITECTURE.md](ARCHITECTURE.md), "Speech start and pre-roll"). Offline,
+  `vad-onset.mjs` found the VAD fires about when the 600 RMS energy onset appears (median
+  delay -4 ms at 0.65), so the loss is the trigger frame plus the frame before the energy,
+  1 to 2 frames. Trimmed model-only arms agree: starting at trigger+1 (what the pipeline
+  recorded) got 3 of 5 soft first words, starting 3 frames earlier got 5 of 5, and starting
+  15 frames earlier gave the same first words as 3 frames (9 of 10 soft and strong each).
+  The fixed rule then picked 4 frames.
+- **Pre-roll** (2783344, `PRE_ROLL_FRAMES = 4`, 128 ms, first pass): results in
+  `pre-roll-r1` to `r3` (`pre-roll-r3` ran after midnight, so its folder is dated
+  2026-10-03). Corpus WER mean 15.7% raw and 12.4% normalized. First word right on the soft
+  cases: 5 of 5 in every repeat. On the 26 cases where untrimmed model-only produced text,
+  22.0 of 26 on average (baseline 8.3, untrimmed model-only 21, trimmed arm B 23). 21 of 36
+  cases improved in the mean, 11 were unchanged, 4 were worse.
+- **Regressions.** fst-04 ("12 students" became "Well, students") and pw-04 (an extra "update.
+  Make" before "reply") were worse in all 3 repeats. In `pre-roll-r2`, sh-01 has no
+  transcript: a model-call error at manual stop. Not investigated beyond the events.
+- **Speech starts after a misfire** prepended 0 frames in all 6 cases (bn-06 and cas-01, 3
+  repeats). No eval case exercised a restart after a `speech_end`; that path is covered only
+  by the unit test.
+- **Open, not changed:** the misfire behavior (`isTalking` stays true after
+  `onVADMisfire`), the short-buffer model error in `stop()`, the VAD thresholds, and the
+  pre-roll length (uncalibrated). Chrome's mic processing (echo cancellation, noise
+  suppression, auto gain) was not tested as a cause of the remaining differences between the
+  pipeline and the offline trimmed arms.
+- **Tools.** `run-wer.mjs` (pipeline), `run-model-only.mjs` (whole files, or trimmed relative
+  to the VAD trigger with `--trim-from-trigger`), `vad-onset.mjs` (VAD trigger delay per
+  case), `wer.mjs` (scorer). The drivers write the `burst_affected` and `number_normalization`
+  sections of each README; the `pre_roll` comparison sections in the `pre-roll-r*` READMEs
+  and the mean line in the `baseline-base-r*` READMEs were added by hand and are labeled.

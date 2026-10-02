@@ -48,6 +48,45 @@ load took roughly 27 to 38 s in the runs made while building this (four measurem
 machine, network not controlled). A warm cache was faster (about 4 to 7 s in earlier
 runs). Treat these as a sense of scale only.
 
+## Speech start and pre-roll
+
+Nutq runs the vendored `Transcriber` in streaming mode (`useVAD=false`). Audio reaches it as
+frames of 512 samples at 16 kHz, i.e. 32 ms each, and the Silero VAD (vad-web 0.0.24, v5)
+scores every frame. Settings in `src/main.ts`: `positiveSpeechThreshold` 0.65,
+`minSpeechFrames` 12, and vad-web's defaults for the rest (`negativeSpeechThreshold` 0.35,
+`redemptionFrames` 24).
+
+- **Speech start** fires on the first frame whose probability is at or above
+  `positiveSpeechThreshold`. `minSpeechFrames` does not delay it. It only decides, when the
+  segment ends, whether vad-web reports `onSpeechEnd` or a misfire.
+- **The trigger frame was never recorded.** `onFrameProcessed` runs before `onSpeechStart`
+  for the same frame, so the frame that crosses the threshold arrives while `isTalking` is
+  still false. Recording used to begin with the frame after it, which lost the first 32 to
+  64 ms of every utterance.
+- **Pre-roll** (`src/vendor/pre-roll.ts`) fixes that inside the one buffer the Transcriber
+  already commits from. While `isTalking` is false, every frame goes into a small ring,
+  including the trigger frame. On each speech start the ring is prepended to `speechBuffer`
+  and emptied. It is also cleared in `start()`, because the VAD is paused between sessions
+  and the ring would hold stale audio. Because frames recorded while talking never enter the
+  ring, it cannot repeat audio that is already in `speechBuffer` or already committed, and it
+  returns nothing if `speechBuffer` already has frames.
+- **Length.** `PRE_ROLL_FRAMES` in `src/main.ts` is 4 frames (128 ms): the trigger frame plus
+  three earlier ones. It is a first pass and not calibrated. `eval/runner/vad-onset.mjs` on
+  the 37 recorded cases needed 2 frames to reach the 600 RMS energy onset (3 in the worst
+  clean case), so 4 leaves one frame of margin for soft onsets.
+- It does not use vad-web's own `preSpeechPadFrames` (default 3 for v5) or the `floatArray`
+  that `onSpeechEnd` returns. That audio only comes back through `onSpeechEnd`, which the
+  Transcriber does not use for the recording, and an attempt to use it was reverted because
+  vad-web's segment tracking and `speechBuffer` are separate, unsynchronized buffers (see the
+  KNOWN ISSUE comment in `src/vendor/transcriber.ts`).
+
+**Known and open (not changed by pre-roll).** A segment with fewer than `minSpeechFrames`
+speech frames is a misfire. `onVADMisfire` only logs: `isTalking` stays true and
+`speechBuffer` keeps recording, so a later speech start finds frames already in the buffer
+and pre-roll correctly prepends 0. In a pre-roll run, `Transcriber.stop()` also once threw
+from the model call (`Invalid input shape: {1}`, `pre-roll-r2`, case sh-01). The cause is
+not confirmed.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL).
@@ -62,6 +101,9 @@ Events added for WER measurement:
 
 - `stt_model` `{ model }`: logged once at page load.
 - `stt_committed` `{ text }`: each committed piece, with its text, in eval mode.
+- `pre_roll` `{ frames }`: logged right after each `speech_start` in eval mode. `frames` is
+  how many pre-roll frames were actually prepended (4 normally, 0 when speech restarts while
+  the buffer already holds frames, for example after a misfire).
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
   the text is empty, so a total miss counts as data.
