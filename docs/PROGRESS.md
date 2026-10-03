@@ -292,3 +292,18 @@ event; sil-01 smoke). The auto-silence delay is adjustable with `?silence=<ms>` 
 finding: the app creates one Silero session per page (never per Connect or per listening session), about 100 MB once,
 with no growth per turn; each extra session costs about 10.5 MB and is never released, which only matters to tools
 that create many (the replay opens a page per phase for that reason).
+
+**TTS voices, resampler, external files (2026-10-04).** TTS: voices now load at page load, `?voice=<name>` picks one,
+the voice list is in the log panel and `tts_start` carries the voice. With a local stub gateway (no ZeroClaw), done to
+`tts_start` took 81, 74 and 73 ms on the browser default voice and 55, 64 and 59 ms on a chosen local voice; every
+voice on this machine is local (13,363 espeak-ng voices, only listed with `--enable-speech-dispatcher`), so a
+network-voice delay was not measured. 48 kHz: the worklet resampler is vad-web's box-average decimator, exact for
+48000 Hz (1536 input samples per 512-sample frame, no drift) and 0.057% time-stretched for 44100 Hz; it has no real
+low-pass (tones at 9 to 12 kHz alias at only -4.6 to -9.5 dB, and 7 kHz is down 2.6 dB), a quality limit rather than a
+bug, so nothing was changed. sh-02 and sh-04 detected speech and ended by auto-silence in 3 of 3 runs each at 48000 Hz
+(track and AudioContext both). External files the page fetches: Moonshine model/base encoder (20.5 MB) and decoder
+(42.5 MB) from download.moonshine.ai; ONNX runtime 1.22.0 `ort-wasm-simd-threaded.jsep.mjs` and `.wasm` (4.2 MB
+transferred) from jsDelivr; Silero `silero_vad_v5.onnx` (2.3 MB), `vad.worklet.bundle.min.js` (2.6 KB) and the
+runtime 1.14.0 `ort-wasm-simd.wasm` (10.0 MB, 2.4 MB transferred) from jsDelivr; and Google Fonts (CSS and four
+woff2 files, about 215 KB). Note the installed `onnxruntime-web` JS is 1.27.0 while the wasm comes from the 1.22.0
+CDN path.

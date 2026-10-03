@@ -151,6 +151,11 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   all off (`src/mic-constraints.ts`), to test whether Chrome's processing is a source of run-to-run
   differences in the audio. It has no effect without `eval=1`. A `mic_settings` event records what
   Chrome actually applied.
+- `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
+  at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
+  log panel (at most 40 lines, with local and network counts) so a name can be copied from it. An unknown name is
+  logged and the browser default is used. On Linux Chrome only lists local voices (speech-dispatcher) when started
+  with `--enable-speech-dispatcher`.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
 
@@ -165,6 +170,9 @@ Events added for WER measurement:
   only in eval mode). A failed commit loses that piece of text.
 - `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
   eval mode only (see "Model calls are serialized").
+- `tts_start` `{ voice, local_service, voice_source }`: the reply started to be spoken. `voice_source` is `param`
+  (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
+  guess because Chrome does not say which voice it picked; both are null if no voices were available.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
   the text is empty, so a total miss counts as data.
