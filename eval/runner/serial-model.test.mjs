@@ -52,12 +52,14 @@ before(async () => {
       const committed = [];
       const updates = [];
       const errors = [];
+      const calls = [];
       const t = new Transcriber(
         model,
         {
           onTranscriptionCommitted: (text) => committed.push(text),
           onTranscriptionUpdated: (text) => updates.push(text),
           onModelError: (path, message) => errors.push({ path, message }),
+          onModelCall: (info) => calls.push(info),
         },
         false,
       );
@@ -76,7 +78,7 @@ before(async () => {
       } catch (e) {
         threw = String(e.message ?? e);
       }
-      const out = { events: [...log.events], sizes: [...log.sizes], maxInFlight: log.maxInFlight, committed, updates, errors, threw, extra };
+      const out = { events: [...log.events], sizes: [...log.sizes], maxInFlight: log.maxInFlight, committed, updates, errors, calls, threw, extra };
       t.vadModel.destroy?.();
       t.audioContext.close();
       return out;
@@ -131,6 +133,11 @@ before(async () => {
         fill(1, 2);
         await t.stop();
         return { atStop: [...committed] };
+      }),
+      // a tail under the encoder minimum is reported as skipped, with no wait and no run
+      shortStop: await scenario(async (t, o, { fill }) => {
+        fill(1, 2);
+        await t.stop();
       }),
       // an error on each path is reported, does not throw, and does not stop the later commit
       errSpeechEnd: await scenario(async (t, o, { talk, fill }) => {
@@ -205,4 +212,15 @@ test("a model error is reported as onModelError with its path, and later commits
   assert.deepEqual(r.errStop.errors, [{ path: "stop", message: "boom" }]);
   assert.equal(r.errStop.threw, null);
   assert.deepEqual(r.errUpdate.errors, [{ path: "update", message: "boom" }]);
+});
+
+test("onModelCall reports each call's samples, wait and run time, and its skips", () => {
+  const ran = r.overlap.calls.filter((c) => !c.skipped);
+  assert.deepEqual(ran.map((c) => [c.path, c.samples]), [["update", 16 * 512], ["commit", 64 * 512], ["speech_end", 2 * 512]]);
+  assert.ok(ran.every((c) => c.run_ms >= 50), JSON.stringify(ran)); // the fake model takes 60 ms
+  assert.ok(ran[0].wait_ms < 30, "the update found the model idle");
+  assert.ok(ran[1].wait_ms >= 50 && ran[2].wait_ms >= ran[1].wait_ms + 50, "each later call waited for the earlier ones");
+  const skipped = r.overlap.calls.filter((c) => c.skipped);
+  assert.deepEqual(skipped.map((c) => [c.path, c.samples, c.wait_ms, c.run_ms]), [["update", 32 * 512, 0, 0], ["update", 48 * 512, 0, 0]]);
+  assert.deepEqual(r.shortStop.calls, [{ path: "stop", samples: 512, wait_ms: 0, run_ms: 0, skipped: true }]);
 });

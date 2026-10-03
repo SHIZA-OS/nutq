@@ -79,6 +79,7 @@ type EvalEvent =
   | "speech_end"
   | "stt_committed"
   | "stt_error"
+  | "stt_model_call"
   | "transcript_final"
   | "stt_model"
   | "ws_message_sent"
@@ -628,6 +629,9 @@ function initTranscriber() {
       onModelError(path: string, message: string) {
         // The error is caught in the Transcriber, so the global js_error handler never sees it.
         logEvent("stt_error", { path, message });
+      },
+      onModelCall(info) {
+        if (isEvalMode) logEvent("stt_model_call", info);
       },
       onTranscriptionUpdated(text: string) {
         liveTranscriptEl.textContent = text;

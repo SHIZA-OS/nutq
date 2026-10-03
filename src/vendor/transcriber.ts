@@ -55,6 +55,10 @@ export interface VADThresholdOptions {
  * @property onModelError(path, message) - Nutq addition. A model call failed and the error was caught. path is
  * "update", "commit" (pause or cap), "speech_end" or "stop". A failed commit loses that piece of text.
  *
+ * @property onModelCall(info) - Nutq addition. One call per model call: { path, samples, wait_ms, run_ms, skipped }.
+ * wait_ms is the time from enqueue to the start of the call, run_ms the time the model took. skipped is true
+ * when no model run happened: a commit under the encoder minimum, or an update dropped because the model was busy.
+ *
  * @interface
  */
 interface TranscriberCallbacks {
@@ -81,6 +85,8 @@ interface TranscriberCallbacks {
     onSpeechEnd: () => any;
 
     onModelError: (path: string, message: string) => any;
+
+    onModelCall: (info: { path: string; samples: number; wait_ms: number; run_ms: number; skipped: boolean }) => any;
 }
 
 const defaultTranscriberCallbacks: TranscriberCallbacks = {
@@ -120,6 +126,7 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
     onModelError: function (path: string, message: string) {
         Log.error("Transcriber.onModelError(" + path + ", " + message + ")");
     },
+    onModelCall: function () {},
 };
 
 /**
@@ -350,7 +357,9 @@ class Transcriber {
      */
     private enqueue(path: string, audio: Float32Array, onText: (text: string) => void): Promise<void> {
         this.inFlight++;
+        const enqueuedAt = performance.now();
         this.queue = this.queue.then(async () => {
+            const startedAt = performance.now();
             try {
                 onText(await this.sttModel.generate(audio));
             } catch (err) {
@@ -358,9 +367,20 @@ class Transcriber {
                 this.callbacks.onModelError(path, String(err?.message ?? err));
             } finally {
                 this.inFlight--;
+                this.callbacks.onModelCall({
+                    path,
+                    samples: audio.length,
+                    wait_ms: Math.round(startedAt - enqueuedAt),
+                    run_ms: Math.round(performance.now() - startedAt),
+                    skipped: false,
+                });
             }
         });
         return this.queue;
+    }
+
+    private skipped(path: string, audio: Float32Array): void {
+        this.callbacks.onModelCall({ path, samples: audio.length, wait_ms: 0, run_ms: 0, skipped: true });
     }
 
     /**
@@ -371,7 +391,10 @@ class Transcriber {
      * untouched.
      */
     private commit(path: string, audio: Float32Array): Promise<void> {
-        if (audio.length < MIN_ENCODER_SAMPLES) return this.queue;
+        if (audio.length < MIN_ENCODER_SAMPLES) {
+            this.skipped(path, audio);
+            return this.queue;
+        }
         return this.enqueue(path, audio, (text) => {
             if (text) this.callbacks.onTranscriptionCommitted(text, this.getAudioBuffer(audio));
         });
@@ -382,7 +405,10 @@ class Transcriber {
      * model is busy or a commit is waiting: previews never delay commits.
      */
     private update(audio: Float32Array): void {
-        if (this.inFlight > 0) return;
+        if (this.inFlight > 0) {
+            this.skipped("update", audio);
+            return;
+        }
         this.enqueue("update", audio, (text) => this.callbacks.onTranscriptionUpdated(text));
     }
 
