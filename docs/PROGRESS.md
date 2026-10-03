@@ -307,3 +307,5 @@ transferred) from jsDelivr; Silero `silero_vad_v5.onnx` (2.3 MB), `vad.worklet.b
 runtime 1.14.0 `ort-wasm-simd.wasm` (10.0 MB, 2.4 MB transferred) from jsDelivr; and Google Fonts (CSS and four
 woff2 files, about 215 KB). Note the installed `onnxruntime-web` JS is 1.27.0 while the wasm comes from the 1.22.0
 CDN path.
+
+48 kHz: the resampler is exact at 48000 Hz and short-word detection worked 6 of 6 (`rate48-r1` to `r3`, a 48 kHz diagnostic, not comparable to the baseline); its anti-aliasing is weak above 8 kHz (a quality limit, not a bug); self-hosting the page's external assets is deferred until after the demo.
