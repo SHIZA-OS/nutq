@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, stop() minimum-length guard), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -113,6 +113,16 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
         Log.log("Transcriber.onSpeechEnd()");
     },
 };
+
+/**
+ * Nutq addition. The shortest audio, in samples, that the STT encoder accepts. Measured on
+ * model/base by calling the real MoonshineModel.generate() on a sine tone:
+ * 894 samples throws an OrtRun error, 895 runs. It matches the encoder's three convolutions
+ * without padding (kernel 127 stride 64, kernel 7 stride 3, kernel 3 stride 2), which need
+ * 127 + 64 * (7 + 3 * 2 - 1) = 895 samples to produce one output step. Only model/base was
+ * measured; the tiny model's encoder was not checked.
+ */
+const MIN_ENCODER_SAMPLES = 895;
 
 class SpeechBuffer {
     private buffer: Float32Array;
@@ -598,12 +608,17 @@ class Transcriber {
         if (this.speechBuffer && this.speechBuffer.hasFrames()) {
             var tmpBuffer = this.speechBuffer.copy();
             this.speechBuffer.flush();
-            const text = await this.sttModel?.generate(tmpBuffer);
-            if (text) {
-                this.callbacks.onTranscriptionCommitted(
-                    text,
-                    this.getAudioBuffer(tmpBuffer)
-                );
+            // A tail under the encoder minimum (for example 1 frame left right after a
+            // flush) would make generate() throw and abort stop(). Skip it; what was
+            // already committed is untouched.
+            if (tmpBuffer.length >= MIN_ENCODER_SAMPLES) {
+                const text = await this.sttModel?.generate(tmpBuffer);
+                if (text) {
+                    this.callbacks.onTranscriptionCommitted(
+                        text,
+                        this.getAudioBuffer(tmpBuffer)
+                    );
+                }
             }
         }
         if (this.vadModel) {
