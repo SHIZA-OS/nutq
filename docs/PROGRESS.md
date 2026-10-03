@@ -123,8 +123,9 @@ so older numbers stay comparable.
   case), `wer.mjs` (scorer), `replay-commits.mjs` (offline commit-boundary replay, see the last
   section; its `--wer <label>` mode is the phase-swept replay WER: every case at 8 frame phases, scored with
   `wer.mjs`, written to `eval/results/<date>-wer-<label>/`; limits: no Chrome mic processing, no
-  resampling, no streaming updates, no real-time scheduling, and the turn currently ends with a manual stop
-  at the end of the WAV, unlike live turns, which mostly end with the 5 s silence timer). The drivers write the `burst_affected` and `number_normalization` sections of each
+  resampling, no streaming updates, no real-time scheduling, and the turn ends the way `run-wer.mjs` ends it: the same turn policy as `main.ts`
+  (`src/turn-policy.ts`) driven with time from frame positions, then a manual stop at WAV duration + 10 s if it
+  has not ended; 32 of 37 turns end by auto-silence, as live). The drivers write the `burst_affected` and `number_normalization` sections of each
   README; the `pre_roll` comparison sections in the `pre-roll-r*` READMEs
   and the mean line in the `baseline-base-r*` READMEs were added by hand and are labeled.
 
@@ -274,3 +275,10 @@ from interleaved live runs.
 stop at the end of the WAV: v1 normalized WER 9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7 and 12.0% by phase, mean 10.6%
 (raw 14.6%), first words 22.6 of 26; two runs were byte-identical. A different measurement from the live runs
 (the live interleaved B arm was 9.1%); use it to compare logic changes.
+
+**Turn-end policy module (2026-10-04).** When a turn ends and why moved out of `main.ts` into the pure module
+`src/turn-policy.ts` (auto-silence 5000 ms armed on a speech end, cleared by a speech start, a misfire does nothing,
+a manual stop ends the turn now); the replay uses the same module. With it, `replay-head-policy` (code at the
+turn-policy commit) has the same per-phase WER as `replay-head` (9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7, 12.0%; mean 10.6%)
+and all 296 case-phase hypotheses are identical; only the trigger differs: 32 turns end by auto-silence and 5 manually
+(sh-01, sh-02, sh-04, sil-01, bn-03) in every phase, the same as the live runs. Two runs were byte-identical.

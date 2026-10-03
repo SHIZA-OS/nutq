@@ -126,6 +126,16 @@ is an inference, not tested.
 `onVADMisfire` only logs: `isTalking` stays true and `speechBuffer` keeps recording, so a
 later speech start finds frames already in the buffer and pre-roll correctly prepends 0.
 
+## End of turn
+
+`src/turn-policy.ts` decides when a listening turn ends and why, as a pure module (no timers, no DOM, no
+clock; the caller passes the time). Auto-silence: 5000 ms after a speech end the turn ends with reason
+`auto_silence`; a speech start cancels it and a later speech end arms it again. A VAD misfire does nothing. A
+manual stop ends the turn at once with reason `manual`; once ended, a turn stays ended. `main.ts` drives it with
+`Date.now()` and one `setTimeout`, and the reason becomes the `trigger` of `transcript_final` and
+`ws_message_sent`. The offline replay (`replay-commits.mjs`) drives the same module with time taken from frame
+positions.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL).
