@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, stop() minimum-length guard), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, stop() minimum-length guard), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -127,6 +127,7 @@ const MIN_ENCODER_SAMPLES = 895;
 class SpeechBuffer {
     private buffer: Float32Array;
     private frameCount: number;
+    private preRollCount: number;
     public frameEMA: number;
     private speechEMA: (value: number) => any;
     private useVAD: boolean;
@@ -143,12 +144,20 @@ class SpeechBuffer {
         this.speechEMA = this.ema(Settings.STREAM_COMMIT_EMA_PERIOD);
         this.frameEMA = 0.0;
         this.frameCount = 0;
+        this.preRollCount = 0;
     }
 
     public set(frame, p = undefined): void {
         this.buffer.set(frame, this.frameCount * Settings.FRAME_SIZE);
         if (p) this.updateEMA(p);
         this.frameCount += 1;
+    }
+
+    // Pre-roll frames sit in the buffer (they count toward the max-interval cap) but were not
+    // recorded while talking, so they do not count toward the pause-commit minimum.
+    public prepend(frames: Float32Array[]): void {
+        for (const frame of frames) this.set(frame);
+        this.preRollCount += frames.length;
     }
 
     public updateEMA(p): void {
@@ -181,7 +190,7 @@ class SpeechBuffer {
     public shouldCommit(): boolean {
         if (
             this.frameEMA <= 0.5 &&
-            this.frameCount >= this.minCommitInterval() &&
+            this.recordedCount() >= this.minCommitInterval() &&
             this.frameCount < this.maxCommitInterval()
         ) {
             Log.log(`Speech pause, frameCount: ${this.frameCount}`);
@@ -191,8 +200,12 @@ class SpeechBuffer {
         return (
             this.frameCount === this.maxCommitInterval() ||
             (this.frameEMA <= Settings.STREAM_COMMIT_EMA_THRESHOLD &&
-                this.frameCount >= this.minCommitInterval())
+                this.recordedCount() >= this.minCommitInterval())
         );
+    }
+
+    private recordedCount(): number {
+        return this.frameCount - this.preRollCount;
     }
 
     private ema(period: number): (value: number) => number {
@@ -401,7 +414,7 @@ class Transcriber {
                 // talking never enter the ring, so nothing already in speechBuffer or already
                 // committed is prepended; take() also returns nothing if speechBuffer has frames.
                 const preRoll = this.preRoll.take(this.speechBuffer.hasFrames());
-                for (const frame of preRoll) this.speechBuffer.set(frame);
+                this.speechBuffer.prepend(preRoll);
                 this.callbacks.onSpeechStart(preRoll.length);
                 isTalking = true;
             },
@@ -627,4 +640,4 @@ class Transcriber {
     }
 }
 
-export { Transcriber, TranscriberCallbacks };
+export { Transcriber, TranscriberCallbacks, SpeechBuffer };
