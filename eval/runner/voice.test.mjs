@@ -24,20 +24,34 @@ before(async () => {
     const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
-    const frenchLocalFirst = [v("Thomas", true, false, "fr-FR"), v("Google UK English", false), v("Daniel", true, false, "en-GB")];
-    const noLocalEnglish = [v("Google US English", false, true), v("Thomas", true, false, "fr-FR")];
+    const name = (c) => [c.voice?.name ?? null, c.source];
+    // A named voice (?voice=), whatever the language and the default
+    const named = [v("Google US English", false, true), v("Samantha", true), v("Thomas", true, false, "fr-FR")];
+    // Rule 1: the browser default is local, so it wins even over a better language match
+    const defLocal = [v("Thomas", true, true, "fr-FR"), v("Daniel", true, false, "en-GB"), v("Samantha", true, false, "en-US")];
+    // Rule 2: the default is a network voice; the exact language match is not the first local voice
+    const exact = [v("Google US English", false, true), v("Daniel", true, false, "en-GB"), v("Samantha", true, false, "en-US"), v("Alex", true, false, "en-US")];
+    // Rule 3: no exact match; the first local voice with the same base language
+    const base = [v("Google UK English", false, true), v("Thomas", true, false, "fr-FR"), v("Daniel", true, false, "en-GB"), v("Karen", true, false, "en-AU")];
+    // Otherwise: the default is a network voice and no local voice has the language
+    const noMatch = [v("Google US English", false, true), v("Thomas", true, false, "fr-FR"), v("Netz", false, false, "en-US")];
+    const underscore = [v("Google", false, true), v("Daniel", true, false, "en_GB"), v("Samantha", true, false, "en_US")];
     return {
-      named: pickVoice(list, "Samantha"),
-      namedIgnoresCase: pickVoice(list, "samantha").voice?.name,
-      namedMissing: pickVoice(list, "Nobody"),
-      partialIsNotAMatch: pickVoice(list, "Sam"),
-      namedBeatsAuto: pickVoice(list, "Google US English"),
-      auto: pickVoice(list, null),
-      autoEmptyName: pickVoice(list, ""),
-      autoSkipsNonEnglishAndNetwork: pickVoice(frenchLocalFirst, null),
-      autoNoLocalEnglish: pickVoice(noLocalEnglish, null),
-      emptyList: pickVoice([], null),
-      emptyListNamed: pickVoice([], "Samantha"),
+      named: name(pickVoice(named, "Samantha", "en-US")),
+      namedIgnoresCase: name(pickVoice(named, "samantha", "en-US")),
+      namedNetworkWhenAsked: name(pickVoice(named, "Google US English", "en-US")),
+      namedMissing: name(pickVoice(named, "Nobody", "en-US")),
+      partialIsNotAMatch: name(pickVoice(named, "Sam", "en-US")),
+      rule1: name(pickVoice(defLocal, null, "en-US")),
+      rule1EmptyName: name(pickVoice(defLocal, "", "en-US")),
+      rule2: name(pickVoice(exact, null, "en-US")),
+      rule2CaseAndUnderscore: name(pickVoice(underscore, null, "EN-us")),
+      rule3: name(pickVoice(base, null, "en-US")),
+      rule3LanguageWithoutRegion: name(pickVoice(base, null, "en")),
+      noMatch: name(pickVoice(noMatch, null, "en-US")),
+      noLanguage: name(pickVoice(exact, null, "")),
+      emptyList: name(pickVoice([], null, "en-US")),
+      emptyListNamed: name(pickVoice([], "Samantha", "en-US")),
       lines: voiceLines(list),
       manyLines: voiceLines(many, 40),
       none: voiceLines([]),
@@ -50,24 +64,34 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("pickVoice, case 1: a name that matches a voice (ignoring case) picks it, with source param", () => {
-  assert.deepEqual([r.named.voice.name, r.named.source], ["Samantha", "param"]);
-  assert.equal(r.namedIgnoresCase, "Samantha");
-  assert.deepEqual([r.namedBeatsAuto.voice.name, r.namedBeatsAuto.source], ["Google US English", "param"]); // even a network voice, when asked for
+test("pickVoice: a name that matches a voice (ignoring case) picks it, with source param, even a network voice", () => {
+  assert.deepEqual(r.named, ["Samantha", "param"]);
+  assert.deepEqual(r.namedIgnoresCase, ["Samantha", "param"]);
+  assert.deepEqual(r.namedNetworkWhenAsked, ["Google US English", "param"]);
 });
 
-test("pickVoice, case 2: no name picks the first local English voice, with source auto_local", () => {
-  assert.deepEqual([r.auto.voice.name, r.auto.source], ["English (America) espeak-ng", "auto_local"]);
-  assert.deepEqual([r.autoEmptyName.voice.name, r.autoEmptyName.source], ["English (America) espeak-ng", "auto_local"]);
-  assert.deepEqual([r.autoSkipsNonEnglishAndNetwork.voice.name, r.autoSkipsNonEnglishAndNetwork.source], ["Daniel", "auto_local"]);
+test("pickVoice rule 1: no name and the browser default voice is local: that voice, auto_local", () => {
+  assert.deepEqual(r.rule1, ["Thomas", "auto_local"]); // wins over the en-US match
+  assert.deepEqual(r.rule1EmptyName, ["Thomas", "auto_local"]);
 });
 
-test("pickVoice, case 3: no local English voice, or a name that matches nothing, is the browser default", () => {
-  assert.deepEqual(r.autoNoLocalEnglish, { voice: null, source: "browser_default" });
-  assert.deepEqual(r.emptyList, { voice: null, source: "browser_default" });
-  assert.deepEqual(r.namedMissing, { voice: null, source: "browser_default" }); // a named voice that is missing does not fall back to auto_local
-  assert.deepEqual(r.partialIsNotAMatch, { voice: null, source: "browser_default" });
-  assert.deepEqual(r.emptyListNamed, { voice: null, source: "browser_default" });
+test("pickVoice rule 2: the default is not local: the first local voice whose lang equals navigator.language", () => {
+  assert.deepEqual(r.rule2, ["Samantha", "auto_local"]); // not Daniel (en-GB), not the network default
+  assert.deepEqual(r.rule2CaseAndUnderscore, ["Samantha", "auto_local"]); // "EN-us" matches "en_US"
+});
+
+test("pickVoice rule 3: no exact match: the first local voice with the same base language", () => {
+  assert.deepEqual(r.rule3, ["Daniel", "auto_local"]); // en-GB comes before en-AU, and is not the network default
+  assert.deepEqual(r.rule3LanguageWithoutRegion, ["Daniel", "auto_local"]); // navigator.language "en"
+});
+
+test("pickVoice otherwise: the browser default, with source browser_default", () => {
+  assert.deepEqual(r.noMatch, [null, "browser_default"]); // the only en-US voice is a network voice
+  assert.deepEqual(r.noLanguage, [null, "browser_default"]);
+  assert.deepEqual(r.emptyList, [null, "browser_default"]);
+  assert.deepEqual(r.namedMissing, [null, "browser_default"]); // a missing name does not fall back to auto_local
+  assert.deepEqual(r.partialIsNotAMatch, [null, "browser_default"]);
+  assert.deepEqual(r.emptyListNamed, [null, "browser_default"]);
 });
 
 test("voiceLines gives a summary and one line per voice with local or network and the default", () => {

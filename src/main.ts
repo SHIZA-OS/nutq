@@ -533,7 +533,7 @@ function loadVoices() {
   if (voices.length === 0 || voices.length === loggedVoiceCount) return;
   loggedVoiceCount = voices.length;
   for (const line of voiceLines(voices)) log(line);
-  const choice = pickVoice(voices, wantedVoice);
+  const choice = pickVoice(voices, wantedVoice, navigator.language);
   if (wantedVoice && !choice.voice) log(`Voice "${wantedVoice}" not found, using the browser default`);
   log(`Reply voice: ${choice.voice?.name ?? "browser default"} (${choice.source})`);
 }
@@ -550,7 +550,7 @@ function speak(text: string) {
     return;
   }
   if (voices.length === 0) voices = window.speechSynthesis.getVoices();
-  const choice = pickVoice(voices, wantedVoice);
+  const choice = pickVoice(voices, wantedVoice, navigator.language);
   // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
   // default is the best guess, so the event records where the name came from.
   const used = choice.voice ?? voices.find((v) => v.default) ?? null;

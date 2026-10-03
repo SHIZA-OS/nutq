@@ -26,7 +26,8 @@ URL, agent alias, and pairing token in the app.
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
 
-Replies are spoken with the first local English voice by default; add `?voice=<exact name>` to the URL to pick
+Replies are spoken with a local voice by default (the browser's default voice if it is local, else the first
+local voice for your browser language); add `?voice=<exact name>` to the URL to pick
 another (the page logs the voice list). A turn is sent 5000 ms after you stop talking by default; `?silence=<ms>` changes
 that (800 to 8000), and the demo script uses 1200.
 

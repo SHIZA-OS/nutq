@@ -156,7 +156,9 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 - `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
   at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
   log panel (at most 40 lines, with local and network counts) so a name can be copied from it. An unknown name is
-  logged and the browser default is used. On Linux Chrome only lists local voices (speech-dispatcher) when started
+  logged and the browser default is used. With no name, local voices are preferred (they start quickly): the browser's
+  default voice if it is local, else the first local voice whose lang equals `navigator.language`, else the first local
+  voice with the same base language, else the browser default; `voice_source` is `auto_local` for those local picks. On Linux Chrome only lists local voices (speech-dispatcher) when started
   with `--enable-speech-dispatcher`.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
@@ -173,7 +175,7 @@ Events added for WER measurement:
 - `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
   eval mode only (see "Model calls are serialized").
 - `tts_start` `{ voice, local_service, voice_source }`: the reply started to be spoken. `voice_source` is `param`
-  (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
+  (chosen with `?voice=`), `auto_local` (picked by the rule above) or `browser_default`, where `voice` is the voice the browser flags as default, a best
   guess because Chrome does not say which voice it picked; both are null if no voices were available.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
