@@ -282,3 +282,13 @@ a manual stop ends the turn now); the replay uses the same module. With it, `rep
 turn-policy commit) has the same per-phase WER as `replay-head` (9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7, 12.0%; mean 10.6%)
 and all 296 case-phase hypotheses are identical; only the trigger differs: 32 turns end by auto-silence and 5 manually
 (sh-01, sh-02, sh-04, sil-01, bn-03) in every phase, the same as the live runs. Two runs were byte-identical.
+
+**Demo changes (2026-10-04).** A VAD misfire now arms auto-send like a speech end, so short words ("Yes.", "Stop",
+"What?") end by auto-silence instead of needing a manual stop (live smoke: sh-01, sh-02 and sh-04 ended by auto-silence,
+aq-01 unchanged; one smoke run detected no speech at all in sh-02 and sh-04, and one had a cold model-load timeout,
+neither explained by the change). An empty or whitespace-only transcript is not sent to the gateway (`send_skipped`
+event; sil-01 smoke). The auto-silence delay is adjustable with `?silence=<ms>` in any mode (default 5000, clamped to
+800..8000). No full WER runs or replay sweeps were made for these, only unit tests and short live smoke runs. Silero
+finding: the app creates one Silero session per page (never per Connect or per listening session), about 100 MB once,
+with no growth per turn; each extra session costs about 10.5 MB and is never released, which only matters to tools
+that create many (the replay opens a page per phase for that reason).
