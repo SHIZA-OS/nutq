@@ -129,10 +129,10 @@ later speech start finds frames already in the buffer and pre-roll correctly pre
 ## End of turn
 
 `src/turn-policy.ts` decides when a listening turn ends and why, as a pure module (no timers, no DOM, no
-clock; the caller passes the time). Auto-silence: 5000 ms after a speech end the turn ends with reason
+clock; the caller passes the time). Auto-silence: 1200 ms after a speech end the turn ends with reason
 `auto_silence`; a speech start cancels it and a later speech end arms it again. A VAD misfire (a segment too short to count as speech, so no speech end follows) arms it the same way a
 speech end does, so a short word like "Yes." or "Stop" is sent without a manual stop; a later speech start still
-clears it, and recording is untouched. The delay is 5000 ms by default and can be set with `?silence=<ms>` in any
+clears it, and recording is untouched. The delay is 1200 ms by default (it was 5000 ms until the demo defaults; a pause longer than 1.2 s now ends the turn) and can be set with `?silence=<ms>` in any
 mode (clamped to 800..8000; absent or not a number is the default). A transcript that is empty or only whitespace
 is not sent to the gateway (`send_skipped` event). A
 manual stop ends the turn at once with reason `manual`; once ended, a turn stays ended. `main.ts` drives it with

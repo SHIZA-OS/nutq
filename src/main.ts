@@ -578,7 +578,7 @@ let sessionTranscript = "";
 
 // When a turn ends, and why, is decided by TurnPolicy (src/turn-policy.ts); this file feeds it the
 // events and the time, and owns the one JS timer that fires the auto-silence it asks for.
-// Any mode: ?silence=<ms> sets the auto-silence delay (default 5000, clamped to 800..8000).
+// Any mode: ?silence=<ms> sets the auto-silence delay (default 1200, clamped to 800..8000).
 const silenceMs = parseSilenceMs(urlParams.get("silence"));
 let turn = new TurnPolicy(silenceMs);
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
