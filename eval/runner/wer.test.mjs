@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { normalize, normalizeNumbers, numNormSection, burstSection, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
+import { normalize, normalizeNumbers, numNormSection, burstSection, caseSetSection, scoreCase, scoreRun, loadEventsDir, loadFlags } from "./wer.mjs";
 
 // Event shapes copied from a real run (verify-base-unpadded): stt_model,
 // mic_button_press, speech_start, stt_committed {text}, speech_end,
@@ -113,6 +113,28 @@ test("every empty-reference case is excluded from corpus WER, whatever its categ
   const mixed = scoreRun([FOX, nts], { ...got, "nts-01": turn(["Stop."], "Stop.") });
   assert.equal(mixed.overall_excluding_silence.n_cases, 2);
   assert.equal(mixed.by_category.noise_then_short.wer, 0);
+});
+
+test("case_sets reports v1 (the default set) next to all scored cases, and the README section shows both", () => {
+  const stop = { id: "nts-01", category: "noise_then_short", condition: "quiet", reference: "Stop.", set: "v2" };
+  const noise = { id: "no-01", category: "noise_only", condition: "quiet", reference: "", set: "v2" };
+  const got = {
+    "pw-01": turn(["x"], "The quick brown fox jumps over the lazy dog."), // 0 errors in 9 words
+    "nts-01": turn(["Cough. Stop."], "Cough. Stop."), // 1 insertion in 1 word
+    "no-01": turn(["Thank you."], "Thank you."),
+  };
+  const run = scoreRun([FOX, stop, noise], got);
+  assert.equal(FOX.set, undefined); // no "set" in cases.jsonl means v1
+  assert.deepEqual(run.case_sets.v1, scoreRun([FOX], got).overall_excluding_silence); // exactly the v1-only run
+  assert.equal(run.case_sets.v1.n_scored, 1);
+  assert.equal(run.case_sets.v1.wer, 0);
+  assert.equal(run.case_sets.all.n_scored, 2);
+  assert.equal(run.case_sets.all.ref_words, 10);
+  assert.equal(run.case_sets.all.wer, 1 / 10);
+  assert.deepEqual(run.case_sets.all, run.overall_excluding_silence);
+  const md = caseSetSection(run);
+  assert.match(md, /\| cases scored \| 1 \| 2 \|/);
+  assert.match(md, /\| corpus WER, raw \| 0\.0% \| 10\.0% \|/);
 });
 
 test("fillers are removed on both sides", () => {

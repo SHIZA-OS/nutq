@@ -26,6 +26,8 @@
 //   - eval/wer/recording-flags.json (optional) flags recordings, not cases. Cases flagged
 //     burst_affected get burst_affected: true, and the summary adds burst_affected[] and
 //     excluding_burst_affected (the same aggregates without them).
+//   - cases.jsonl rows have an optional "set" (default "v1", the original cases); the summary adds
+//     case_sets { v1, all } so the comparable baseline is reported next to the full corpus.
 //   - re-scoring over an existing summary.json keeps its run block.
 
 import { readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
@@ -96,7 +98,7 @@ export function align(ref, hyp) {
 
 // events: array of parsed events for the case, or null when there is no events file.
 export function scoreCase(c, events) {
-  const base = { id: c.id, category: c.category, condition: c.condition, reference: c.reference };
+  const base = { id: c.id, category: c.category, condition: c.condition, reference: c.reference, set: c.set ?? "v1" };
   const finals = (events ?? []).filter((e) => e.event === "transcript_final");
   if (finals.length === 0) {
     return { ...base, status: "no_transcript", reason: events ? "no_transcript_final" : "no_events_file" };
@@ -230,6 +232,9 @@ export function scoreRun(cases, eventsById, flags = {}) {
       n_no_transcript: results.filter((r) => r.status === "no_transcript").length,
     },
     overall_excluding_silence: groupAgg(nonSilence),
+    // v1 is the original 37 cases, the comparable baseline; "all" adds the later sets. A case with no
+    // "set" in cases.jsonl is v1. ponytail: v1 against all only; a per-set table if a v3 appears.
+    case_sets: { v1: groupAgg(nonSilence.filter((r) => r.set === "v1")), all: groupAgg(nonSilence) },
     by_category: groupBy(nonSilence, "category"),
     by_condition: groupBy(nonSilence, "condition"),
     first_word: { first_word_soft: fw("first_word_soft"), first_word_strong: fw("first_word_strong") },
@@ -275,6 +280,26 @@ export function burstSection(summary) {
     `| corpus WER (excl. silence) | ${pct(all.wer)} (${all.ref_words} ref words) | ${pct(ex.wer)} (${ex.ref_words} ref words) |`,
     fw("first_word_soft"),
     fw("first_word_strong"),
+    "",
+  ].join("\n");
+}
+
+// README section: corpus WER of the original case set (v1, the comparable baseline) next to all scored cases.
+export function caseSetSection(summary) {
+  const { v1, all } = summary.case_sets;
+  const pct = (x) => (x === null ? "n/a" : `${(x * 100).toFixed(1)}%`);
+  return [
+    "",
+    "## case_sets",
+    "",
+    "`v1` is the original case set, the baseline every earlier run is comparable to. `all` also counts the cases added later (`set` in cases.jsonl). Empty-reference cases are excluded from both.",
+    "",
+    "| | v1 | all scored cases |",
+    "|---|---|---|",
+    `| cases scored | ${v1.n_scored} | ${all.n_scored} |`,
+    `| reference words | ${v1.ref_words} | ${all.ref_words} |`,
+    `| corpus WER, raw | ${pct(v1.wer)} | ${pct(all.wer)} |`,
+    `| corpus WER, num_norm | ${pct(v1.num_norm.wer)} | ${pct(all.num_norm.wer)} |`,
     "",
   ].join("\n");
 }
