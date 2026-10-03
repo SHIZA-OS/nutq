@@ -1,0 +1,243 @@
+{
+  "run": {
+    "model": "model/base",
+    "label": "rate48-r2",
+    "date": "2026-10-04",
+    "audio_dir": "~/Shiza/nutq-eval-audio/cases",
+    "attempted": [
+      "sh-02",
+      "sh-04"
+    ],
+    "missing_audio": [],
+    "errors": [],
+    "ended": {
+      "sh-02": "auto",
+      "sh-04": "auto"
+    }
+  },
+  "meta": {
+    "n_cases": 2,
+    "n_scored": 2,
+    "n_silence": 0,
+    "n_no_transcript": 0
+  },
+  "overall_excluding_silence": {
+    "n_cases": 2,
+    "n_scored": 2,
+    "n_no_transcript": 0,
+    "ref_words": 2,
+    "S": 0,
+    "D": 0,
+    "I": 0,
+    "wer": 0,
+    "n_has_digits": 0,
+    "n_commit_mismatch": 0,
+    "first_word_ok": 2,
+    "first_word_ok_rate": 1,
+    "num_norm": {
+      "ref_words": 2,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 1
+    }
+  },
+  "case_sets": {
+    "v1": {
+      "n_cases": 2,
+      "n_scored": 2,
+      "n_no_transcript": 0,
+      "ref_words": 2,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 1,
+      "num_norm": {
+        "ref_words": 2,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 1
+      }
+    },
+    "all": {
+      "n_cases": 2,
+      "n_scored": 2,
+      "n_no_transcript": 0,
+      "ref_words": 2,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 1,
+      "num_norm": {
+        "ref_words": 2,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 1
+      }
+    }
+  },
+  "by_category": {
+    "short": {
+      "n_cases": 2,
+      "n_scored": 2,
+      "n_no_transcript": 0,
+      "ref_words": 2,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 1,
+      "num_norm": {
+        "ref_words": 2,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 1
+      }
+    }
+  },
+  "by_condition": {
+    "quiet": {
+      "n_cases": 2,
+      "n_scored": 2,
+      "n_no_transcript": 0,
+      "ref_words": 2,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 2,
+      "first_word_ok_rate": 1,
+      "num_norm": {
+        "ref_words": 2,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": 2,
+        "first_word_ok_rate": 1
+      }
+    }
+  },
+  "first_word": {
+    "first_word_soft": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    },
+    "first_word_strong": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    }
+  },
+  "silence": {
+    "expected_words": 0,
+    "cases": []
+  },
+  "no_transcript": [],
+  "commit_mismatch": [],
+  "cases": [
+    {
+      "id": "sh-02",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "Stop.",
+      "set": "v1",
+      "hypothesis": "Stop",
+      "trigger": "auto_silence",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 1,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "stop",
+          "hyp": "stop"
+        }
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
+    },
+    {
+      "id": "sh-04",
+      "category": "short",
+      "condition": "quiet",
+      "reference": "What?",
+      "set": "v1",
+      "hypothesis": "What?",
+      "trigger": "auto_silence",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 1,
+      "status": "scored",
+      "empty_hypothesis": false,
+      "ref_words": 1,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": 0,
+      "first_word_ok": true,
+      "alignment": [
+        {
+          "op": "ok",
+          "ref": "what",
+          "hyp": "what"
+        }
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": 0,
+        "first_word_ok": true
+      }
+    }
+  ]
+}
