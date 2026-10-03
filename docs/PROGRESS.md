@@ -121,7 +121,10 @@ so older numbers stay comparable.
 - **Tools.** `run-wer.mjs` (pipeline), `run-model-only.mjs` (whole files, or trimmed relative
   to the VAD trigger with `--trim-from-trigger`), `vad-onset.mjs` (VAD trigger delay per
   case), `wer.mjs` (scorer), `replay-commits.mjs` (offline commit-boundary replay, see the last
-  section). The drivers write the `burst_affected` and `number_normalization` sections of each
+  section; its `--wer <label>` mode is the phase-swept replay WER: every case at 8 frame phases, scored with
+  `wer.mjs`, written to `eval/results/<date>-wer-<label>/`; limits: no Chrome mic processing, no
+  resampling, no streaming updates, no real-time scheduling, and the turn currently ends with a manual stop
+  at the end of the WAV, unlike live turns, which mostly end with the 5 s silence timer). The drivers write the `burst_affected` and `number_normalization` sections of each
   README; the `pre_roll` comparison sections in the `pre-roll-r*` READMEs
   and the mean line in the `baseline-base-r*` READMEs were added by hand and are labeled.
 
@@ -266,3 +269,8 @@ transcripts (28 of 37 identical against 29 to 32) or WER (15.0% and 10.7%). The 
 is unexplained; the 44.1 kHz capture rate Chrome reports (resampled downstream) is untested.
 Measurement policy: logic changes are compared with the phase-swept replay; absolute numbers come
 from interleaved live runs.
+
+**Phase-swept replay baseline (2026-10-04, `replay-head`, code at 46c3925).** 8 frame phases x 37 cases, manual
+stop at the end of the WAV: v1 normalized WER 9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7 and 12.0% by phase, mean 10.6%
+(raw 14.6%), first words 22.6 of 26; two runs were byte-identical. A different measurement from the live runs
+(the live interleaved B arm was 9.1%); use it to compare logic changes.
