@@ -122,7 +122,7 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
  * 127 + 64 * (7 + 3 * 2 - 1) = 895 samples to produce one output step. Only model/base was
  * measured; the tiny model's encoder was not checked.
  */
-const MIN_ENCODER_SAMPLES = 895;
+export const MIN_ENCODER_SAMPLES = 895;
 
 class SpeechBuffer {
     private buffer: Float32Array;
