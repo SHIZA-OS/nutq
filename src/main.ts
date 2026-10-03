@@ -1,6 +1,7 @@
 import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
+import { TurnPolicy, SILENCE_COMMIT_MS } from "./turn-policy";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -543,10 +544,9 @@ let listening = false;
 // a mid-sentence pause no longer triggers its own send.
 let sessionTranscript = "";
 
-// Auto-send-on-silence: a convenience layered on top of push-to-talk, not a
-// replacement for it. 5s, not 3s: live testing showed natural mid-sentence
-// pauses of ~3s, so 3s risked cutting sentences short; 5s gives real margin.
-const SILENCE_COMMIT_MS = 5000;
+// When a turn ends, and why, is decided by TurnPolicy (src/turn-policy.ts); this file feeds it the
+// events and the time, and owns the one JS timer that fires the auto-silence it asks for.
+let turn = new TurnPolicy();
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function clearSilenceTimer() {
@@ -554,6 +554,21 @@ function clearSilenceTimer() {
     clearTimeout(silenceTimer);
     silenceTimer = null;
   }
+}
+
+// Replaces the timer with one for the policy's pending auto-silence, if it has one.
+function scheduleSilenceTimer() {
+  clearSilenceTimer();
+  const at = turn.endsAt();
+  if (at === null) return;
+  silenceTimer = setTimeout(() => {
+    silenceTimer = null;
+    const end = turn.tick(at); // the timer fires at the deadline, so ask the policy at that time
+    if (end) {
+      log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
+      finishListening(end.reason);
+    }
+  }, Math.max(0, at - Date.now()));
 }
 
 // Stops the transcriber, flushes any pending buffered audio (Transcriber.stop()
@@ -606,16 +621,13 @@ function initTranscriber() {
       onSpeechStart(preRollFrames: number) {
         logEvent("speech_start");
         if (isEvalMode) logEvent("pre_roll", { frames: preRollFrames });
-        clearSilenceTimer();
+        turn.speechStart(Date.now());
+        scheduleSilenceTimer();
       },
       onSpeechEnd() {
         logEvent("speech_end");
-        clearSilenceTimer();
-        silenceTimer = setTimeout(() => {
-          silenceTimer = null;
-          log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
-          finishListening("auto_silence");
-        }, SILENCE_COMMIT_MS);
+        turn.speechEnd(Date.now());
+        scheduleSilenceTimer();
       },
       onModelError(path: string, message: string) {
         // The error is caught in the Transcriber, so the global js_error handler never sees it.
@@ -696,12 +708,13 @@ micBtn.addEventListener("click", async () => {
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
+    turn = new TurnPolicy();
     logEvent("mic_button_press");
     sessionTranscript = "";
     await startMicrophone(transcriber!);
   } else {
     logEvent("mic_button_release");
-    await finishListening("manual");
+    await finishListening(turn.manualStop(Date.now()).reason);
   }
 });
 

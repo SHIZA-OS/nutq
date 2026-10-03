@@ -13,10 +13,7 @@
 // eval/results/<date>-wer-<label>/ (summary.json and README.md for the whole sweep, phase-N/summary.json
 // per phase in wer.mjs's own format). Phase p prepends p * (512 / phases) zero samples (64 samples,
 // 4 ms, per phase for 8 phases), so the frame boundaries fall at a different place relative to the
-// speech. A turn ends with a manual stop at the end of the WAV (no silence padding): the commits the
-// VAD made are kept, and whatever is still in the buffer is committed by stop(). Note that
-// run-wer.mjs ends most turns (32 of 37 in the baseline runs) with the 5 s silence timer instead, so a
-// replay turn can end differently from a live one. Everything is deterministic: no timestamps are written.
+// speech. Everything is deterministic: no timestamps are written.
 //
 // Each WAV is cut into 512-sample frames (32 ms at 16 kHz) and fed, faster than real time, to
 // the real vendored Transcriber (real Silero VAD, real SpeechBuffer, real Moonshine model) in
@@ -30,8 +27,10 @@
 //   stop         Transcriber.stop() at the end of the turn
 // A commit under the encoder minimum (895 samples) is listed as skipped; the model is not called.
 // Streaming updates (generate on a view of the live buffer) are not commits and are not listed.
-// After the file, zero frames are fed until 5 s after the last speech_end (the 5 s auto-send
-// silence in main.ts; at most 10 s of padding), then stop() is called, like a finished turn.
+// The end of the turn mirrors run-wer.mjs: src/turn-policy.ts (the module main.ts uses) is driven with
+// time taken from frame positions (frame i is at i * 32 ms). If it ends the turn (auto_silence, 5 s
+// after a speech_end) the replay stops there; once the WAV has ended, zero frames are fed until the
+// policy ends the turn or until WAV duration + 10 s, and then stop() is called as a manual stop.
 //
 // Limits: offline frames skip Chrome's mic processing (echo cancellation, noise suppression,
 // auto gain, resampling), so a replay can differ from a mic run of the same recording.
@@ -47,8 +46,8 @@ import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 const CHROME = "/usr/bin/google-chrome";
 const FRAME = 512; // samples
 const VAD_OPTIONS = { positiveSpeechThreshold: 0.65, minSpeechFrames: 12 }; // keep in step with src/main.ts
-const SILENCE_FRAMES = Math.round(5000 / 32); // SILENCE_COMMIT_MS in src/main.ts
-const MAX_PAD_FRAMES = 312; // 10 s
+const FRAME_MS = 32; // 512 samples at 16 kHz
+const GRACE_FRAMES = Math.floor(10000 / FRAME_MS); // run-wer.mjs stops manually this long after the WAV ends
 
 function parseArgs(argv) {
   const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, preRoll: 4, frames: null, wer: null, phases: 8 }; // 4 = PRE_ROLL_FRAMES in src/main.ts
@@ -112,10 +111,11 @@ async function main() {
       await page.goto(vite.url);
       const t0 = Date.now();
       await page.evaluate(
-        async ({ model, vad, preRoll }) => {
+        async ({ model, vad, preRoll, frameMs }) => {
           const { Transcriber, MIN_ENCODER_SAMPLES } = await import("/src/vendor/transcriber.ts");
+          const { TurnPolicy } = await import("/src/turn-policy.ts");
           // Per-case state the generate() wrapper and the callbacks write to.
-          const R = (window.__replay = { cur: 0, commits: [], pending: [], events: [], ema: 0, trace: [] });
+          const R = (window.__replay = { cur: 0, commits: [], pending: [], events: [], ema: 0, trace: [], policy: null, TurnPolicy });
           const mkTranscriber = () =>
             new Transcriber(
               model,
@@ -124,8 +124,14 @@ async function main() {
                   R.ema = ema;
                   R.trace[R.cur] = [p.isSpeech, ema];
                 },
-                onSpeechStart: (pre) => R.events.push({ ev: "speech_start", at: R.cur, preRoll: pre }),
-                onSpeechEnd: () => R.events.push({ ev: "speech_end", at: R.cur }),
+                onSpeechStart: (pre) => {
+                  R.events.push({ ev: "speech_start", at: R.cur, preRoll: pre });
+                  R.policy.speechStart(R.cur * frameMs);
+                },
+                onSpeechEnd: () => {
+                  R.events.push({ ev: "speech_end", at: R.cur });
+                  R.policy.speechEnd(R.cur * frameMs);
+                },
               },
               false,
               "quantized",
@@ -165,7 +171,7 @@ async function main() {
           first.vadModel.destroy?.();
           first.audioContext.close();
         },
-        { model: args.model, vad: VAD_OPTIONS, preRoll: args.preRoll },
+        { model: args.model, vad: VAD_OPTIONS, preRoll: args.preRoll, frameMs: FRAME_MS },
       );
       console.error(`model loaded in ${((Date.now() - t0) / 1000).toFixed(1)}s; pre-roll ${args.preRoll} frames`);
       return page;
@@ -191,33 +197,37 @@ async function main() {
           }
           continue;
         }
-        const out = await page.evaluate(async ({ samples, manual }) => {
+        const out = await page.evaluate(async ({ samples, frameMs, graceFrames }) => {
           const R = window.__replay;
           R.cur = 0;
           R.commits = [];
           R.pending = [];
           R.events = [];
           R.trace = [];
+          R.policy = new R.TurnPolicy();
           const t = window.__mk(); // fresh Transcriber per case: new SpeechBuffer, pre-roll ring and isTalking
           await t.load();
           t.vadModel.frameProcessor.reset();
           t.vadModel.start();
           const f = new Float32Array(samples);
+          // One frame in; then ask the turn policy whether the turn has ended by now.
           const feed = async (frame) => {
             await t.vadModel.processFrame(frame);
             R.cur++;
+            return R.policy.tick(R.cur * frameMs);
           };
           let nFile = 0;
-          for (let i = 0; i + 512 <= f.length; i += 512, nFile++) await feed(f.slice(i, i + 512));
-          if (!manual) {
-            const lastEnd = () => R.events.findLast((e) => e.ev === "speech_end")?.at ?? null;
-            for (let pad = 0; pad < 312 && !(lastEnd() !== null && R.cur - lastEnd() >= 156); pad++) await feed(new Float32Array(512));
-          }
+          let end = null;
+          for (let i = 0; i + 512 <= f.length && !end; i += 512, nFile++) end = await feed(f.slice(i, i + 512));
+          // The WAV is over: silence until the policy ends the turn, or until WAV duration + 10 s.
+          const limit = nFile + graceFrames;
+          while (!end && R.cur < limit) end = await feed(new Float32Array(512));
+          const trigger = (end ?? R.policy.manualStop(R.cur * frameMs)).reason;
           await t.stop(); // waits for every queued model call
           t.vadModel.destroy?.();
           t.audioContext.close();
-          return { nFile, nTotal: R.cur, commits: R.commits, events: R.events, trace: R.trace };
-        }, { samples: [...new Array(lead).fill(0), ...readSamples(wav)], manual: !!args.wer });
+          return { nFile, nTotal: R.cur, trigger, commits: R.commits, events: R.events, trace: R.trace };
+        }, { samples: [...new Array(lead).fill(0), ...readSamples(wav)], frameMs: FRAME_MS, graceFrames: GRACE_FRAMES });
         if (!args.wer) {
           report(c, out, args.frames);
           continue;
@@ -229,11 +239,11 @@ async function main() {
         sweep[phase].events[c.id] = [
           { event: "stt_model", timestamp_ms: ts++, model: args.model },
           ...texts.map((text) => ({ event: "stt_committed", timestamp_ms: ts++, text })),
-          { event: "transcript_final", timestamp_ms: ts++, text: texts.join(" "), trigger: "manual" },
+          { event: "transcript_final", timestamp_ms: ts++, text: texts.join(" "), trigger: out.trigger },
         ];
         sweep[phase].attempted.push(c.id);
         for (const k of out.commits.filter((k) => k.error)) sweep[phase].errors.push({ id: c.id, error: k.error });
-        console.error(`phase ${phase} ${c.id.padEnd(7)} ${JSON.stringify(texts.join(" "))}`);
+        console.error(`phase ${phase} ${c.id.padEnd(7)} ${out.trigger.padEnd(12)} ${JSON.stringify(texts.join(" "))}`);
       }
     }
     if (args.wer) writeSweep(args, cases, sweep, missing);
@@ -262,7 +272,7 @@ function writeSweep(args, cases, sweep, missing) {
     phases: args.phases,
     phase_step_samples: step,
     phase_method: "phase p prepends p * phase_step_samples zero samples to the WAV",
-    end_of_turn: "manual stop at the end of the WAV",
+    end_of_turn: "turn policy (src/turn-policy.ts) with time from frame positions; after the WAV, silence until it ends the turn or WAV duration + 10 s, then a manual stop",
     missing_audio: missing,
   };
   const phaseSummaries = sweep.map((sw, phase) => {
@@ -284,6 +294,8 @@ function writeSweep(args, cases, sweep, missing) {
     n_scored: v1(s).n_scored,
     first_word_26: fw26(s),
     first_word_soft_ok: s.first_word.first_word_soft.first_word_ok,
+    turns_auto_silence: s.cases.filter((c) => c.trigger === "auto_silence").length,
+    turns_manual: s.cases.filter((c) => c.trigger === "manual").length,
     n_commit_cases: s.cases.filter((c) => c.n_commits > 1).length,
     errors: s.run.errors.length,
   }));
@@ -319,17 +331,17 @@ function writeSweep(args, cases, sweep, missing) {
     "Every recorded case is replayed offline through the real Transcriber (real Silero VAD, SpeechBuffer and Moonshine model; `replay-commits.mjs --wer`) at each of " +
       `${args.phases} frame phases, and scored with wer.mjs. Phase p prepends p x ${step} zero samples to the WAV (${step} samples = ${(step / 16).toFixed(0)} ms), so the 512 sample frame boundaries fall at a different place relative to the speech. Pre-roll ${args.preRoll} frames.`,
     "",
-    "- **End of turn: a manual stop at the end of the WAV**, with no silence padding. The commits the VAD made are kept and what is still in the buffer is committed by `stop()`. `run-wer.mjs` ends most live turns (32 of 37 in the baseline runs) with the 5 s silence timer instead, so a replay turn can end differently from a live one.",
+    "- **End of turn mirrors `run-wer.mjs`.** The same turn policy `main.ts` uses (`src/turn-policy.ts`) is driven with time from frame positions: auto-silence 5000 ms after a speech end, cancelled by a speech start. After the WAV ends, silence is fed until the policy ends the turn or until WAV duration + 10 s, then the turn is stopped manually. Live baseline runs ended 32 of 37 turns with auto-silence.",
     "- Not modelled: Chrome's mic capture and processing, resampling from the capture rate, real-time scheduling (model runs do not delay frames here), and streaming updates (answered with an empty string).",
     "- Deterministic by construction: no timestamps are written, and two runs of the same code are expected to be identical.",
     "- This is a different measurement from the live runs (`run-wer.mjs`). Use it to compare logic changes; take absolute numbers from interleaved live runs.",
     "",
     `Missing audio: ${missing.length ? missing.join(", ") : "none"}. v1 is the original case set (silence and empty-reference cases excluded); first words /26 counts first_word_ok over the 26 cases where untrimmed model-only produced text.`,
     "",
-    "| phase | lead samples | v1 normalized WER | v1 raw WER | first words /26 | soft first words /5 | multi-commit cases |",
-    "|---|---|---|---|---|---|---|",
-    ...perPhase.map((p) => `| ${p.phase} | ${p.lead_samples} | ${pct(p.v1_num_norm_wer)} | ${pct(p.v1_raw_wer)} | ${p.first_word_26} | ${p.first_word_soft_ok} | ${p.n_commit_cases} |`),
-    `| **mean across phases** | | **${pct(m.v1_num_norm_wer)}** | **${pct(m.v1_raw_wer)}** | **${m.first_word_26.toFixed(1)}** | | |`,
+    "| phase | lead samples | v1 normalized WER | v1 raw WER | first words /26 | soft first words /5 | multi-commit cases | turns ended by auto_silence / stop |",
+    "|---|---|---|---|---|---|---|---|",
+    ...perPhase.map((p) => `| ${p.phase} | ${p.lead_samples} | ${pct(p.v1_num_norm_wer)} | ${pct(p.v1_raw_wer)} | ${p.first_word_26} | ${p.first_word_soft_ok} | ${p.n_commit_cases} | ${p.turns_auto_silence} / ${p.turns_manual} |`),
+    `| **mean across phases** | | **${pct(m.v1_num_norm_wer)}** | **${pct(m.v1_raw_wer)}** | **${m.first_word_26.toFixed(1)}** | | | |`,
     "",
     `Range of v1 normalized WER across phases: ${pct(aggregate.v1_num_norm_wer_range[0])} to ${pct(aggregate.v1_num_norm_wer_range[1])}.`,
     "",
@@ -350,7 +362,7 @@ function writeSweep(args, cases, sweep, missing) {
 
 function report(c, out, frames) {
   const ev = out.events.map((e) => `${e.ev}@${e.at}${e.preRoll !== undefined ? `(+${e.preRoll})` : ""}`).join(" ");
-  console.log(`${c.id}  file ${out.nFile} frames, fed ${out.nTotal}  ${ev}`);
+  console.log(`${c.id}  file ${out.nFile} frames, fed ${out.nTotal}, turn ended by ${out.trigger}  ${ev}`);
   out.commits.forEach((k, i) => {
     const what = k.error ? `ERROR ${k.error}` : k.skipped ? `skipped, ${k.samples} samples under the encoder minimum` : JSON.stringify(k.text);
     console.log(`  commit ${i + 1}  ${k.path.padEnd(11)} fired@${k.fire}  frames ${k.from}-${k.to} (${k.frames})  ema=${k.ema.toFixed(2)}  ${what}`);
