@@ -309,3 +309,5 @@ woff2 files, about 215 KB). Note the installed `onnxruntime-web` JS is 1.27.0 wh
 CDN path.
 
 48 kHz: the resampler is exact at 48000 Hz and short-word detection worked 6 of 6 (`rate48-r1` to `r3`, a 48 kHz diagnostic, not comparable to the baseline); its anti-aliasing is weak above 8 kHz (a quality limit, not a bug); self-hosting the page's external assets is deferred until after the demo.
+
+Demo defaults (2026-10-04): replies use the first local English voice (`voice_source` `auto_local`; `English (America) espeak-ng` on this machine), auto-send waits 1200 ms instead of 5000 (a pause longer than 1.2 s mid-sentence now ends the turn), and `scripts/demo-chrome.sh` starts Chrome with `--enable-speech-dispatcher` and its own profile; see the README Demo section.
