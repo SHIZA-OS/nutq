@@ -2,6 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
+import { pickVoice, voiceLines } from "./voice";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -520,14 +521,41 @@ function sendTranscript(text: string, trigger: SendTrigger) {
   log(`Sent (${trigger}): ${text}`);
 }
 
+// Voices load asynchronously in Chrome (getVoices() is empty until "voiceschanged"), so they are read at page
+// load and again whenever the list changes, not first at speak time. ?voice=<exact name> picks one (any mode);
+// the list is written to the log panel so a name can be copied from it.
+const wantedVoice = urlParams.get("voice");
+let voices: SpeechSynthesisVoice[] = [];
+let loggedVoiceCount = -1;
+
+function loadVoices() {
+  voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0 || voices.length === loggedVoiceCount) return;
+  loggedVoiceCount = voices.length;
+  for (const line of voiceLines(voices)) log(line);
+  if (wantedVoice && !pickVoice(voices, wantedVoice)) log(`Voice "${wantedVoice}" not found, using the browser default`);
+}
+
+if ("speechSynthesis" in window) {
+  loadVoices();
+  window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+}
+
 function speak(text: string) {
   if (!text) return;
   if (!("speechSynthesis" in window)) {
     log("SpeechSynthesis not supported in this browser");
     return;
   }
+  if (voices.length === 0) voices = window.speechSynthesis.getVoices();
+  const chosen = pickVoice(voices, wantedVoice);
+  // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
+  // default is the best guess, so the event records where the name came from.
+  const used = chosen ?? voices.find((v) => v.default) ?? null;
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.onstart = () => logEvent("tts_start");
+  if (chosen) utterance.voice = chosen;
+  utterance.onstart = () =>
+    logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: chosen ? "param" : "browser_default" });
   window.speechSynthesis.speak(utterance);
 }
 
