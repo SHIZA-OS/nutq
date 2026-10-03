@@ -120,6 +120,58 @@ so older numbers stay comparable.
   pipeline and the offline trimmed arms.
 - **Tools.** `run-wer.mjs` (pipeline), `run-model-only.mjs` (whole files, or trimmed relative
   to the VAD trigger with `--trim-from-trigger`), `vad-onset.mjs` (VAD trigger delay per
-  case), `wer.mjs` (scorer). The drivers write the `burst_affected` and `number_normalization`
-  sections of each README; the `pre_roll` comparison sections in the `pre-roll-r*` READMEs
+  case), `wer.mjs` (scorer), `replay-commits.mjs` (offline commit-boundary replay, see the last
+  section). The drivers write the `burst_affected` and `number_normalization` sections of each
+  README; the `pre_roll` comparison sections in the `pre-roll-r*` READMEs
   and the mean line in the `baseline-base-r*` READMEs were added by hand and are labeled.
+
+## Eval: stop guard, recorded-frames pause gate, replay tool (2026-10-03)
+
+Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard-gate-r1` to
+`r3`, model/base, results under `eval/results/`; all three folders are dated 2026-10-03).
+
+- **Stop guard** (da6e9c5, widened in d0e74c7). The STT encoder rejects audio under 895
+  samples (894 throws, 895 runs, measured on model/base; tiny not measured). That was the
+  `Invalid input shape` error in `pre-roll-r2` sh-01. `Transcriber.transcribe()` is now the one
+  function every commit path calls the model through and skips audio under that minimum, so
+  `stop()`, `onSpeechEnd` and the pause and cap paths are covered. See
+  [ARCHITECTURE.md](ARCHITECTURE.md), "Speech start and pre-roll".
+- **Pause gate counts recorded frames only** (40531cd). Prepended pre-roll frames no longer count
+  toward the 64 frame pause-commit minimum; they still count toward the 128 frame cap.
+- **New baseline.** Corpus WER mean 8.5% normalized (8.5, 9.0 and 8.1% per repeat, so 8.1 to
+  9.0%) and 12.3% raw (12.0, 12.8, 12.0%), against 12.4% and 15.7% for `pre-roll`. First word
+  right on the 26 cases where untrimmed model-only produced text: 22.7 of 26 on average (23, 23,
+  22), against 22.0 for pre-roll. Soft first words 5 of 5 in every repeat. No `no_transcript`,
+  no commit mismatches, silence case produced 0 words. Per case, in the mean normalized WER: 10
+  improved, 24 unchanged, 2 worse.
+- **The gate fix restored the commit boundaries and reduced multi-commit cases.** pw-04's
+  first commit is back at "quick" in all 3 repeats (it had moved to "quick update." under
+  pre-roll), and mean normalized WER on pw-04 went from 29.6% to 14.8%. The number of cases
+  with more than one commit went from 7, 5, 5 (pre-roll, per repeat) to 5, 5, 4. These are single
+  runs per repeat, so the drop in multi-commit cases is not isolated from run-to-run variation;
+  pw-04 is the case where the boundary was checked against the audio.
+- **pw-04's short tail is unstable.** The second commit is the short `onSpeechEnd` tail (36
+  frames in the offline replay) and its text varied: "Reply.", "We fly.", "We fly." in the
+  three repeats. Not investigated.
+- **Worse in the mean versus pre-roll:** pw-01 (29.6% to 33.3%, 2 commits in both arms) and pw-03
+  (19.0% to 28.6%, a single commit in both arms, "the school" became "the spoon"). Cause not
+  investigated; pw-03 cannot have changed boundaries.
+- **Tool: `replay-commits.mjs`.** Offline commit-boundary replay: the real Transcriber (real VAD
+  and STT) is fed each WAV frame by frame and every commit is printed with its frame range, the
+  path that fired it (pause-EMA, cap, onSpeechEnd, stop) and its text; commits skipped by the
+  encoder minimum are listed too. `--frames a-b` dumps probability and EMA per frame. **Known
+  limit:** it did not reproduce the in-word probability dip that the mic run showed on pw-04: the
+  replay fires the pause commit at frame 114 with and without the gate fix, and the EMA stays at
+  or above 0.73 between frames 96 and 108. Offline frames skip Chrome's mic processing, which is
+  the suspected cause but was not tested. The gate fix is covered by a unit test and by the WER
+  runs, not by the replay.
+
+**Open items**
+
+- Misfire handling: `isTalking` stays true after `onVADMisfire`. Waiting on noise-only
+  recordings to test it.
+- Commit seams (where one utterance is cut into several commits) as the next accuracy lever.
+- bn-03: its speech never crosses 0.5, which makes this a VAD threshold question.
+- Streaming TTS, for latency.
+- Not changed and still open from before: the VAD thresholds, the pre-roll length (uncalibrated),
+  and Chrome's mic processing as a cause of the gap between the pipeline and the offline arms.

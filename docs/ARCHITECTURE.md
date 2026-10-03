@@ -74,18 +74,32 @@ scores every frame. Settings in `src/main.ts`: `positiveSpeechThreshold` 0.65,
   three earlier ones. It is a first pass and not calibrated. `eval/runner/vad-onset.mjs` on
   the 37 recorded cases needed 2 frames to reach the 600 RMS energy onset (3 in the worst
   clean case), so 4 leaves one frame of margin for soft onsets.
+- **The pause gate counts recorded frames only.** A pause-EMA commit needs 64 frames
+  (`STREAM_COMMIT_MIN_INTERVAL`) and an EMA at or under 0.5. Prepended pre-roll frames do not
+  count toward those 64: `SpeechBuffer.prepend()` remembers how many frames are pre-roll, and
+  the gate uses `frameCount` minus that. They do count toward the 128 frame cap
+  (`STREAM_COMMIT_MAX_INTERVAL`), since they occupy the buffer. Counting them used to open the
+  gate 4 frames early, which in pw-04 moved a commit onto an in-word probability dip.
 - It does not use vad-web's own `preSpeechPadFrames` (default 3 for v5) or the `floatArray`
   that `onSpeechEnd` returns. That audio only comes back through `onSpeechEnd`, which the
   Transcriber does not use for the recording, and an attempt to use it was reverted because
   vad-web's segment tracking and `speechBuffer` are separate, unsynchronized buffers (see the
   KNOWN ISSUE comment in `src/vendor/transcriber.ts`).
 
-**Known and open (not changed by pre-roll).** A segment with fewer than `minSpeechFrames`
-speech frames is a misfire. `onVADMisfire` only logs: `isTalking` stays true and
-`speechBuffer` keeps recording, so a later speech start finds frames already in the buffer
-and pre-roll correctly prepends 0. In a pre-roll run, `Transcriber.stop()` also once threw
-from the model call (`Invalid input shape: {1}`, `pre-roll-r2`, case sh-01). The cause is
-not confirmed.
+**One guard for every commit path.** The STT encoder is three convolutions without padding
+(kernel 127 stride 64, kernel 7 stride 3, kernel 3 stride 2) and rejects audio under 895
+samples; measured on model/base, 894 throws and 895 runs. The tiny model was not measured.
+`Transcriber.transcribe()` in `src/vendor/transcriber.ts` is the single function the pause,
+cap, `onSpeechEnd` and `stop()` commit paths call the model through. Under
+`MIN_ENCODER_SAMPLES` (895) it returns an empty string without calling the model, so a short or
+empty buffer never throws and anything already committed stands. Streaming updates call
+`generate()` directly; they always carry at least 16 frames. This fixed the `Invalid input
+shape` error that `stop()` threw once on a 1 frame tail after a flush (`pre-roll-r2`, sh-01),
+which had skipped `transcript_final`.
+
+**Known and open.** A segment with fewer than `minSpeechFrames` speech frames is a misfire.
+`onVADMisfire` only logs: `isTalking` stays true and `speechBuffer` keeps recording, so a
+later speech start finds frames already in the buffer and pre-roll correctly prepends 0.
 
 ## Eval mode: WER replay
 
