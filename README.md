@@ -15,6 +15,21 @@ npm run dev
 Requires Node.js and npm. Point nutq at your own ZeroClaw instance by filling in the gateway
 URL, agent alias, and pairing token in the app.
 
+## Demo
+
+1. Start ZeroClaw (the instance Nutq will talk to) and have a pairing code ready, see Pairing below.
+2. Start the dev server: `npm run dev` (it serves http://localhost:5173).
+3. Run `scripts/demo-chrome.sh` (it takes an optional URL if the server is elsewhere). It opens
+   Chrome with `--enable-speech-dispatcher`, so Linux Chrome lists local voices, and a separate profile in
+   `~/.nutq-demo-chrome` that keeps the demo's pairing token apart from your everyday Chrome.
+4. Pair (only the first time on that profile), then Connect.
+5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
+   speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
+
+Replies are spoken with the first local English voice by default; add `?voice=<exact name>` to the URL to pick
+another (the page logs the voice list). A turn is sent 1200 ms after you stop talking; `?silence=<ms>` changes
+that (800 to 8000).
+
 ## Pairing
 
 If your ZeroClaw instance requires pairing (`require_pairing` is on by default), get a
