@@ -4,10 +4,12 @@
 // taken from frame positions.
 
 // Auto-send-on-silence: a convenience layered on top of push-to-talk, not a
-// replacement for it. 1200 ms, chosen for the demo so a reply starts quickly; it was 5000 ms, and earlier
-// live testing had shown natural mid-sentence pauses of about 3 s, so a pause longer than this now ends the
-// turn and sends what was said so far. Override per page with ?silence=<ms>.
-export const SILENCE_COMMIT_MS = 1200;
+// replacement for it. 5s, not 3s: live testing showed natural mid-sentence
+// pauses of ~3s, so 3s risked cutting sentences short; 5s gives real margin.
+// The cost is a slow send after every turn. The demo trades that margin for speed with ?silence=1200
+// (scripts/demo-chrome-linux.sh adds it to the URL), at the risk that a pause longer than 1.2 s ends the
+// turn early. The public default stays 5000 until endpointing work picks a better one.
+export const SILENCE_COMMIT_MS = 5000;
 
 // The delay can be set per page with ?silence=<ms>, clamped to this range.
 export const MIN_SILENCE_MS = 800;

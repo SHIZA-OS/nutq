@@ -29,7 +29,7 @@
 // Streaming updates (generate on a view of the live buffer) are not commits and are not listed.
 // The end of the turn mirrors run-wer.mjs: src/turn-policy.ts (the module main.ts uses) is driven with
 // time taken from frame positions (frame i is at i * 32 ms). If it ends the turn (auto_silence, SILENCE_COMMIT_MS
-// after a speech_end or misfire: 1200 ms, it was 5000 ms in the baseline sweeps) the replay stops there; once the WAV has ended, zero frames are fed until the
+// after a speech_end or misfire: 5000 ms, as in the baseline sweeps) the replay stops there; once the WAV has ended, zero frames are fed until the
 // policy ends the turn or until WAV duration + 10 s, and then stop() is called as a manual stop.
 //
 // Limits: offline frames skip Chrome's mic processing (echo cancellation, noise suppression,
@@ -335,7 +335,7 @@ function writeSweep(args, cases, sweep, missing) {
     "Every recorded case is replayed offline through the real Transcriber (real Silero VAD, SpeechBuffer and Moonshine model; `replay-commits.mjs --wer`) at each of " +
       `${args.phases} frame phases, and scored with wer.mjs. Phase p prepends p x ${step} zero samples to the WAV (${step} samples = ${(step / 16).toFixed(0)} ms), so the 512 sample frame boundaries fall at a different place relative to the speech. Pre-roll ${args.preRoll} frames.`,
     "",
-    "- **End of turn mirrors `run-wer.mjs`.** The same turn policy `main.ts` uses (`src/turn-policy.ts`) is driven with time from frame positions: auto-silence SILENCE_COMMIT_MS after a speech end or misfire (1200 ms; the baseline sweeps used 5000 ms), cancelled by a speech start. After the WAV ends, silence is fed until the policy ends the turn or until WAV duration + 10 s, then the turn is stopped manually. Live baseline runs ended 32 of 37 turns with auto-silence.",
+    "- **End of turn mirrors `run-wer.mjs`.** The same turn policy `main.ts` uses (`src/turn-policy.ts`) is driven with time from frame positions: auto-silence SILENCE_COMMIT_MS (5000 ms) after a speech end or misfire, cancelled by a speech start. After the WAV ends, silence is fed until the policy ends the turn or until WAV duration + 10 s, then the turn is stopped manually. Live baseline runs ended 32 of 37 turns with auto-silence.",
     "- Not modelled: Chrome's mic capture and processing, resampling from the capture rate, real-time scheduling (model runs do not delay frames here), and streaming updates (answered with an empty string).",
     "- Deterministic by construction: no timestamps are written, and two runs of the same code are expected to be identical.",
     "- This is a different measurement from the live runs (`run-wer.mjs`). Use it to compare logic changes; take absolute numbers from interleaved live runs.",

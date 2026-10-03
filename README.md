@@ -27,8 +27,8 @@ URL, agent alias, and pairing token in the app.
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
 
 Replies are spoken with the first local English voice by default; add `?voice=<exact name>` to the URL to pick
-another (the page logs the voice list). A turn is sent 1200 ms after you stop talking; `?silence=<ms>` changes
-that (800 to 8000).
+another (the page logs the voice list). A turn is sent 5000 ms after you stop talking by default; `?silence=<ms>` changes
+that (800 to 8000), and the demo script uses 1200.
 
 ## Pairing
 

@@ -23,7 +23,7 @@ before(async () => {
     const { TurnPolicy, SILENCE_COMMIT_MS, MIN_SILENCE_MS, MAX_SILENCE_MS, parseSilenceMs, transcriptToSend } = await import("/src/turn-policy.ts");
     const out = { SILENCE_COMMIT_MS };
 
-    const D = 1200; // the default silence delay, pinned by the first test
+    const D = 5000; // the default silence delay, pinned by the first test
     let p = new TurnPolicy();
     out.fresh = { endsAt: p.endsAt(), tick: p.tick(1e9) };
 
@@ -98,29 +98,29 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("the default auto-silence time is 1200 ms", () => assert.equal(r.SILENCE_COMMIT_MS, 1200));
+test("the default auto-silence time is 5000 ms", () => assert.equal(r.SILENCE_COMMIT_MS, 5000));
 
 test("a turn with no speech end has no end", () => assert.deepEqual(r.fresh, { endsAt: null, tick: null }));
 
-test("a speech end arms auto-silence 1200 ms later, and it ends the turn exactly then", () => {
-  assert.equal(r.armed.endsAt, 2200);
+test("a speech end arms auto-silence 5000 ms later, and it ends the turn exactly then", () => {
+  assert.equal(r.armed.endsAt, 6000);
   assert.equal(r.armed.before, null);
-  assert.deepEqual(r.armed.at, { at: 2200, reason: "auto_silence" });
-  assert.deepEqual(r.lateTick, { at: 2200, reason: "auto_silence" });
+  assert.deepEqual(r.armed.at, { at: 6000, reason: "auto_silence" });
+  assert.deepEqual(r.lateTick, { at: 6000, reason: "auto_silence" });
 });
 
 test("a speech start clears it, and a later speech end arms it again", () => {
   assert.deepEqual(r.cleared, { endsAt: null, tick: null });
-  assert.equal(r.rearmedAfterStart, 3200);
+  assert.equal(r.rearmedAfterStart, 7000);
 });
 
-test("a second speech end re-arms from the later one", () => assert.deepEqual(r.secondEndRearms, { endsAt: 2700, tick: null }));
+test("a second speech end re-arms from the later one", () => assert.deepEqual(r.secondEndRearms, { endsAt: 6500, tick: null }));
 
 test("a misfire arms auto-silence like a speech end, and a later speech start still clears it", () => {
-  assert.deepEqual(r.misfireArms, { endsAt: 3200, before: null, at: { at: 3200, reason: "auto_silence" } });
-  assert.deepEqual(r.misfireAfterEnd, { endsAt: 2700 }); // re-armed from the later event
+  assert.deepEqual(r.misfireArms, { endsAt: 7000, before: null, at: { at: 7000, reason: "auto_silence" } });
+  assert.deepEqual(r.misfireAfterEnd, { endsAt: 6500 }); // re-armed from the later event
   assert.deepEqual(r.misfireThenStart, { endsAt: null, tick: null });
-  assert.equal(r.misfireThenStartThenMisfire, 5200);
+  assert.equal(r.misfireThenStartThenMisfire, 9000);
   assert.deepEqual(r.misfireAfterEnd2, { endsAt: null, tick: { at: 1500, reason: "manual" } });
 });
 
@@ -133,7 +133,7 @@ test("a manual stop ends the turn now with reason manual and cancels auto-silenc
 test("once a turn has ended it stays ended: a second stop returns the first end, later events do nothing", () => {
   assert.deepEqual(r.manualAgain, { at: 1500, reason: "manual" });
   assert.deepEqual(r.afterEnd, { endsAt: null, tick: { at: 1500, reason: "manual" } });
-  assert.deepEqual(r.manualAfterAuto, { at: 2200, reason: "auto_silence" });
+  assert.deepEqual(r.manualAfterAuto, { at: 6000, reason: "auto_silence" });
 });
 
 test("the silence time can be set", () => assert.deepEqual(r.custom, { endsAt: 2100, tick: { at: 2100, reason: "auto_silence" } }));
@@ -142,12 +142,12 @@ test("an empty or whitespace-only transcript is not sent; anything else is sent 
   assert.deepEqual(r.send, [null, null, null, "hi", " hi ", "Stop."]);
 });
 
-test("silence=<ms> parses to a number clamped to 800..8000; absent or not a number is the 1200 default", () => {
+test("silence=<ms> parses to a number clamped to 800..8000; absent or not a number is the 5000 default", () => {
   assert.deepEqual(r.range, [800, 8000]);
-  assert.equal(r.parsedNull, 1200);
+  assert.equal(r.parsedNull, 5000);
   assert.deepEqual(r.parsed, {
     "3000": 3000, "1234.6": 1235, " 2500 ": 2500, "1e3": 1000,
     "800": 800, "8000": 8000, "799": 800, "0": 800, "-5": 800, "8001": 8000, "99999": 8000,
-    "abc": 1200, "": 1200, "  ": 1200, "NaN": 1200, "Infinity": 1200, "12px": 1200,
+    "abc": 5000, "": 5000, "  ": 5000, "NaN": 5000, "Infinity": 5000, "12px": 5000,
   });
 });
