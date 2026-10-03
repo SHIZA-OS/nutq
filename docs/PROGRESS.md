@@ -166,7 +166,7 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
   the suspected cause but was not tested. The gate fix is covered by a unit test and by the WER
   runs, not by the replay.
 
-**Open items**
+**Open items** (as of the end of this section; see the next section for the current list)
 
 - Misfire handling: `isTalking` stays true after `onVADMisfire`. Waiting on noise-only
   recordings to test it.
@@ -181,3 +181,67 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
 - Streaming TTS, for latency.
 - Not changed and still open from before: the VAD thresholds, the pre-roll length (uncalibrated),
   and Chrome's mic processing as a cause of the gap between the pipeline and the offline arms.
+
+## Eval: serialized model calls, case sets, interleaved A/B (2026-10-03)
+
+- **Model calls are serialized** (83b695c). Four `Session already started` js_errors in the
+  `stop-guard-gate` runs (bn-02 once, bn-05 in all three repeats) came from the `onSpeechEnd`
+  model call, which had no catch and could collide with another call. Every model call now goes
+  through one queue (see [ARCHITECTURE.md](ARCHITECTURE.md), "Model calls are serialized"). Across
+  the nine serialized runs (`serial-model` r1 to r3, `serial-model-2` r1 to r3, `ab-B` r1 to r3)
+  there were 0 js_error and 0 stt_error.
+- **Instrumentation** (3bbc439, 72b5408). One `stt_model_call` event per model call, with
+  `audio_hash`, `wait_ms` and `run_ms`; a caught model error is an `stt_error` event.
+- **Case sets** (1386fba). `cases.jsonl` rows have an optional `set`; the original 37 cases are v1
+  (the comparable baseline), the five added cases (no-01 to no-04 noise only, nts-01 noise then
+  "Stop.") are v2 and have no recordings yet. The summary and README report v1 next to all scored
+  cases. Re-scoring `stop-guard-gate` reproduces 8.5% for v1.
+- **A false alarm, then a controlled answer.** Three serial runs each of `serial-model` and
+  `serial-model-2` scored 10.5% and 10.4% normalized against 8.5% for `stop-guard-gate`, with the
+  first commit about 0.6 s later, and no explanation in the code (a commit's audio is fixed and the
+  buffer flushed when it fires, before anything is queued). An interleaved A B A B A B run (the
+  pre-serialization code 40ed0ed against 72b5408, back to back, each arm from its own worktree and
+  Vite server; `ab-A-r*`, `ab-B-r*`) settled it:
+
+  | | A (pre-serialization) | B (serialized) |
+  |---|---|---|
+  | v1 normalized per run | 7.7 / 9.4 / 12.8% | 9.4 / 8.1 / 9.8% |
+  | v1 normalized mean | 10.0% | 9.1% |
+  | v1 raw mean | 13.5% | 12.7% |
+  | first words on the 26 cases | 23, 23, 22 (22.7) | 21, 23, 22 (22.0) |
+  | first commit after `speech_start` | 2876, 2906, 3384 ms | 2841, 2924, 3088 ms |
+  | manual stop to `transcript_final`, mean | 86 to 106 ms | 100 to 102 ms |
+  | js_error | 3 (`Session already started`) | 0 |
+
+  The mean difference is 0.85 points and the ranges overlap, so serialization is WER-neutral (the
+  rule fixed before the run: within 1 point, or overlapping). The first-commit gap of the earlier
+  serial runs did not appear. The load average rose to 3.77 at the end of `ab-A-r3` (another
+  process, not identified). B's model run time for 64 frame commits was 208, 200 and 205 ms; in
+  `serial-model-2` it had been 400, 386 and 197 ms, so model speed had varied 2x between repeats in
+  that window. Queueing was rare: 5 of 303 non-update calls in the `ab-B` runs waited more than 10 ms
+  (longest 86 ms), and no update was skipped.
+- **New baseline: B's interleaved mean, 9.1% v1 normalized** (9.4, 8.1 and 9.8% per run; 12.7% raw;
+  22.0 of 26 first words; soft first words 5 of 5 in every run). The earlier 8.5% (`stop-guard-gate`)
+  sits inside the spread of the same code measured in one session: arm A alone ranged from 7.7% to
+  12.8%. Three repeats do not separate differences of about 2 points; do not read a smaller change
+  from one 3 repeat run.
+- **The audio the model gets differs between repeats.** With the checksums from the three `ab-B`
+  runs: of 101 commits matched by position across repeats, 74 had the same length in all three, and
+  only 12 of those had the same audio hash; 62 differed. fst-04 had identical audio (a 98 frame
+  commit and a 22 frame tail) and identical text in all three; bn-03's first commit (68 frames) had
+  a different hash in every repeat, with the same text. 6 cases had identical commit audio in all
+  three repeats (same final text in all 6); in the other 30, 20 had the same text in all three. So
+  commits of the same length carry different samples from run to run through the mic path. The
+  cause is not identified (Chrome's capture and mic processing, and resampling alignment, were not
+  tested).
+
+**Open items**
+
+- Record the noise-only cases (no-01 to no-04) and nts-01, then look at misfire handling
+  (`isTalking` stays true after `onVADMisfire`); it needs those recordings.
+- Commit seams (where one utterance is cut into several commits) as the next accuracy lever.
+- bn-03 (see above): a VAD threshold question.
+- Streaming TTS, for latency.
+- Why the audio differs between repeats of the same recording, and whether that run-to-run spread
+  can be reduced; until then compare arms only by interleaving them.
+- Not changed and still open from before: the VAD thresholds, the pre-roll length (uncalibrated).

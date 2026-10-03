@@ -89,13 +89,38 @@ scores every frame. Settings in `src/main.ts`: `positiveSpeechThreshold` 0.65,
 **One guard for every commit path.** The STT encoder is three convolutions without padding
 (kernel 127 stride 64, kernel 7 stride 3, kernel 3 stride 2) and rejects audio under 895
 samples; measured on model/base, 894 throws and 895 runs. The tiny model was not measured.
-`Transcriber.transcribe()` in `src/vendor/transcriber.ts` is the single function the pause,
-cap, `onSpeechEnd` and `stop()` commit paths call the model through. Under
-`MIN_ENCODER_SAMPLES` (895) it returns an empty string without calling the model, so a short or
-empty buffer never throws and anything already committed stands. Streaming updates call
-`generate()` directly; they always carry at least 16 frames. This fixed the `Invalid input
-shape` error that `stop()` threw once on a 1 frame tail after a flush (`pre-roll-r2`, sh-01),
-which had skipped `transcript_final`.
+`Transcriber.commit()` in `src/vendor/transcriber.ts` is the single function the pause, cap,
+`onSpeechEnd` and `stop()` commit paths go through. Under `MIN_ENCODER_SAMPLES` (895) it skips
+the model call, so a short or empty buffer never throws and anything already committed stands.
+Streaming updates always carry at least 16 frames. This fixed the `Invalid input shape` error
+that `stop()` threw once on a 1 frame tail after a flush (`pre-roll-r2`, sh-01), which had
+skipped `transcript_final`.
+
+**Model calls are serialized.** The wasm runtime throws `Session already started` to a model call
+made while another is running, and the Transcriber used to make calls with no coordination
+(`onSpeechEnd` had no catch, so the error surfaced as `js_error`; a collided commit would have
+lost its text with only a console line). Now every call goes through `Transcriber.enqueue()`, one
+at a time on a promise chain:
+
+- A commit is queued behind everything before it and never dropped. Its audio is a copy taken, and
+  the speech buffer flushed, at the moment the commit fires (synchronously, before anything is
+  queued), so a commit carries exactly the frames it had then, and frames that arrive while it
+  waits go into the next commit. Committed text arrives in buffer order.
+- A streaming update (a view of the live buffer, for the live caption only) is skipped, not queued,
+  when anything is in flight, so previews never delay commits.
+- `stop()` waits for every queued call before it returns, so `transcript_final` follows the last
+  commit. A call that fails is caught, logged, reported through `onModelError` and does not stop
+  the later ones.
+- `onModelCall` reports every call: `path` (`update`, `commit`, `speech_end`, `stop`), `samples`,
+  `audio_hash`, `wait_ms` (enqueue to start), `run_ms` and `skipped` (a commit under the encoder
+  minimum, or an update dropped because the model was busy). `audio_hash` is FNV-1a over the audio
+  quantized to int16 (`audioHash()`), computed just before the run.
+
+In the runs made so far queueing was rare: in the three `ab-B` runs 5 of 303 non-update calls
+waited more than 10 ms (longest 86 ms), and no update was skipped; in `serial-model-2` an
+`onSpeechEnd` call once waited 123 ms. That is consistent with the model run blocking the main
+thread, so that frames are only processed between runs and a call rarely finds the model busy. That
+is an inference, not tested.
 
 **Known and open.** A segment with fewer than `minSpeechFrames` speech frames is a misfire.
 `onVADMisfire` only logs: `isTalking` stays true and `speechBuffer` keeps recording, so a
@@ -118,6 +143,10 @@ Events added for WER measurement:
 - `pre_roll` `{ frames }`: logged right after each `speech_start` in eval mode. `frames` is
   how many pre-roll frames were actually prepended (4 normally, 0 when speech restarts while
   the buffer already holds frames, for example after a misfire).
+- `stt_error` `{ path, message }`: a model call failed and the error was caught (always logged, not
+  only in eval mode). A failed commit loses that piece of text.
+- `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
+  eval mode only (see "Model calls are serialized").
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
   the text is empty, so a total miss counts as data.
