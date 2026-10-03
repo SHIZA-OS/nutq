@@ -1,0 +1,720 @@
+{
+  "run": {
+    "label": "replay-head-policy",
+    "date": "2026-10-04",
+    "model": "model/base",
+    "pre_roll_frames": 4,
+    "phases": 8,
+    "phase_step_samples": 64,
+    "phase_method": "phase p prepends p * phase_step_samples zero samples to the WAV",
+    "end_of_turn": "turn policy (src/turn-policy.ts) with time from frame positions; after the WAV, silence until it ends the turn or WAV duration + 10 s, then a manual stop",
+    "missing_audio": [
+      "no-01",
+      "no-02",
+      "no-03",
+      "no-04",
+      "nts-01"
+    ]
+  },
+  "per_phase": [
+    {
+      "phase": 0,
+      "lead_samples": 0,
+      "v1_num_norm_wer": 0.09829059829059829,
+      "v1_raw_wer": 0.14102564102564102,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 5,
+      "errors": 0
+    },
+    {
+      "phase": 1,
+      "lead_samples": 64,
+      "v1_num_norm_wer": 0.1111111111111111,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 23,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 7,
+      "errors": 0
+    },
+    {
+      "phase": 2,
+      "lead_samples": 128,
+      "v1_num_norm_wer": 0.10683760683760683,
+      "v1_raw_wer": 0.1452991452991453,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 4,
+      "errors": 0
+    },
+    {
+      "phase": 3,
+      "lead_samples": 192,
+      "v1_num_norm_wer": 0.1111111111111111,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 5,
+      "errors": 0
+    },
+    {
+      "phase": 4,
+      "lead_samples": 256,
+      "v1_num_norm_wer": 0.10256410256410256,
+      "v1_raw_wer": 0.14102564102564102,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 24,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 4,
+      "errors": 0
+    },
+    {
+      "phase": 5,
+      "lead_samples": 320,
+      "v1_num_norm_wer": 0.09401709401709402,
+      "v1_raw_wer": 0.13675213675213677,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 5,
+      "errors": 0
+    },
+    {
+      "phase": 6,
+      "lead_samples": 384,
+      "v1_num_norm_wer": 0.10683760683760683,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 4,
+      "errors": 0
+    },
+    {
+      "phase": 7,
+      "lead_samples": 448,
+      "v1_num_norm_wer": 0.11965811965811966,
+      "v1_raw_wer": 0.15384615384615385,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 24,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 32,
+      "turns_manual": 5,
+      "n_commit_cases": 5,
+      "errors": 0
+    }
+  ],
+  "mean_across_phases": {
+    "v1_num_norm_wer": 0.1063034188034188,
+    "v1_raw_wer": 0.14583333333333331,
+    "first_word_26": 22.625
+  },
+  "v1_num_norm_wer_range": [
+    0.09401709401709402,
+    0.11965811965811966
+  ],
+  "cases": [
+    {
+      "id": "fws-01",
+      "reference": "The meeting starts at nine in the morning.",
+      "mean_num_norm_wer": 0.078125,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in 1888 The morning",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning. The morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the meeting. The morning"
+      ]
+    },
+    {
+      "id": "fws-02",
+      "reference": "A cup of coffee would be nice right now.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now."
+      ]
+    },
+    {
+      "id": "fws-03",
+      "reference": "It's going to rain later this afternoon.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon."
+      ]
+    },
+    {
+      "id": "fws-04",
+      "reference": "So what time does the store close today?",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "So what time does the store closed? So what time does",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store closed so what time does the",
+        "So what time does the store close to store? So what time"
+      ]
+    },
+    {
+      "id": "fws-05",
+      "reference": "The train leaves from platform four.",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train lives from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4."
+      ]
+    },
+    {
+      "id": "fst-01",
+      "reference": "Seven people are coming to dinner tonight.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight."
+      ]
+    },
+    {
+      "id": "fst-02",
+      "reference": "Monday is the busiest day of the week.",
+      "mean_num_norm_wer": 0.078125,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week."
+      ]
+    },
+    {
+      "id": "fst-03",
+      "reference": "Please remind me to call the bank tomorrow.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow."
+      ]
+    },
+    {
+      "id": "fst-04",
+      "reference": "Twelve students passed the final exam.",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 3,
+      "hypotheses": [
+        "12 students passed the final exam.",
+        "Well students, pasta. I don't like it.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "Well students, past the final exam."
+      ]
+    },
+    {
+      "id": "fst-05",
+      "reference": "Bring the blue folder to the office.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office."
+      ]
+    },
+    {
+      "id": "pw-01",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "mean_num_norm_wer": 0.2361111111111111,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "The good brown fox Jumps over the lazy dog",
+        "The good brown fox Jumps over the lazy door",
+        "The good brown fox Jumped over the lazy dog",
+        "The good brown fox Jumps over the lazy door",
+        "The good brown box Jump over the lazy dog",
+        "The good brown box Jumps over the lazy door",
+        "The good brown box Jump over the lazy dog",
+        "The good brown fox Jumps over the lazy dog"
+      ]
+    },
+    {
+      "id": "pw-02",
+      "reference": "A fox ran quickly across the field.",
+      "mean_num_norm_wer": 0.07142857142857142,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the field."
+      ]
+    },
+    {
+      "id": "pw-03",
+      "reference": "She jumps rope every morning before school.",
+      "mean_num_norm_wer": 0.14285714285714282,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school."
+      ]
+    },
+    {
+      "id": "pw-04",
+      "reference": "Click the button and wait for a quick reply.",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 8,
+      "hypotheses": [
+        "Click the button and wait for a quick review Bly",
+        "Click the button and wait for a quick clip. Like.",
+        "Click the button and wait for a quick clip Like.",
+        "Click the button and wait for a quick read. Like.",
+        "Click the button and wait for a quick view Blight",
+        "Click the button and wait for a quick click. We ply.",
+        "Click the button and wait for a quick click. You play.",
+        "Click the button and wait for a quick view Blight."
+      ]
+    },
+    {
+      "id": "aq-01",
+      "reference": "What is the capital of Australia?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?"
+      ]
+    },
+    {
+      "id": "aq-02",
+      "reference": "How many minutes are in a day?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?"
+      ]
+    },
+    {
+      "id": "aq-03",
+      "reference": "Set a timer for ten minutes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes."
+      ]
+    },
+    {
+      "id": "aq-04",
+      "reference": "Tell me a short fact about the moon.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon"
+      ]
+    },
+    {
+      "id": "aq-05",
+      "reference": "What is the difference between a virus and bacteria?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?"
+      ]
+    },
+    {
+      "id": "aq-06",
+      "reference": "Translate good morning into Spanish.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish."
+      ]
+    },
+    {
+      "id": "num-01",
+      "reference": "Add twenty five and seventeen.",
+      "mean_num_norm_wer": 0.15,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "Add 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "Add 25 and 17."
+      ]
+    },
+    {
+      "id": "num-02",
+      "reference": "My flight is at half past six.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "My flight is at half past six",
+        "My flight is at half past six",
+        "My flight is at half past six",
+        "My flight is at half past six.",
+        "My flight is at half past six",
+        "My flight is at half past six.",
+        "My flight is at half past six.",
+        "My flight is at half past six"
+      ]
+    },
+    {
+      "id": "num-03",
+      "reference": "Call me back in fifteen minutes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes."
+      ]
+    },
+    {
+      "id": "cas-01",
+      "reference": "Um, can you tell me what day it is?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?"
+      ]
+    },
+    {
+      "id": "cas-02",
+      "reference": "Hey, uh, what's the weather looking like?",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?"
+      ]
+    },
+    {
+      "id": "cas-03",
+      "reference": "Wait, no, I meant the other one.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no i meant the other one",
+        "Wait no I meant the other one"
+      ]
+    },
+    {
+      "id": "sh-01",
+      "reference": "Yes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes."
+      ]
+    },
+    {
+      "id": "sh-02",
+      "reference": "Stop.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Stop",
+        "Stop",
+        "Stop",
+        "Stop.",
+        "Stop",
+        "Stop",
+        "Stop",
+        "Stop"
+      ]
+    },
+    {
+      "id": "sh-03",
+      "reference": "Thank you.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you."
+      ]
+    },
+    {
+      "id": "sh-04",
+      "reference": "What?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?"
+      ]
+    },
+    {
+      "id": "bn-01",
+      "reference": "What is the capital of Australia?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?"
+      ]
+    },
+    {
+      "id": "bn-02",
+      "reference": "How many minutes are in a day?",
+      "mean_num_norm_wer": 0.2857142857142857,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "How many minutes are in the in?",
+        "How many minutes are in the?",
+        "How many minutes are in the in?",
+        "How many minutes I in the in?",
+        "How many minutes I in the in?",
+        "How many minutes are in the day?",
+        "How many minutes are in the day",
+        "How many minutes are in the in?"
+      ]
+    },
+    {
+      "id": "bn-03",
+      "reference": "Set a timer for ten minutes.",
+      "mean_num_norm_wer": 0.5833333333333334,
+      "distinct_hypotheses": 7,
+      "hypotheses": [
+        "Set a timer for 10 minutes. Yes.",
+        "That's a timer for 10 minutes. Yes.",
+        "I am a fourth and winners",
+        "I'm a fourth and winners",
+        "I am a fourth and winners",
+        "2. Set the timer for 10 minutes",
+        "Set the timer for 10 minutes",
+        "That's a time of fortune."
+      ]
+    },
+    {
+      "id": "bn-04",
+      "reference": "The meeting starts at nine in the morning.",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning."
+      ]
+    },
+    {
+      "id": "bn-05",
+      "reference": "Seven people are coming to dinner tonight.",
+      "mean_num_norm_wer": 0.017857142857142856,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight. For",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight."
+      ]
+    },
+    {
+      "id": "bn-06",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "mean_num_norm_wer": 0.48611111111111116,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "Aku, that way Brown pox jam Over the lazy dog",
+        "Akku. Dakku. Brown folks jump Over the lazy dog",
+        "Akur, Dakwit, Dakwit, Brown pox jam Over the lazy dog",
+        "Akur, Dakwin, Dakwin, Brown folks jump Over the lazy dog",
+        "Akku. Dakku. Brown folks jump Over the lazy dog",
+        "Akur, Dakwi, Brown folks jump Over the lazy dog",
+        "Aku. Dakui. Brown folks jump Over the lazy dog",
+        "Akur, Dakwi, Brown folks jump Over the lazy dog"
+      ]
+    }
+  ]
+}
