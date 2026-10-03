@@ -1,18 +1,6 @@
 import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
-
-// Mic constraints MicrophoneTranscriber used to set internally, ported over
-// now that we call getUserMedia ourselves (vendored Transcriber has no
-// getUserMedia of its own, see src/vendor/transcriber.ts).
-const MIC_CONSTRAINTS: MediaStreamConstraints = {
-  audio: {
-    channelCount: 1,
-    echoCancellation: true,
-    autoGainControl: true,
-    noiseSuppression: true,
-    sampleRate: 16000,
-  },
-};
+import { micConstraints } from "./mic-constraints";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -80,6 +68,7 @@ type EvalEvent =
   | "stt_committed"
   | "stt_error"
   | "stt_model_call"
+  | "mic_settings"
   | "transcript_final"
   | "stt_model"
   | "ws_message_sent"
@@ -102,6 +91,8 @@ const isEvalMode = urlParams.get("eval") === "1";
 // Eval-only: enables the mic button without a gateway and skips the send, so
 // WER runs never touch ZeroClaw. Does nothing unless eval=1 is also set.
 const isNoSend = isEvalMode && urlParams.get("nosend") === "1";
+// Eval-only: ?rawmic=1 opens the mic with echo cancellation, noise suppression and auto gain off.
+const isRawMic = isEvalMode && urlParams.get("rawmic") === "1";
 const DEFAULT_MODEL = "model/base";
 // Eval-only: ?model= picks the Moonshine model. model.ts only sets the layer/head
 // shape for URLs containing "tiny" or "base", so anything else would load with
@@ -686,7 +677,12 @@ async function startMicrophone(t: Transcriber) {
   }
   try {
     t.callbacks.onPermissionsRequested();
-    const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    const stream = await navigator.mediaDevices.getUserMedia(micConstraints(isEvalMode, isRawMic));
+    // What Chrome actually applied, since a constraint can be ignored.
+    const { echoCancellation, noiseSuppression, autoGainControl, sampleRate } = stream.getAudioTracks()[0]?.getSettings() ?? {};
+    const applied = { echoCancellation, noiseSuppression, autoGainControl, sampleRate };
+    log(`Mic settings: ${JSON.stringify(applied)}`);
+    if (isEvalMode) logEvent("mic_settings", applied);
     t.attachStream(stream);
     await t.start();
   } catch (e) {

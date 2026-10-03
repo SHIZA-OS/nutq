@@ -28,9 +28,10 @@ const LOAD_TIMEOUT_MS = 240_000; // cold model download measured at 27 to 38 s; 
 const GRACE_MS = 1_500; // let a late stt_committed land before downloading events
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null };
+  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, rawmic: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
+    else if (argv[i] === "--rawmic") args.rawmic = true;
     else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--label") args.label = argv[++i];
@@ -53,7 +54,7 @@ function wavDurationMs(path) {
   throw new Error(`no data chunk in ${path}`);
 }
 
-async function runCase(c, wav, { baseUrl, model, userDataDir, rawDir }) {
+async function runCase(c, wav, { baseUrl, model, rawmic, userDataDir, rawDir }) {
   const durationMs = wavDurationMs(wav);
   const context = await chromium.launchPersistentContext(userDataDir, {
     executablePath: CHROME,
@@ -78,7 +79,7 @@ async function runCase(c, wav, { baseUrl, model, userDataDir, rawDir }) {
         if (!this.download) HTMLElement.prototype.click.call(this);
       };
     });
-    await page.goto(`${baseUrl}?eval=1&nosend=1&model=${model}`);
+    await page.goto(`${baseUrl}?eval=1&nosend=1&model=${model}${rawmic ? "&rawmic=1" : ""}`);
     await page.waitForFunction(() => !document.getElementById("mic-btn").disabled, null, { timeout: LOAD_TIMEOUT_MS });
 
     const hasFinal = () => page.evaluate(() => document.getElementById("log").textContent.includes('"event":"transcript_final"'));
@@ -119,7 +120,7 @@ function readme({ args, date, summary, run }) {
   return [
     `# ${date}: WER replay, ${args.label} (${args.model})`,
     "",
-    "Recorded WAVs replayed through the page in system Chrome with a fake mic, `?eval=1&nosend=1`.",
+    "Recorded WAVs replayed through the page in system Chrome with a fake mic, `?eval=1&nosend=1`" + (args.rawmic ? ", and `rawmic=1` (echo cancellation, noise suppression and auto gain off)." : "."),
     "Nothing was sent to ZeroClaw. Hypothesis text is included because the cases are scripted.",
     "",
     `- Cases attempted: ${run.attempted.length}; missing audio: ${run.missing_audio.length ? run.missing_audio.join(", ") : "none"}; run errors: ${run.errors.length ? run.errors.map((e) => e.id).join(", ") : "none"}`,
@@ -130,7 +131,7 @@ function readme({ args, date, summary, run }) {
     "|---|---|---|---|---|",
     ...rows,
     "",
-    "Command: `" + `node eval/runner/run-wer.mjs --label ${args.label} --model ${args.model}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + "`",
+    "Command: `" + `node eval/runner/run-wer.mjs --label ${args.label} --model ${args.model}${args.rawmic ? " --rawmic" : ""}` + (args.cases ? ` --cases ${args.cases.join(",")}` : "") + "`",
     "",
   ].join("\n") + burstSection(summary) + caseSetSection(summary) + numNormSection(summary);
 }
@@ -166,7 +167,7 @@ async function main() {
       run.attempted.push(c.id);
       const t0 = Date.now();
       try {
-        const { ended } = await runCase(c, wav, { baseUrl: vite.url, model: args.model, userDataDir, rawDir });
+        const { ended } = await runCase(c, wav, { baseUrl: vite.url, model: args.model, rawmic: args.rawmic, userDataDir, rawDir });
         run.ended[c.id] = ended;
         console.error(`${c.id}: done (${ended}) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
       } catch (e) {

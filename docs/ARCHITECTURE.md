@@ -133,6 +133,10 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 
 - `?eval=1&nosend=1`: enables the mic button without a gateway and skips the send, so a
   run never reaches ZeroClaw. It has no effect without `eval=1`.
+- `?rawmic=1` (eval only): opens the mic with echo cancellation, noise suppression and auto gain
+  all off (`src/mic-constraints.ts`), to test whether Chrome's processing is a source of run-to-run
+  differences in the audio. It has no effect without `eval=1`. A `mic_settings` event records what
+  Chrome actually applied.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
 
