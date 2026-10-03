@@ -20,7 +20,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { TurnPolicy, SILENCE_COMMIT_MS, transcriptToSend } = await import("/src/turn-policy.ts");
+    const { TurnPolicy, SILENCE_COMMIT_MS, MIN_SILENCE_MS, MAX_SILENCE_MS, parseSilenceMs, transcriptToSend } = await import("/src/turn-policy.ts");
     const out = { SILENCE_COMMIT_MS };
 
     let p = new TurnPolicy();
@@ -83,6 +83,10 @@ before(async () => {
     p = new TurnPolicy(2000);
     p.speechEnd(100);
     out.custom = { endsAt: p.endsAt(), tick: p.tick(2100) };
+    const parse = ["3000", "1234.6", " 2500 ", "1e3", "800", "8000", "799", "0", "-5", "8001", "99999", "abc", "", "  ", "NaN", "Infinity", "12px"];
+    out.parsed = Object.fromEntries(parse.map((x) => [x, parseSilenceMs(x)]));
+    out.parsedNull = parseSilenceMs(null);
+    out.range = [MIN_SILENCE_MS, MAX_SILENCE_MS];
     out.send = ["", " ", "\n\t ", "hi", " hi ", "Stop."].map((t) => transcriptToSend(t));
     return out;
   });
@@ -135,4 +139,14 @@ test("the silence time can be set", () => assert.deepEqual(r.custom, { endsAt: 2
 
 test("an empty or whitespace-only transcript is not sent; anything else is sent unchanged", () => {
   assert.deepEqual(r.send, [null, null, null, "hi", " hi ", "Stop."]);
+});
+
+test("silence=<ms> parses to a number clamped to 800..8000; absent or not a number is the 5000 default", () => {
+  assert.deepEqual(r.range, [800, 8000]);
+  assert.equal(r.parsedNull, 5000);
+  assert.deepEqual(r.parsed, {
+    "3000": 3000, "1234.6": 1235, " 2500 ": 2500, "1e3": 1000,
+    "800": 800, "8000": 8000, "799": 800, "0": 800, "-5": 800, "8001": 8000, "99999": 8000,
+    "abc": 5000, "": 5000, "  ": 5000, "NaN": 5000, "Infinity": 5000, "12px": 5000,
+  });
 });

@@ -8,6 +8,19 @@
 // pauses of ~3s, so 3s risked cutting sentences short; 5s gives real margin.
 export const SILENCE_COMMIT_MS = 5000;
 
+// The delay can be set per page with ?silence=<ms>, clamped to this range.
+export const MIN_SILENCE_MS = 800;
+export const MAX_SILENCE_MS = 8000;
+
+// The auto-silence delay for a ?silence=<ms> URL parameter (null when absent): the default when it
+// is absent, empty or not a finite number, otherwise the number rounded and clamped to the range.
+export function parseSilenceMs(param: string | null): number {
+  if (param === null || param.trim() === "") return SILENCE_COMMIT_MS;
+  const n = Number(param);
+  if (!Number.isFinite(n)) return SILENCE_COMMIT_MS;
+  return Math.min(MAX_SILENCE_MS, Math.max(MIN_SILENCE_MS, Math.round(n)));
+}
+
 export type TurnEnd = { at: number; reason: "auto_silence" | "manual" };
 
 export class TurnPolicy {

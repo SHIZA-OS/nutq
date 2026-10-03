@@ -1,7 +1,7 @@
 import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
-import { TurnPolicy, SILENCE_COMMIT_MS, transcriptToSend } from "./turn-policy";
+import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -548,7 +548,9 @@ let sessionTranscript = "";
 
 // When a turn ends, and why, is decided by TurnPolicy (src/turn-policy.ts); this file feeds it the
 // events and the time, and owns the one JS timer that fires the auto-silence it asks for.
-let turn = new TurnPolicy();
+// Any mode: ?silence=<ms> sets the auto-silence delay (default 5000, clamped to 800..8000).
+const silenceMs = parseSilenceMs(urlParams.get("silence"));
+let turn = new TurnPolicy(silenceMs);
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function clearSilenceTimer() {
@@ -567,7 +569,7 @@ function scheduleSilenceTimer() {
     silenceTimer = null;
     const end = turn.tick(at); // the timer fires at the deadline, so ask the policy at that time
     if (end) {
-      log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
+      log(`No speech for ${silenceMs}ms, auto-sending`);
       finishListening(end.reason);
     }
   }, Math.max(0, at - Date.now()));
@@ -720,7 +722,7 @@ micBtn.addEventListener("click", async () => {
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
-    turn = new TurnPolicy();
+    turn = new TurnPolicy(silenceMs);
     logEvent("mic_button_press");
     sessionTranscript = "";
     await startMicrophone(transcriber!);
