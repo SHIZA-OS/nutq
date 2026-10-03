@@ -57,3 +57,9 @@ export class TurnPolicy {
     return this.ended;
   }
 }
+
+// What to send when a turn ends: the transcript as it is, or null when it is empty or only whitespace
+// (nothing was heard, so nothing goes to the gateway).
+export function transcriptToSend(transcript: string): string | null {
+  return transcript.trim() === "" ? null : transcript;
+}

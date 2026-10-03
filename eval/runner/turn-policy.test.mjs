@@ -20,7 +20,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { TurnPolicy, SILENCE_COMMIT_MS } = await import("/src/turn-policy.ts");
+    const { TurnPolicy, SILENCE_COMMIT_MS, transcriptToSend } = await import("/src/turn-policy.ts");
     const out = { SILENCE_COMMIT_MS };
 
     let p = new TurnPolicy();
@@ -83,6 +83,7 @@ before(async () => {
     p = new TurnPolicy(2000);
     p.speechEnd(100);
     out.custom = { endsAt: p.endsAt(), tick: p.tick(2100) };
+    out.send = ["", " ", "\n\t ", "hi", " hi ", "Stop."].map((t) => transcriptToSend(t));
     return out;
   });
 });
@@ -131,3 +132,7 @@ test("once a turn has ended it stays ended: a second stop returns the first end,
 });
 
 test("the silence time can be set", () => assert.deepEqual(r.custom, { endsAt: 2100, tick: { at: 2100, reason: "auto_silence" } }));
+
+test("an empty or whitespace-only transcript is not sent; anything else is sent unchanged", () => {
+  assert.deepEqual(r.send, [null, null, null, "hi", " hi ", "Stop."]);
+});

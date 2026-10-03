@@ -1,7 +1,7 @@
 import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
-import { TurnPolicy, SILENCE_COMMIT_MS } from "./turn-policy";
+import { TurnPolicy, SILENCE_COMMIT_MS, transcriptToSend } from "./turn-policy";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -72,6 +72,7 @@ type EvalEvent =
   | "stt_model_call"
   | "mic_settings"
   | "transcript_final"
+  | "send_skipped"
   | "stt_model"
   | "ws_message_sent"
   | "first_chunk_received"
@@ -587,7 +588,12 @@ async function finishListening(trigger: SendTrigger) {
   await transcriber!.stop();
   // Logged even when empty: a total miss counts as data.
   if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
-  if (sessionTranscript && !isNoSend) {
+  if (transcriptToSend(sessionTranscript) === null) {
+    // Nothing was heard (empty or only whitespace): nothing goes to the gateway, and the UI is idle again.
+    log(`Empty transcript (${trigger}), nothing sent`);
+    logEvent("send_skipped", { reason: "empty_transcript", trigger });
+    liveTranscriptEl.textContent = "";
+  } else if (!isNoSend) {
     sendTranscript(sessionTranscript, trigger);
   }
   sessionTranscript = "";
