@@ -35,3 +35,8 @@
 {"id":"bn-04","category":"background_noise","condition":"background_noise","reference":"The meeting starts at nine in the morning."}
 {"id":"bn-05","category":"background_noise","condition":"background_noise","reference":"Seven people are coming to dinner tonight."}
 {"id":"bn-06","category":"background_noise","condition":"background_noise","reference":"The quick brown fox jumps over the lazy dog."}
+{"id":"no-01","category":"noise_only","condition":"quiet","reference":"","prompt":"Cough once. Do not speak."}
+{"id":"no-02","category":"noise_only","condition":"quiet","reference":"","prompt":"Tap the desk a few times. Do not speak."}
+{"id":"no-03","category":"noise_only","condition":"quiet","reference":"","prompt":"Creak the chair. Do not speak."}
+{"id":"no-04","category":"noise_only","condition":"quiet","reference":"","prompt":"Open and close a door. Do not speak."}
+{"id":"nts-01","category":"noise_then_short","condition":"quiet","reference":"Stop.","prompt":"Cough, wait about one second, then say: Stop."}

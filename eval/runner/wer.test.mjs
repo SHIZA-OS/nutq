@@ -90,6 +90,31 @@ test("silence case reports words_produced and has no WER", () => {
   assert.deepEqual(run.silence.cases, [{ id: "sil-01", status: "silence", words_produced: 0, trigger: "manual" }]);
 });
 
+test("every empty-reference case is excluded from corpus WER, whatever its category, and reports words_produced", () => {
+  const cough = { id: "no-01", category: "noise_only", condition: "quiet", reference: "" };
+  const tap = { id: "no-02", category: "noise_only", condition: "quiet", reference: "" };
+  const got = { "pw-01": turn(["x"], "The quick brown fox jumps over the lazy dog.") };
+  const alone = scoreRun([FOX], got);
+  const run = scoreRun([FOX, cough, tap], { ...got, "no-01": turn(["Thank you."], "Thank you."), "no-02": turn([], "", "manual") });
+  assert.deepEqual(run.overall_excluding_silence, alone.overall_excluding_silence); // corpus WER unchanged
+  assert.equal(run.overall_excluding_silence.n_cases, 1);
+  assert.equal(run.meta.n_silence, 2);
+  assert.equal(run.by_category.noise_only, undefined);
+  assert.deepEqual(run.silence.cases, [
+    { id: "no-01", status: "silence", words_produced: 2, trigger: "auto_silence" },
+    { id: "no-02", status: "silence", words_produced: 0, trigger: "manual" },
+  ]);
+  // an empty-reference case with no transcript_final is still excluded from the WER, and counted as missing
+  const lost = scoreRun([FOX, cough], got);
+  assert.equal(lost.overall_excluding_silence.n_cases, 1);
+  assert.deepEqual(lost.silence.cases, [{ id: "no-01", status: "no_transcript", words_produced: null, trigger: null }]);
+  // a mixed case with a non-empty reference ("Stop." after a cough) is an ordinary scored case
+  const nts = { id: "nts-01", category: "noise_then_short", condition: "quiet", reference: "Stop." };
+  const mixed = scoreRun([FOX, nts], { ...got, "nts-01": turn(["Stop."], "Stop.") });
+  assert.equal(mixed.overall_excluding_silence.n_cases, 2);
+  assert.equal(mixed.by_category.noise_then_short.wer, 0);
+});
+
 test("fillers are removed on both sides", () => {
   assert.deepEqual(normalize("Um, can you tell me, uh, what day it is? Erm"), ["can", "you", "tell", "me", "what", "day", "it", "is"]);
   const c = { id: "cas-01", category: "casual", condition: "quiet", reference: "Um, can you tell me what day it is?" };

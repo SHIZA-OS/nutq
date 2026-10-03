@@ -39,6 +39,7 @@ for line in "${lines[@]}"; do
   category=$(jq -r .category <<<"$line")
   condition=$(jq -r .condition <<<"$line")
   reference=$(jq -r .reference <<<"$line")
+  prompt=$(jq -r '.prompt // empty' <<<"$line")
   out="$outdir/$id.wav"
 
   if [ -n "$only" ]; then
@@ -54,6 +55,7 @@ for line in "${lines[@]}"; do
     echo "---"
     echo "id: $id  category: $category  condition: $condition"
     echo "reference: \"$reference\""
+    [ -n "$prompt" ] && echo "prompt: $prompt"
     [ "$condition" = "background_noise" ] && [ "$noise_prompted" -eq 0 ] &&
       { echo "(would pause: Turn on a fan or TV at normal volume, then press Enter.)"; noise_prompted=1; }
     [ "$id" = "sil-01" ] && echo "(would print: Stay silent for the whole recording.)"
@@ -70,7 +72,9 @@ for line in "${lines[@]}"; do
   while true; do
     clear
     printf '\n  %s   [%s / %s]\n\n\n' "$id" "$category" "$condition"
-    if [ "$id" = "sil-01" ]; then
+    if [ -n "$prompt" ]; then
+      printf '  %s\n\n\n' "$prompt"
+    elif [ "$id" = "sil-01" ]; then
       printf '  Stay silent for the whole recording.\n\n\n'
     else
       printf '  %s\n\n\n' "$reference"
