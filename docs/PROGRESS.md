@@ -257,3 +257,12 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
 - Why the audio differs between repeats of the same recording, and whether that run-to-run spread
   can be reduced; until then compare arms only by interleaving them.
 - Not changed and still open from before: the VAD thresholds, the pre-roll length (uncalibrated).
+
+**Mic processing as a variance source (variance diagnostic, 2026-10-03).** Two back-to-back runs with
+`?rawmic=1` (echo cancellation, noise suppression and auto gain off; `rawmic-r1`, `rawmic-r2`, not
+comparable to the baseline) raised same-length hash agreement between the two runs (45 of 72
+commits, 62.5%) above the default-mic pairs in `ab-B` (23% to 52%), but did not stabilize
+transcripts (28 of 37 identical against 29 to 32) or WER (15.0% and 10.7%). The remaining variation
+is unexplained; the 44.1 kHz capture rate Chrome reports (resampled downstream) is untested.
+Measurement policy: logic changes are compared with the phase-swept replay; absolute numbers come
+from interleaved live runs.
