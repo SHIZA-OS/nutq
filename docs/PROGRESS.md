@@ -138,7 +138,7 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
   [ARCHITECTURE.md](ARCHITECTURE.md), "Speech start and pre-roll".
 - **Pause gate counts recorded frames only** (40531cd). Prepended pre-roll frames no longer count
   toward the 64 frame pause-commit minimum; they still count toward the 128 frame cap.
-- **New baseline.** Corpus WER mean 8.5% normalized (8.5, 9.0 and 8.1% per repeat, so 8.1 to
+- **New baseline (since superseded as the baseline by 9.1% in the last section).** Corpus WER mean 8.5% normalized (8.5, 9.0 and 8.1% per repeat, so 8.1 to
   9.0%) and 12.3% raw (12.0, 12.8, 12.0%), against 12.4% and 15.7% for `pre-roll`. First word
   right on the 26 cases where untrimmed model-only produced text: 22.7 of 26 on average (23, 23,
   22), against 22.0 for pre-roll. Soft first words 5 of 5 in every repeat. No `no_transcript`,
@@ -225,6 +225,18 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
   sits inside the spread of the same code measured in one session: arm A alone ranged from 7.7% to
   12.8%. Three repeats do not separate differences of about 2 points; do not read a smaller change
   from one 3 repeat run.
+- **What is and is not established about the gains.** The pre-roll gain, about 11 points (23.5%
+  normalized for the baseline to 12.4% for `pre-roll`), is well beyond the measured noise: the
+  largest within-arm spread seen (arm A, 7.7% to 12.8%) is about 5 points, although that spread was
+  measured on later code, not on the baseline code. The gate fix's WER gain (12.4% to 8.5% for
+  `stop-guard-gate`, about 4 points) was measured across time windows (the `pre-roll` runs and the
+  `stop-guard-gate` runs were hours apart and not interleaved) and is of the order of the
+  within-arm spread, so its size is unconfirmed. Its mechanism is confirmed: pw-04's first commit is
+  back at "quick" in all three `stop-guard-gate` repeats, and fewer cases are cut into several
+  commits (7, 5, 5 per repeat before, 5, 5, 4 after; single runs). The stop guard went in with the
+  gate fix in those runs, so the two are not separated either. `ab-A-r3`, the worst A run (12.8%),
+  coincided with the load spike (load average 3.77, 2.83 and 2.19 at its end, against about 1.0
+  before the session); this does not show the load was the cause.
 - **The audio the model gets differs between repeats.** With the checksums from the three `ab-B`
   runs: of 101 commits matched by position across repeats, 74 had the same length in all three, and
   only 12 of those had the same audio hash; 62 differed. fst-04 had identical audio (a 98 frame
