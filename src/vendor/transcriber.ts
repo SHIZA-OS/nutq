@@ -55,7 +55,7 @@ export interface VADThresholdOptions {
  * @property onModelError(path, message) - Nutq addition. A model call failed and the error was caught. path is
  * "update", "commit" (pause or cap), "speech_end" or "stop". A failed commit loses that piece of text.
  *
- * @property onModelCall(info) - Nutq addition. One call per model call: { path, samples, wait_ms, run_ms, skipped }.
+ * @property onModelCall(info) - Nutq addition. One call per model call: { path, samples, audio_hash, wait_ms, run_ms, skipped }. audio_hash is audioHash() of the audio the call was given.
  * wait_ms is the time from enqueue to the start of the call, run_ms the time the model took. skipped is true
  * when no model run happened: a commit under the encoder minimum, or an update dropped because the model was busy.
  *
@@ -86,7 +86,7 @@ interface TranscriberCallbacks {
 
     onModelError: (path: string, message: string) => any;
 
-    onModelCall: (info: { path: string; samples: number; wait_ms: number; run_ms: number; skipped: boolean }) => any;
+    onModelCall: (info: { path: string; samples: number; audio_hash: string; wait_ms: number; run_ms: number; skipped: boolean }) => any;
 }
 
 const defaultTranscriberCallbacks: TranscriberCallbacks = {
@@ -138,6 +138,21 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
  * measured; the tiny model's encoder was not checked.
  */
 export const MIN_ENCODER_SAMPLES = 895;
+
+/**
+ * Nutq addition. FNV-1a (32 bit) over the audio quantized to int16, low byte then high byte, as
+ * 8 hex digits. A cheap fingerprint to tell whether two model calls got the same audio. Several
+ * thousand samples cost well under a millisecond.
+ */
+export function audioHash(audio: Float32Array): string {
+    let h = 2166136261;
+    for (let i = 0; i < audio.length; i++) {
+        const v = Math.max(-32768, Math.min(32767, Math.round(audio[i] * 32768)));
+        h = Math.imul(h ^ (v & 255), 16777619);
+        h = Math.imul(h ^ ((v >> 8) & 255), 16777619);
+    }
+    return (h >>> 0).toString(16).padStart(8, "0");
+}
 
 class SpeechBuffer {
     private buffer: Float32Array;
@@ -359,6 +374,7 @@ class Transcriber {
         this.inFlight++;
         const enqueuedAt = performance.now();
         this.queue = this.queue.then(async () => {
+            const hash = audioHash(audio); // before the run, so it fingerprints what the model was given
             const startedAt = performance.now();
             try {
                 onText(await this.sttModel.generate(audio));
@@ -370,6 +386,7 @@ class Transcriber {
                 this.callbacks.onModelCall({
                     path,
                     samples: audio.length,
+                    audio_hash: hash,
                     wait_ms: Math.round(startedAt - enqueuedAt),
                     run_ms: Math.round(performance.now() - startedAt),
                     skipped: false,
@@ -380,7 +397,7 @@ class Transcriber {
     }
 
     private skipped(path: string, audio: Float32Array): void {
-        this.callbacks.onModelCall({ path, samples: audio.length, wait_ms: 0, run_ms: 0, skipped: true });
+        this.callbacks.onModelCall({ path, samples: audio.length, audio_hash: audioHash(audio), wait_ms: 0, run_ms: 0, skipped: true });
     }
 
     /**

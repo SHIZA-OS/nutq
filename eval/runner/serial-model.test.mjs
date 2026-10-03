@@ -24,7 +24,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { Transcriber } = await import("/src/vendor/transcriber.ts");
+    const { Transcriber, audioHash } = await import("/src/vendor/transcriber.ts");
     const model = "model/base";
     const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
     const log = { events: [], sizes: [], inFlight: 0, maxInFlight: 0 };
@@ -84,13 +84,42 @@ before(async () => {
       return out;
     };
 
+    // an independent FNV-1a over the int16 bytes, to check audioHash() against
+    const fnv = (samples) => {
+      let h = 0x811c9dc5n;
+      for (const x of samples) {
+        const v = Math.max(-32768, Math.min(32767, Math.round(x * 32768)));
+        for (const b of [v & 255, (v >> 8) & 255]) h = ((h ^ BigInt(b)) * 0x01000193n) & 0xffffffffn;
+      }
+      return h.toString(16).padStart(8, "0");
+    };
+    const noise = new Float32Array(2000).map((_, i) => Math.sin(i * 0.37) * 0.8);
+    const hashes = {
+      noise: audioHash(noise),
+      expected: fnv(noise),
+      again: audioHash(noise.slice()),
+      oneSampleOff: audioHash(noise.map((x, i) => (i === 1999 ? x + 0.001 : x))),
+      belowQuantum: audioHash(noise.map((x, i) => (i === 5 ? x + 0.000001 : x))), // under 1/65536: same int16
+      clipped: audioHash(new Float32Array([2, -2])) === audioHash(new Float32Array([1, -1])),
+      empty: audioHash(new Float32Array(0)),
+    };
+
     return {
+      hashes,
       // a pause commit (64 frames, tag 1) and, in the same tick, an onSpeechEnd commit (tag 2)
       overlap: await scenario(async (t, o, { talk, fill, feed }) => {
         talk();
         feed(64, 0, 1);
         fill(2, 2);
         o.onSpeechEnd(new Float32Array(0));
+      }),
+      // 2 frame commits at amplitude 0.1, 0.2, 0.1 (under the int16 clip that tags 1, 2, 3 hit)
+      hashed: await scenario(async (t, o, { talk, fill }) => {
+        for (const amp of [0.1, 0.2, 0.1]) {
+          talk();
+          fill(2, amp);
+          o.onSpeechEnd(new Float32Array(0));
+        }
       }),
       // three onSpeechEnd commits made back to back
       fifo: await scenario(async (t, o, { talk, fill }) => {
@@ -222,5 +251,24 @@ test("onModelCall reports each call's samples, wait and run time, and its skips"
   assert.ok(ran[1].wait_ms >= 50 && ran[2].wait_ms >= ran[1].wait_ms + 50, "each later call waited for the earlier ones");
   const skipped = r.overlap.calls.filter((c) => c.skipped);
   assert.deepEqual(skipped.map((c) => [c.path, c.samples, c.wait_ms, c.run_ms]), [["update", 32 * 512, 0, 0], ["update", 48 * 512, 0, 0]]);
-  assert.deepEqual(r.shortStop.calls, [{ path: "stop", samples: 512, wait_ms: 0, run_ms: 0, skipped: true }]);
+  assert.deepEqual(r.shortStop.calls.map((c) => ({ ...c, audio_hash: undefined })), [{ path: "stop", samples: 512, audio_hash: undefined, wait_ms: 0, run_ms: 0, skipped: true }]);
+});
+
+test("audioHash is FNV-1a over the int16 bytes, stable, and sensitive to the audio", () => {
+  const h = r.hashes;
+  assert.equal(h.noise, h.expected); // matches an independent implementation
+  assert.match(h.noise, /^[0-9a-f]{8}$/);
+  assert.equal(h.again, h.noise);
+  assert.notEqual(h.oneSampleOff, h.noise);
+  assert.equal(h.belowQuantum, h.noise);
+  assert.equal(h.clipped, true);
+  assert.equal(h.empty, "811c9dc5"); // the FNV-1a offset basis
+});
+
+test("onModelCall carries the audio hash: same audio gives the same hash, different audio a different one", () => {
+  const h = r.hashed.calls.map((c) => c.audio_hash);
+  assert.equal(h.length, 3);
+  assert.ok(h.every((x) => /^[0-9a-f]{8}$/.test(x)));
+  assert.equal(h[0], h[2]);
+  assert.notEqual(h[0], h[1]);
 });
