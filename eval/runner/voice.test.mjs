@@ -21,17 +21,23 @@ before(async () => {
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
     const { pickVoice, voiceLines } = await import("/src/voice.ts");
-    const v = (name, local, def = false) => ({ name, lang: "en-US", localService: local, default: def });
+    const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
+    const frenchLocalFirst = [v("Thomas", true, false, "fr-FR"), v("Google UK English", false), v("Daniel", true, false, "en-GB")];
+    const noLocalEnglish = [v("Google US English", false, true), v("Thomas", true, false, "fr-FR")];
     return {
-      exact: pickVoice(list, "Samantha")?.name,
-      caseInsensitive: pickVoice(list, "samantha")?.name,
-      missing: pickVoice(list, "Nobody"),
-      noName: pickVoice(list, null),
-      emptyName: pickVoice(list, ""),
-      emptyList: pickVoice([], "Samantha"),
+      named: pickVoice(list, "Samantha"),
+      namedIgnoresCase: pickVoice(list, "samantha").voice?.name,
+      namedMissing: pickVoice(list, "Nobody"),
       partialIsNotAMatch: pickVoice(list, "Sam"),
+      namedBeatsAuto: pickVoice(list, "Google US English"),
+      auto: pickVoice(list, null),
+      autoEmptyName: pickVoice(list, ""),
+      autoSkipsNonEnglishAndNetwork: pickVoice(frenchLocalFirst, null),
+      autoNoLocalEnglish: pickVoice(noLocalEnglish, null),
+      emptyList: pickVoice([], null),
+      emptyListNamed: pickVoice([], "Samantha"),
       lines: voiceLines(list),
       manyLines: voiceLines(many, 40),
       none: voiceLines([]),
@@ -44,14 +50,24 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("pickVoice matches the exact name ignoring case, and nothing else", () => {
-  assert.equal(r.exact, "Samantha");
-  assert.equal(r.caseInsensitive, "Samantha");
-  assert.equal(r.missing, null);
-  assert.equal(r.noName, null);
-  assert.equal(r.emptyName, null);
-  assert.equal(r.emptyList, null);
-  assert.equal(r.partialIsNotAMatch, null);
+test("pickVoice, case 1: a name that matches a voice (ignoring case) picks it, with source param", () => {
+  assert.deepEqual([r.named.voice.name, r.named.source], ["Samantha", "param"]);
+  assert.equal(r.namedIgnoresCase, "Samantha");
+  assert.deepEqual([r.namedBeatsAuto.voice.name, r.namedBeatsAuto.source], ["Google US English", "param"]); // even a network voice, when asked for
+});
+
+test("pickVoice, case 2: no name picks the first local English voice, with source auto_local", () => {
+  assert.deepEqual([r.auto.voice.name, r.auto.source], ["English (America) espeak-ng", "auto_local"]);
+  assert.deepEqual([r.autoEmptyName.voice.name, r.autoEmptyName.source], ["English (America) espeak-ng", "auto_local"]);
+  assert.deepEqual([r.autoSkipsNonEnglishAndNetwork.voice.name, r.autoSkipsNonEnglishAndNetwork.source], ["Daniel", "auto_local"]);
+});
+
+test("pickVoice, case 3: no local English voice, or a name that matches nothing, is the browser default", () => {
+  assert.deepEqual(r.autoNoLocalEnglish, { voice: null, source: "browser_default" });
+  assert.deepEqual(r.emptyList, { voice: null, source: "browser_default" });
+  assert.deepEqual(r.namedMissing, { voice: null, source: "browser_default" }); // a named voice that is missing does not fall back to auto_local
+  assert.deepEqual(r.partialIsNotAMatch, { voice: null, source: "browser_default" });
+  assert.deepEqual(r.emptyListNamed, { voice: null, source: "browser_default" });
 });
 
 test("voiceLines gives a summary and one line per voice with local or network and the default", () => {

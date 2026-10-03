@@ -2,11 +2,22 @@
 
 export type VoiceInfo = { name: string; lang: string; localService: boolean; default: boolean };
 
-// The voice whose name is `wanted` (exact match, ignoring case), or null: no name given, or no such voice.
-export function pickVoice<T extends { name: string }>(voices: T[], wanted: string | null): T | null {
-  if (!wanted) return null;
-  const w = wanted.toLowerCase();
-  return voices.find((v) => v.name.toLowerCase() === w) ?? null;
+export type VoiceChoice<T> = { voice: T | null; source: "param" | "auto_local" | "browser_default" };
+
+// Which voice to speak with:
+//   - a name was given and a voice has exactly that name (ignoring case): that voice, source "param";
+//   - no name was given: the first local English voice (localService and a lang starting "en"), source
+//     "auto_local" (local voices start speaking quickly, which a network voice may not);
+//   - otherwise (a name that matches nothing, or no local English voice): null, the browser default,
+//     source "browser_default".
+export function pickVoice<T extends { name: string; lang: string; localService: boolean }>(voices: T[], wanted: string | null): VoiceChoice<T> {
+  if (wanted) {
+    const w = wanted.toLowerCase();
+    const named = voices.find((v) => v.name.toLowerCase() === w);
+    return named ? { voice: named, source: "param" } : { voice: null, source: "browser_default" };
+  }
+  const local = voices.find((v) => v.localService && v.lang.toLowerCase().startsWith("en"));
+  return local ? { voice: local, source: "auto_local" } : { voice: null, source: "browser_default" };
 }
 
 // The log lines that list the voices: a summary, then at most `max` voices, then how many were left out.

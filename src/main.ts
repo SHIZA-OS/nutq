@@ -533,7 +533,9 @@ function loadVoices() {
   if (voices.length === 0 || voices.length === loggedVoiceCount) return;
   loggedVoiceCount = voices.length;
   for (const line of voiceLines(voices)) log(line);
-  if (wantedVoice && !pickVoice(voices, wantedVoice)) log(`Voice "${wantedVoice}" not found, using the browser default`);
+  const choice = pickVoice(voices, wantedVoice);
+  if (wantedVoice && !choice.voice) log(`Voice "${wantedVoice}" not found, using the browser default`);
+  log(`Reply voice: ${choice.voice?.name ?? "browser default"} (${choice.source})`);
 }
 
 if ("speechSynthesis" in window) {
@@ -548,14 +550,14 @@ function speak(text: string) {
     return;
   }
   if (voices.length === 0) voices = window.speechSynthesis.getVoices();
-  const chosen = pickVoice(voices, wantedVoice);
+  const choice = pickVoice(voices, wantedVoice);
   // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
   // default is the best guess, so the event records where the name came from.
-  const used = chosen ?? voices.find((v) => v.default) ?? null;
+  const used = choice.voice ?? voices.find((v) => v.default) ?? null;
   const utterance = new SpeechSynthesisUtterance(text);
-  if (chosen) utterance.voice = chosen;
+  if (choice.voice) utterance.voice = choice.voice;
   utterance.onstart = () =>
-    logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: chosen ? "param" : "browser_default" });
+    logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
   window.speechSynthesis.speak(utterance);
 }
 
