@@ -171,7 +171,13 @@ Three fixes on top of pre-roll, then 3 repeats on the same 37 cases (`stop-guard
 - Misfire handling: `isTalking` stays true after `onVADMisfire`. Waiting on noise-only
   recordings to test it.
 - Commit seams (where one utterance is cut into several commits) as the next accuracy lever.
-- bn-03: its speech never crosses 0.5, which makes this a VAD threshold question.
+- bn-03 (flagged burst_affected): the speech peaks at a VAD probability of 0.558 (frame 45; the
+  only other frames at or above 0.5 are 46 at 0.527 and 58 at 0.547). It crosses 0.5 but never
+  reaches the 0.65 positive threshold. What triggers the VAD is the burst at the start of the
+  recording: frames 0 to 2 score 0.752, 0.737 and 0.627, and `speech_start` fires on frame 0
+  (`vad-onset.mjs` reports frame 0 for both 0.5 and 0.65; it does not print peaks, so the
+  per-frame values come from `replay-commits.mjs --frames`). Without the burst the case would not
+  have triggered at 0.65. A VAD threshold question.
 - Streaming TTS, for latency.
 - Not changed and still open from before: the VAD thresholds, the pre-roll length (uncalibrated),
   and Chrome's mic processing as a cause of the gap between the pipeline and the offline arms.
