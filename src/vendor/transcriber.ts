@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, stop() minimum-length guard), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, encoder minimum-length guard in transcribe()), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -331,6 +331,17 @@ class Transcriber {
     }
 
     /**
+     * Nutq addition. The one place every commit path (pause or cap in onFrameProcessed,
+     * onSpeechEnd, stop) calls the STT model. Audio under MIN_ENCODER_SAMPLES (for example a
+     * 1 frame tail left after a flush, or an empty buffer) would make generate() throw, so it
+     * is skipped and yields no text; anything already committed is untouched.
+     */
+    private transcribe(audio: Float32Array): Promise<string> {
+        if (audio.length < MIN_ENCODER_SAMPLES) return Promise.resolve("");
+        return this.sttModel.generate(audio);
+    }
+
+    /**
      * Preloads the models and initializes the buffer required for transcription.
      */
     public async load(): Promise<void> {
@@ -375,8 +386,7 @@ class Transcriber {
                     else if (this.speechBuffer.shouldCommit()) {
                         // in this case we need to copy the buffer so that it doesn't get cleared before the inference happens
                         var tmpBuffer = this.speechBuffer.copy();
-                        this.sttModel
-                            ?.generate(tmpBuffer)
+                        this.transcribe(tmpBuffer)
                             .then((text) => {
                                 // buffer is about to be cleared; commit the transcript
                                 if (text) {
@@ -488,7 +498,7 @@ class Transcriber {
                 }
 
                 var tmpBuffer = this.speechBuffer.copy();
-                this.sttModel?.generate(tmpBuffer).then((text) => {
+                this.transcribe(tmpBuffer).then((text) => {
                     if (text) {
                         this.callbacks.onTranscriptionCommitted(
                             text,
@@ -621,17 +631,12 @@ class Transcriber {
         if (this.speechBuffer && this.speechBuffer.hasFrames()) {
             var tmpBuffer = this.speechBuffer.copy();
             this.speechBuffer.flush();
-            // A tail under the encoder minimum (for example 1 frame left right after a
-            // flush) would make generate() throw and abort stop(). Skip it; what was
-            // already committed is untouched.
-            if (tmpBuffer.length >= MIN_ENCODER_SAMPLES) {
-                const text = await this.sttModel?.generate(tmpBuffer);
-                if (text) {
-                    this.callbacks.onTranscriptionCommitted(
-                        text,
-                        this.getAudioBuffer(tmpBuffer)
-                    );
-                }
+            const text = await this.transcribe(tmpBuffer);
+            if (text) {
+                this.callbacks.onTranscriptionCommitted(
+                    text,
+                    this.getAudioBuffer(tmpBuffer)
+                );
             }
         }
         if (this.vadModel) {
