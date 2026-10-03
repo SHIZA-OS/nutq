@@ -132,6 +132,10 @@ async function main() {
                   R.events.push({ ev: "speech_end", at: R.cur });
                   R.policy.speechEnd(R.cur * frameMs);
                 },
+                onMisfire: () => {
+                  R.events.push({ ev: "misfire", at: R.cur });
+                  R.policy.misfire(R.cur * frameMs);
+                },
               },
               false,
               "quantized",

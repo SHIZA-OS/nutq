@@ -29,9 +29,12 @@ export class TurnPolicy {
     if (!this.ended) this.deadline = at + this.silenceMs;
   }
 
-  // A VAD misfire does nothing, as before: an armed auto-silence keeps running and an unarmed one
-  // stays unarmed.
-  misfire(_at: number): void {}
+  // A VAD misfire (a segment too short to count as speech, so no speech end follows) arms auto-silence
+  // the same way a speech end does; a later speech start still clears it. Without this a turn whose
+  // only speech was a short word ("Yes.", "Stop") was never sent unless the user stopped it by hand.
+  misfire(at: number): void {
+    if (!this.ended) this.deadline = at + this.silenceMs;
+  }
 
   // The user stopped the turn: it ends now, with reason "manual". A turn that already ended keeps
   // its first end.

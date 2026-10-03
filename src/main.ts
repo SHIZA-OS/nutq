@@ -66,6 +66,7 @@ type EvalEvent =
   | "speech_start"
   | "pre_roll"
   | "speech_end"
+  | "vad_misfire"
   | "stt_committed"
   | "stt_error"
   | "stt_model_call"
@@ -627,6 +628,11 @@ function initTranscriber() {
       onSpeechEnd() {
         logEvent("speech_end");
         turn.speechEnd(Date.now());
+        scheduleSilenceTimer();
+      },
+      onMisfire() {
+        logEvent("vad_misfire");
+        turn.misfire(Date.now());
         scheduleSilenceTimer();
       },
       onModelError(path: string, message: string) {

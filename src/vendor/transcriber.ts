@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, serialized model calls, encoder minimum-length guard in commit()), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, serialized model calls, encoder minimum-length guard in commit(), onMisfire callback), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -52,6 +52,9 @@ export interface VADThresholdOptions {
  *
  * @property onSpeechEnd() - called when the VAD model detects the end of speech
  *
+ * @property onMisfire() - Nutq addition. The VAD ended a segment that was too short to count as speech (fewer than
+ * minSpeechFrames). Reporting only: the speech buffer and isTalking are left as they were.
+ *
  * @property onModelError(path, message) - Nutq addition. A model call failed and the error was caught. path is
  * "update", "commit" (pause or cap), "speech_end" or "stop". A failed commit loses that piece of text.
  *
@@ -83,6 +86,8 @@ interface TranscriberCallbacks {
     onSpeechStart: (preRollFrames: number) => any;
 
     onSpeechEnd: () => any;
+
+    onMisfire: () => any;
 
     onModelError: (path: string, message: string) => any;
 
@@ -123,6 +128,7 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
     onSpeechEnd: function () {
         Log.log("Transcriber.onSpeechEnd()");
     },
+    onMisfire: function () {},
     onModelError: function (path: string, message: string) {
         Log.error("Transcriber.onModelError(" + path + ", " + message + ")");
     },
@@ -486,6 +492,7 @@ class Transcriber {
             onFrameProcessed: onFrameProcessed,
             onVADMisfire: () => {
                 Log.log("Transcriber.onVADMisfire()");
+                this.callbacks.onMisfire();
             },
             onSpeechStart: () => {
                 Log.log("Transcriber.onSpeechStart()");

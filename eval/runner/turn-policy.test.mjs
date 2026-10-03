@@ -46,13 +46,26 @@ before(async () => {
     p.speechEnd(2000);
     out.secondEndRearms = { endsAt: p.endsAt(), tick: p.tick(6999) };
 
+    // a misfire arms auto-silence like a speech end, and re-arms it from the later time
+    p = new TurnPolicy();
+    p.misfire(2000);
+    out.misfireArms = { endsAt: p.endsAt(), before: p.tick(6999), at: p.tick(7000) };
     p = new TurnPolicy();
     p.speechEnd(1000);
     p.misfire(2000);
-    out.misfireArmed = { endsAt: p.endsAt(), tick: p.tick(6000) };
+    out.misfireAfterEnd = { endsAt: p.endsAt() };
+    // a later speech start clears a misfire's deadline, and a later misfire arms it again
     p = new TurnPolicy();
     p.misfire(2000);
-    out.misfireUnarmed = { endsAt: p.endsAt(), tick: p.tick(1e9) };
+    p.speechStart(3000);
+    out.misfireThenStart = { endsAt: p.endsAt(), tick: p.tick(1e9) };
+    p.misfire(4000);
+    out.misfireThenStartThenMisfire = p.endsAt();
+    // a misfire after the turn ended does nothing
+    p = new TurnPolicy();
+    p.manualStop(1500);
+    p.misfire(2000);
+    out.misfireAfterEnd2 = { endsAt: p.endsAt(), tick: p.tick(1e9) };
 
     p = new TurnPolicy();
     p.speechEnd(1000);
@@ -97,9 +110,12 @@ test("a speech start clears it, and a later speech end arms it again", () => {
 
 test("a second speech end re-arms from the later one", () => assert.deepEqual(r.secondEndRearms, { endsAt: 7000, tick: null }));
 
-test("a misfire does nothing: an armed auto-silence keeps its deadline, an unarmed one stays unarmed", () => {
-  assert.deepEqual(r.misfireArmed, { endsAt: 6000, tick: { at: 6000, reason: "auto_silence" } });
-  assert.deepEqual(r.misfireUnarmed, { endsAt: null, tick: null });
+test("a misfire arms auto-silence like a speech end, and a later speech start still clears it", () => {
+  assert.deepEqual(r.misfireArms, { endsAt: 7000, before: null, at: { at: 7000, reason: "auto_silence" } });
+  assert.deepEqual(r.misfireAfterEnd, { endsAt: 7000 }); // re-armed from the later event
+  assert.deepEqual(r.misfireThenStart, { endsAt: null, tick: null });
+  assert.equal(r.misfireThenStartThenMisfire, 9000);
+  assert.deepEqual(r.misfireAfterEnd2, { endsAt: null, tick: { at: 1500, reason: "manual" } });
 });
 
 test("a manual stop ends the turn now with reason manual and cancels auto-silence", () => {
