@@ -78,6 +78,7 @@ type EvalEvent =
   | "pre_roll"
   | "speech_end"
   | "stt_committed"
+  | "stt_error"
   | "transcript_final"
   | "stt_model"
   | "ws_message_sent"
@@ -623,6 +624,10 @@ function initTranscriber() {
           log(`No speech for ${SILENCE_COMMIT_MS}ms, auto-sending`);
           finishListening("auto_silence");
         }, SILENCE_COMMIT_MS);
+      },
+      onModelError(path: string, message: string) {
+        // The error is caught in the Transcriber, so the global js_error handler never sees it.
+        logEvent("stt_error", { path, message });
       },
       onTranscriptionUpdated(text: string) {
         liveTranscriptEl.textContent = text;

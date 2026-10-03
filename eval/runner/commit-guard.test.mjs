@@ -1,7 +1,7 @@
 // Tests the encoder-minimum guard in the real Transcriber (src/vendor/transcriber.ts) in a
 // headless Chrome page served by Vite, with the STT model stubbed so no weights are needed.
 // The real VAD and SpeechBuffer are loaded (the VAD comes from the CDN, like in
-// vad-onset.mjs). Every commit path must go through Transcriber.transcribe(), which skips
+// vad-onset.mjs). Every commit path must go through Transcriber.commit(), which skips
 // audio under 895 samples. The VAD's own handlers (t.vadModel.options) are called directly
 // to drive the onFrameProcessed and onSpeechEnd paths. Runs with the rest of the suite via
 // `node --test eval/runner/`.
@@ -45,14 +45,15 @@ before(async () => {
     const scenario = async (go) => {
       generated.length = 0;
       const committed = [];
-      const routed = []; // sample counts that went through transcribe()
+      const routed = []; // sample counts that went through commit()
       const t = new Transcriber(model, { onTranscriptionCommitted: (text) => committed.push(text) }, false);
       await t.load();
-      const orig = t.transcribe.bind(t);
-      t.transcribe = (audio) => (routed.push(audio.length), orig(audio));
+      const orig = t.commit.bind(t);
+      t.commit = (path, audio) => (routed.push(audio.length), orig(path, audio));
       let threw = null;
       try {
         await go(t, t.vadModel.options);
+        while (t.inFlight) await t.queue; // model calls are serialized and finish later
         await tick();
       } catch (e) {
         threw = String(e.message ?? e);
@@ -74,7 +75,7 @@ before(async () => {
       endEmpty: await scenario(async (t, o) => { talk(o); o.onSpeechEnd(new Float32Array(0)); }),
       endOk: await scenario(async (t, o) => { talk(o); fill(t, 2); o.onSpeechEnd(new Float32Array(0)); }),
       // A pause or cap commit always carries at least 64 frames (the pause minimum), so it can
-      // never be under 895 samples; these check the paths still run through transcribe().
+      // never be under 895 samples; these check the paths still run through commit().
       pause: await scenario(async (t, o) => { talk(o); feed(o, 64, 0); }),
       cap: await scenario(async (t, o) => { talk(o); feed(o, 128, 1); }),
     };
@@ -107,12 +108,12 @@ test("onSpeechEnd: a 2 frame buffer is transcribed and committed", () => {
   assert.deepEqual(r.endOk.committed, ["tail"]);
 });
 
-test("pause-EMA commit at 64 frames goes through transcribe()", () => {
+test("pause-EMA commit at 64 frames goes through commit()", () => {
   assert.deepEqual(r.pause.routed, [64 * 512]);
   assert.equal(r.pause.generated.at(-1), 64 * 512); // earlier entries are streaming updates, not commits
   assert.deepEqual(r.pause.committed, ["tail"]);
 });
-test("cap commit at 128 frames goes through transcribe()", () => {
+test("cap commit at 128 frames goes through commit()", () => {
   assert.deepEqual(r.cap.routed, [128 * 512]);
   assert.equal(r.cap.generated.at(-1), 128 * 512);
   assert.deepEqual(r.cap.committed, ["tail"]);

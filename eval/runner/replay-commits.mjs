@@ -11,7 +11,7 @@
 // the real vendored Transcriber (real Silero VAD, real SpeechBuffer, real Moonshine model) in
 // a headless page served by the Vite dev server. Commit points depend only on the frames, not
 // on how fast inference runs, so they match a real-time run of the same samples. A wrapper on
-// Transcriber.transcribe() records every commit: the input frame it fired on, the frame range
+// Transcriber.commit() records every commit: the input frame it fired on, the frame range
 // of the audio it carried (pre-roll frames included), and the path:
 //   pause-EMA    the pause gate in onFrameProcessed (fewer than 128 frames in the buffer)
 //   cap          the 128 frame buffer cap in onFrameProcessed
@@ -99,7 +99,7 @@ async function main() {
       async ({ model, vad, preRoll }) => {
         const { Transcriber, MIN_ENCODER_SAMPLES } = await import("/src/vendor/transcriber.ts");
         // Per-case state the generate() wrapper and the callbacks write to.
-        const R = (window.__replay = { cur: 0, path: null, commits: [], events: [], chain: Promise.resolve(), ema: 0, trace: [] });
+        const R = (window.__replay = { cur: 0, commits: [], pending: [], events: [], ema: 0, trace: [] });
         const mkTranscriber = () =>
           new Transcriber(
             model,
@@ -109,10 +109,7 @@ async function main() {
                 R.trace[R.cur] = [p.isSpeech, ema];
               },
               onSpeechStart: (pre) => R.events.push({ ev: "speech_start", at: R.cur, preRoll: pre }),
-              onSpeechEnd: () => {
-                R.events.push({ ev: "speech_end", at: R.cur });
-                R.path = "onSpeechEnd"; // generate() is called right after this callback, in the same handler
-              },
+              onSpeechEnd: () => R.events.push({ ev: "speech_end", at: R.cur }),
             },
             false,
             "quantized",
@@ -123,27 +120,31 @@ async function main() {
         const first = mkTranscriber();
         await first.load(); // loads the real STT model (shared by every later Transcriber) and the VAD
         // Streaming updates call generate() directly on a view of the live buffer (every commit passes
-        // a copy). They only feed the live caption, and run unserialized, so the replay answers them
-        // with "" instead of running the model concurrently with the commits.
+        // a copy). They only feed the live caption, so the replay answers them with "" instead of
+        // spending model time on them; commit boundaries do not depend on them.
         const m = first.sttModel;
         const real = m.generate.bind(m);
-        m.generate = (audio) => (audio.buffer.byteLength > audio.byteLength ? Promise.resolve("") : real(audio));
-        // Every commit path calls Transcriber.transcribe(), which this wraps.
-        const orig = Transcriber.prototype.transcribe;
-        Transcriber.prototype.transcribe = function (audio) {
+        m.generate = async (audio) => {
+          if (audio.buffer.byteLength > audio.byteLength) return "";
+          // The Transcriber runs model calls one at a time, in the order the commits were made, so the
+          // next commit that was not skipped is the one this call belongs to.
+          const c = R.pending.shift();
+          try {
+            return (c.text = await real(audio));
+          } catch (e) {
+            c.error = String(e.message ?? e).split("\n")[0].slice(0, 80);
+            throw e;
+          }
+        };
+        // Every commit goes through Transcriber.commit(path, audio), which this wraps to record it.
+        const orig = Transcriber.prototype.commit;
+        Transcriber.prototype.commit = function (path, audio) {
           const n = audio.length / 512;
-          const c = { path: R.path ?? (n === 128 ? "cap" : "pause-EMA"), fire: R.cur, from: R.cur - n + 1, to: R.cur, frames: n, samples: audio.length, ema: R.ema, skipped: audio.length < MIN_ENCODER_SAMPLES, text: null, error: null };
-          R.path = null;
+          const name = path === "commit" ? (n === 128 ? "cap" : "pause-EMA") : path === "speech_end" ? "onSpeechEnd" : path;
+          const c = { path: name, fire: R.cur, from: R.cur - n + 1, to: R.cur, frames: n, samples: audio.length, ema: R.ema, skipped: audio.length < MIN_ENCODER_SAMPLES, text: null, error: null };
           R.commits.push(c);
-          const p = R.chain.then(() => orig.call(this, audio)).then(
-            (text) => (c.text = text),
-            (e) => {
-              c.error = String(e.message ?? e).split("\n")[0].slice(0, 80);
-              return "";
-            },
-          );
-          R.chain = p;
-          return p;
+          if (!c.skipped) R.pending.push(c);
+          return orig.call(this, path, audio);
         };
         first.vadModel.destroy?.();
         first.audioContext.close();
@@ -161,11 +162,10 @@ async function main() {
       const out = await page.evaluate(async (samples) => {
         const R = window.__replay;
         R.cur = 0;
-        R.path = null;
         R.commits = [];
+        R.pending = [];
         R.events = [];
         R.trace = [];
-        R.chain = Promise.resolve();
         const t = window.__mk(); // fresh Transcriber per case: new SpeechBuffer, pre-roll ring and isTalking
         await t.load();
         t.vadModel.frameProcessor.reset();
@@ -179,10 +179,7 @@ async function main() {
         for (let i = 0; i + 512 <= f.length; i += 512, nFile++) await feed(f.slice(i, i + 512));
         const lastEnd = () => R.events.findLast((e) => e.ev === "speech_end")?.at ?? null;
         for (let pad = 0; pad < 312 && !(lastEnd() !== null && R.cur - lastEnd() >= 156); pad++) await feed(new Float32Array(512));
-        R.path = "stop";
-        await t.stop();
-        R.path = null;
-        await R.chain;
+        await t.stop(); // waits for every queued model call
         t.vadModel.destroy?.();
         t.audioContext.close();
         return { nFile, nTotal: R.cur, commits: R.commits, events: R.events, trace: R.trace };

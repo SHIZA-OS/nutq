@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, encoder minimum-length guard in transcribe()), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, serialized model calls, encoder minimum-length guard in commit()), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -52,6 +52,9 @@ export interface VADThresholdOptions {
  *
  * @property onSpeechEnd() - called when the VAD model detects the end of speech
  *
+ * @property onModelError(path, message) - Nutq addition. A model call failed and the error was caught. path is
+ * "update", "commit" (pause or cap), "speech_end" or "stop". A failed commit loses that piece of text.
+ *
  * @interface
  */
 interface TranscriberCallbacks {
@@ -76,6 +79,8 @@ interface TranscriberCallbacks {
     onSpeechStart: (preRollFrames: number) => any;
 
     onSpeechEnd: () => any;
+
+    onModelError: (path: string, message: string) => any;
 }
 
 const defaultTranscriberCallbacks: TranscriberCallbacks = {
@@ -111,6 +116,9 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
     },
     onSpeechEnd: function () {
         Log.log("Transcriber.onSpeechEnd()");
+    },
+    onModelError: function (path: string, message: string) {
+        Log.error("Transcriber.onModelError(" + path + ", " + message + ")");
     },
 };
 
@@ -248,6 +256,9 @@ class Transcriber {
     private mediaStream: MediaStream;
     private speechBuffer: SpeechBuffer;
     private preRoll: PreRoll;
+    // Nutq addition: every model call runs through this chain, one at a time (see enqueue()).
+    private queue: Promise<void> = Promise.resolve();
+    private inFlight: number = 0;
 
     protected audioContext: AudioContext;
     public isActive: boolean = false;
@@ -331,14 +342,48 @@ class Transcriber {
     }
 
     /**
-     * Nutq addition. The one place every commit path (pause or cap in onFrameProcessed,
-     * onSpeechEnd, stop) calls the STT model. Audio under MIN_ENCODER_SAMPLES (for example a
-     * 1 frame tail left after a flush, or an empty buffer) would make generate() throw, so it
-     * is skipped and yields no text; anything already committed is untouched.
+     * Nutq addition. The one place the STT model is called, one call at a time: the wasm runtime
+     * throws "Session already started" to a second concurrent call, which used to lose that call's
+     * text. Calls are chained on this.queue in the order they are made, and a call never fails the
+     * chain: its error is caught, logged and reported through onModelError. Resolves when the call
+     * has finished.
      */
-    private transcribe(audio: Float32Array): Promise<string> {
-        if (audio.length < MIN_ENCODER_SAMPLES) return Promise.resolve("");
-        return this.sttModel.generate(audio);
+    private enqueue(path: string, audio: Float32Array, onText: (text: string) => void): Promise<void> {
+        this.inFlight++;
+        this.queue = this.queue.then(async () => {
+            try {
+                onText(await this.sttModel.generate(audio));
+            } catch (err) {
+                Log.error(`Generation misfire (${path}): ${err}`);
+                this.callbacks.onModelError(path, String(err?.message ?? err));
+            } finally {
+                this.inFlight--;
+            }
+        });
+        return this.queue;
+    }
+
+    /**
+     * A commit (pause or cap in onFrameProcessed, onSpeechEnd, stop): queued behind every earlier
+     * call and never dropped, so committed text arrives in buffer order. Audio under
+     * MIN_ENCODER_SAMPLES (for example a 1 frame tail left after a flush, or an empty buffer) would
+     * make generate() throw, so it is skipped and yields no text; anything already committed is
+     * untouched.
+     */
+    private commit(path: string, audio: Float32Array): Promise<void> {
+        if (audio.length < MIN_ENCODER_SAMPLES) return this.queue;
+        return this.enqueue(path, audio, (text) => {
+            if (text) this.callbacks.onTranscriptionCommitted(text, this.getAudioBuffer(audio));
+        });
+    }
+
+    /**
+     * A streaming preview. It only feeds the live caption, so it is skipped, not queued, when the
+     * model is busy or a commit is waiting: previews never delay commits.
+     */
+    private update(audio: Float32Array): void {
+        if (this.inFlight > 0) return;
+        this.enqueue("update", audio, (text) => this.callbacks.onTranscriptionUpdated(text));
     }
 
     /**
@@ -373,32 +418,13 @@ class Transcriber {
                         this.speechBuffer.shouldUpdate() &&
                         !this.speechBuffer.shouldCommit()
                     ) {
-                        this.sttModel
-                            ?.generate(this.speechBuffer.subarray())
-                            .then((text) => {
-                                this.callbacks.onTranscriptionUpdated(text);
-                            })
-                            .catch((err) => {
-                                Log.error("Generation misfire: " + err);
-                            });
+                        this.update(this.speechBuffer.subarray());
                     }
                     // commit
                     else if (this.speechBuffer.shouldCommit()) {
                         // in this case we need to copy the buffer so that it doesn't get cleared before the inference happens
                         var tmpBuffer = this.speechBuffer.copy();
-                        this.transcribe(tmpBuffer)
-                            .then((text) => {
-                                // buffer is about to be cleared; commit the transcript
-                                if (text) {
-                                    this.callbacks.onTranscriptionCommitted(
-                                        text,
-                                        this.getAudioBuffer(tmpBuffer)
-                                    );
-                                }
-                            })
-                            .catch((err) => {
-                                Log.error("Generation misfire: " + err);
-                            });
+                        this.commit("commit", tmpBuffer);
                     }
                 }
                 if (this.speechBuffer.shouldCommit()) {
@@ -498,14 +524,7 @@ class Transcriber {
                 }
 
                 var tmpBuffer = this.speechBuffer.copy();
-                this.transcribe(tmpBuffer).then((text) => {
-                    if (text) {
-                        this.callbacks.onTranscriptionCommitted(
-                            text,
-                            this.getAudioBuffer(tmpBuffer)
-                        );
-                    }
-                });
+                this.commit("speech_end", tmpBuffer);
                 this.speechBuffer.flush();
                 isTalking = false;
             },
@@ -631,14 +650,11 @@ class Transcriber {
         if (this.speechBuffer && this.speechBuffer.hasFrames()) {
             var tmpBuffer = this.speechBuffer.copy();
             this.speechBuffer.flush();
-            const text = await this.transcribe(tmpBuffer);
-            if (text) {
-                this.callbacks.onTranscriptionCommitted(
-                    text,
-                    this.getAudioBuffer(tmpBuffer)
-                );
-            }
+            this.commit("stop", tmpBuffer);
         }
+        // Every queued call, the commit above included, must land before stop() returns, because the
+        // caller sends the accumulated text next. A commit made while waiting is waited for too.
+        while (this.inFlight > 0) await this.queue;
         if (this.vadModel) {
             this.vadModel.pause();
         }
