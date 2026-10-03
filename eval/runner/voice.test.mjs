@@ -27,15 +27,19 @@ before(async () => {
     const name = (c) => [c.voice?.name ?? null, c.source];
     // A named voice (?voice=), whatever the language and the default
     const named = [v("Google US English", false, true), v("Samantha", true), v("Thomas", true, false, "fr-FR")];
-    // Rule 1: the browser default is local, so it wins even over a better language match
-    const defLocal = [v("Thomas", true, true, "fr-FR"), v("Daniel", true, false, "en-GB"), v("Samantha", true, false, "en-US")];
-    // Rule 2: the default is a network voice; the exact language match is not the first local voice
-    const exact = [v("Google US English", false, true), v("Daniel", true, false, "en-GB"), v("Samantha", true, false, "en-US"), v("Alex", true, false, "en-US")];
-    // Rule 3: no exact match; the first local voice with the same base language
-    const base = [v("Google UK English", false, true), v("Thomas", true, false, "fr-FR"), v("Daniel", true, false, "en-GB"), v("Karen", true, false, "en-AU")];
-    // Otherwise: the default is a network voice and no local voice has the language
-    const noMatch = [v("Google US English", false, true), v("Thomas", true, false, "fr-FR"), v("Netz", false, false, "en-US")];
-    const underscore = [v("Google", false, true), v("Daniel", true, false, "en_GB"), v("Samantha", true, false, "en_US")];
+    // Rule 1: the browser default is local and English, so it wins even over an exact language match
+    const defLocal = [v("Daniel", true, true, "en-GB"), v("Samantha", true, false, "en-US")];
+    // The Afrikaans case: the default is local but not English, so it is skipped, and rule 2 finds en-US
+    const afrikaansDefault = [v("Afrikaans espeak-ng", true, true, "af"), v("Daniel", true, false, "en-GB"), v("English (America) espeak-ng", true, false, "en-US")];
+    // A network English default is skipped too (rule 1 is local only)
+    const networkDefault = [v("Google US English", false, true), v("Daniel", true, false, "en-GB"), v("Samantha", true, false, "en-US"), v("Alex", true, false, "en-US")];
+    // Rule 2 with an English navigator.language other than en-US: that exact tag
+    const regional = [v("Afrikaans espeak-ng", true, true, "af"), v("Samantha", true, false, "en-US"), v("Daniel", true, false, "en-GB")];
+    // Rule 3: no voice has the target exactly; the first local English voice (not French, not network)
+    const anyEnglish = [v("Afrikaans espeak-ng", true, true, "af"), v("Thomas", true, false, "fr-FR"), v("Netz", false, false, "en-US"), v("Karen", true, false, "en-AU"), v("Daniel", true, false, "en-GB")];
+    // Rule 4: nothing local and English
+    const noEnglish = [v("Afrikaans espeak-ng", true, true, "af"), v("Thomas", true, false, "fr-FR"), v("Google US English", false, false, "en-US")];
+    const underscore = [v("Afrikaans", true, true, "af"), v("Daniel", true, false, "en_GB"), v("Samantha", true, false, "en_US")];
     return {
       named: name(pickVoice(named, "Samantha", "en-US")),
       namedIgnoresCase: name(pickVoice(named, "samantha", "en-US")),
@@ -44,12 +48,17 @@ before(async () => {
       partialIsNotAMatch: name(pickVoice(named, "Sam", "en-US")),
       rule1: name(pickVoice(defLocal, null, "en-US")),
       rule1EmptyName: name(pickVoice(defLocal, "", "en-US")),
-      rule2: name(pickVoice(exact, null, "en-US")),
+      afrikaans: name(pickVoice(afrikaansDefault, null, "en-US")),
+      networkDefault: name(pickVoice(networkDefault, null, "en-US")),
+      rule2: name(pickVoice(regional, null, "en-US")),
+      rule2Regional: name(pickVoice(regional, null, "en-GB")),
       rule2CaseAndUnderscore: name(pickVoice(underscore, null, "EN-us")),
-      rule3: name(pickVoice(base, null, "en-US")),
-      rule3LanguageWithoutRegion: name(pickVoice(base, null, "en")),
-      noMatch: name(pickVoice(noMatch, null, "en-US")),
-      noLanguage: name(pickVoice(exact, null, "")),
+      nonEnglishLanguageStillEnglish: name(pickVoice(regional, null, "fr-FR")),
+      germanLanguageUsesEnUS: name(pickVoice(regional, null, "de-DE")),
+      noLanguageUsesEnUS: name(pickVoice(regional, null, "")),
+      rule3: name(pickVoice(anyEnglish, null, "en-US")),
+      rule3RegionalTargetMissing: name(pickVoice(anyEnglish, null, "en-NZ")),
+      rule4: name(pickVoice(noEnglish, null, "en-US")),
       emptyList: name(pickVoice([], null, "en-US")),
       emptyListNamed: name(pickVoice([], "Samantha", "en-US")),
       lines: voiceLines(list),
@@ -64,32 +73,43 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("pickVoice: a name that matches a voice (ignoring case) picks it, with source param, even a network voice", () => {
-  assert.deepEqual(r.named, ["Samantha", "param"]);
-  assert.deepEqual(r.namedIgnoresCase, ["Samantha", "param"]);
-  assert.deepEqual(r.namedNetworkWhenAsked, ["Google US English", "param"]);
+test("pickVoice rule 1: the browser default voice, if it is local and English", () => {
+  assert.deepEqual(r.rule1, ["Daniel", "auto_local"]); // wins over the exact en-US match
+  assert.deepEqual(r.rule1EmptyName, ["Daniel", "auto_local"]);
 });
 
-test("pickVoice rule 1: no name and the browser default voice is local: that voice, auto_local", () => {
-  assert.deepEqual(r.rule1, ["Thomas", "auto_local"]); // wins over the en-US match
-  assert.deepEqual(r.rule1EmptyName, ["Thomas", "auto_local"]);
+test("pickVoice skips a default that is local but not English (the Afrikaans case), or English but not local", () => {
+  assert.deepEqual(r.afrikaans, ["English (America) espeak-ng", "auto_local"]);
+  assert.deepEqual(r.networkDefault, ["Samantha", "auto_local"]); // the first local en-US voice, not the network default
 });
 
-test("pickVoice rule 2: the default is not local: the first local voice whose lang equals navigator.language", () => {
-  assert.deepEqual(r.rule2, ["Samantha", "auto_local"]); // not Daniel (en-GB), not the network default
+test("pickVoice rule 2: the first local voice whose lang equals the target exactly", () => {
+  assert.deepEqual(r.rule2, ["Samantha", "auto_local"]);
+  assert.deepEqual(r.rule2Regional, ["Daniel", "auto_local"]); // navigator.language en-GB is the target
   assert.deepEqual(r.rule2CaseAndUnderscore, ["Samantha", "auto_local"]); // "EN-us" matches "en_US"
 });
 
-test("pickVoice rule 3: no exact match: the first local voice with the same base language", () => {
-  assert.deepEqual(r.rule3, ["Daniel", "auto_local"]); // en-GB comes before en-AU, and is not the network default
-  assert.deepEqual(r.rule3LanguageWithoutRegion, ["Daniel", "auto_local"]); // navigator.language "en"
+test("pickVoice: a navigator.language that is not English still yields an English voice (the target is en-US)", () => {
+  assert.deepEqual(r.nonEnglishLanguageStillEnglish, ["Samantha", "auto_local"]); // fr-FR
+  assert.deepEqual(r.germanLanguageUsesEnUS, ["Samantha", "auto_local"]); // de-DE
+  assert.deepEqual(r.noLanguageUsesEnUS, ["Samantha", "auto_local"]); // empty
 });
 
-test("pickVoice otherwise: the browser default, with source browser_default", () => {
-  assert.deepEqual(r.noMatch, [null, "browser_default"]); // the only en-US voice is a network voice
-  assert.deepEqual(r.noLanguage, [null, "browser_default"]);
+test("pickVoice rule 3: no exact match: the first local voice whose base language is en", () => {
+  assert.deepEqual(r.rule3, ["Karen", "auto_local"]); // not the French voice, not the network en-US voice
+  assert.deepEqual(r.rule3RegionalTargetMissing, ["Karen", "auto_local"]);
+});
+
+test("pickVoice rule 4: no local English voice: the browser default, with source browser_default", () => {
+  assert.deepEqual(r.rule4, [null, "browser_default"]);
   assert.deepEqual(r.emptyList, [null, "browser_default"]);
-  assert.deepEqual(r.namedMissing, [null, "browser_default"]); // a missing name does not fall back to auto_local
+});
+
+test("pickVoice: a name picks that voice (param), and a missing name is the browser default, not auto_local", () => {
+  assert.deepEqual(r.named, ["Samantha", "param"]);
+  assert.deepEqual(r.namedIgnoresCase, ["Samantha", "param"]);
+  assert.deepEqual(r.namedNetworkWhenAsked, ["Google US English", "param"]);
+  assert.deepEqual(r.namedMissing, [null, "browser_default"]);
   assert.deepEqual(r.partialIsNotAMatch, [null, "browser_default"]);
   assert.deepEqual(r.emptyListNamed, [null, "browser_default"]);
 });

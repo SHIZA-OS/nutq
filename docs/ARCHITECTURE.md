@@ -156,9 +156,12 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 - `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
   at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
   log panel (at most 40 lines, with local and network counts) so a name can be copied from it. An unknown name is
-  logged and the browser default is used. With no name, local voices are preferred (they start quickly): the browser's
-  default voice if it is local, else the first local voice whose lang equals `navigator.language`, else the first local
-  voice with the same base language, else the browser default; `voice_source` is `auto_local` for those local picks. On Linux Chrome only lists local voices (speech-dispatcher) when started
+  logged and the browser default is used. With no name the reply voice is a local English one (Nutq's speech recognition is English only,
+  so replies are always English). The target language is `navigator.language` if it starts with "en", otherwise
+  "en-US". In order: the browser's default voice, only if it is local and its base language is "en" (a local default
+  in another language, such as Afrikaans under speech-dispatcher, is skipped); the first local voice whose lang equals
+  the target; the first local voice whose base language is "en"; otherwise the browser default. `voice_source` is
+  `auto_local` for the first three. On Linux Chrome only lists local voices (speech-dispatcher) when started
   with `--enable-speech-dispatcher`.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
