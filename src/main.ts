@@ -3,7 +3,7 @@ import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
 import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
-import { pickVoice, speechText, voiceLines } from "./voice";
+import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -84,6 +84,7 @@ type EvalEvent =
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
+  | "tts_cancelled"
   | "turn_timeout"
   | "ws_error"
   | "ws_closed"
@@ -630,8 +631,12 @@ function speak(text: string) {
   utterance.onstart = () =>
     logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
   utterance.onend = () => logEvent("tts_end");
-  // error is a SpeechSynthesisErrorCode such as "canceled", "interrupted" or "synthesis-failed".
-  utterance.onerror = (ev) => logEvent("tts_error", { message: ev.error ?? "unknown" });
+  // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
+  // is tts_error.
+  utterance.onerror = (ev) => {
+    const e = ttsErrorEvent(ev.error);
+    logEvent(e.event, e.fields);
+  };
   window.speechSynthesis.speak(utterance);
 }
 

@@ -20,7 +20,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { pickVoice, speechText, voiceLines } = await import("/src/voice.ts");
+    const { pickVoice, speechText, ttsErrorEvent, voiceLines } = await import("/src/voice.ts");
     const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
@@ -39,6 +39,7 @@ before(async () => {
       emptyList: name(pickVoice([], null)),
       emptyListNamed: name(pickVoice([], "Samantha")),
       speech: ["", " ", "\n\t  ", "\u00a0", "hi", "  Hi there.\n", "OK."].map((t) => speechText(t)),
+      errors: ["canceled", "interrupted", "synthesis-failed", "audio-busy", "not-allowed", undefined].map((c) => ttsErrorEvent(c)),
       lines: voiceLines(list),
       manyLines: voiceLines(many, 40),
       none: voiceLines([]),
@@ -89,4 +90,15 @@ test("an empty list still gives the summary line", () => assert.deepEqual(r.none
 
 test("speechText trims the reply, and is null for empty or whitespace-only text (including a non-breaking space)", () => {
   assert.deepEqual(r.speech, [null, null, null, null, "hi", "Hi there.", "OK."]);
+});
+
+test("ttsErrorEvent: canceled and interrupted are tts_cancelled, every other error code (or none) is tts_error", () => {
+  assert.deepEqual(r.errors, [
+    { event: "tts_cancelled", fields: { reason: "canceled" } },
+    { event: "tts_cancelled", fields: { reason: "interrupted" } },
+    { event: "tts_error", fields: { message: "synthesis-failed" } },
+    { event: "tts_error", fields: { message: "audio-busy" } },
+    { event: "tts_error", fields: { message: "not-allowed" } },
+    { event: "tts_error", fields: { message: "unknown" } },
+  ]);
 });
