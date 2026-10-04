@@ -50,12 +50,16 @@ async function openPage(query) {
       cancels: window.__sp.cancels,
       events: [...document.getElementById("log").textContent.matchAll(/EVENT (\{.*\})/g)].map((m) => JSON.parse(m[1])),
     }));
+  // Fires a callback of the i-th utterance. Returns false, and does nothing, if the page never spoke it: a behavior that
+  // stopped speaking must fail the test that expects the speech, not throw in the setup that drives the page.
   const fire = (i, kind, code) =>
     page.evaluate(([i, kind, code]) => {
       const u = window.__sp.utterances[i];
+      if (!u) return false;
       if (kind === "start") u.onstart({});
       else if (kind === "end") u.onend({});
       else u.onerror({ error: code });
+      return true;
     }, [i, kind, code]);
   return { page, send, state, fire };
 }
@@ -240,7 +244,11 @@ test("flag on: an empty or whitespace-only reply is tts_skipped as with the flag
 });
 
 test("flag on: a turn at done with no sentence queued speaks full_response once, trimmed, through the queue, and still reports the mismatch", () => {
-  assert.deepEqual(r.onFallback.spoken.slice(4), ["No chunk frames came before this.", "Padded reply, spoken trimmed."]);
+  assert.deepEqual(
+    r.onFallback.spoken.slice(4),
+    ["No chunk frames came before this.", "Padded reply, spoken trimmed."],
+    "with no sentence queued at done, full_response should be spoken once, trimmed, through the queue",
+  );
   assert.deepEqual(
     r.onFallback.events.filter((e) => e.event.startsWith("tts_")).map((e) => [e.event, e.index ?? null]),
     [
