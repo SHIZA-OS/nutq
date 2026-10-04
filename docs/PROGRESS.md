@@ -365,3 +365,18 @@ response completed (10:38:43.440). The gateway forwards every live-streamed text
 call, while `done.full_response` is only the final iteration's text (`accumulated_display_text` in
 `crates/zeroclaw-runtime/src/agent/turn/mod.rs` is appended only on the iteration with no tool calls). So the 49 extra characters
 are text streamed in iteration 1; the trace does not record that text, so its content is not verified. With `?tts_stream=1` it is spoken.
+
+Mute after a mic tap (2026-10-04): tapping the mic button to start listening while a reply is in flight now mutes the rest of
+that reply, with and without `?tts_stream=1`. `ReplyState` (`src/turn-state.ts`) holds the mute, set by `mute()` only while a reply
+is in flight and cleared at every point that clears the flag (done, aborted, the three turn-failure errors, a closed socket, the
+60 s timeout), so the next turn speaks normally; a tap with no reply in flight mutes nothing. While muted, later chunks are shown
+but not queued, and at `done` nothing is spoken (no tail, no `full_response` fallback, no `tts_text_mismatch`, no `tts_skipped`).
+`main.ts` reads the mute before `frame()` because a `done` clears it. The in-flight guard is unchanged, so the user's own
+utterance during the muted reply is still blocked with "Still answering, try again". New eval event `tts_muted` `{reason, point,
+chars}` (see eval-harness-design.md for the two meanings of `chars`); `join-latency.mjs` now reports a muted turn as muted with a
+null reason for the missing `tts_start` instead of listing it as a missing client event, and `completion.mjs` is untouched and
+pinned. The suite went from 160 to 180 tests, all passing. The stub-gateway test can now put a real reply in flight (its fake
+Transcriber commits a transcript on stop), which also covers the failure-error cancel; the cancels on the reply timeout and on a new
+send are still not exercised by a test. Interaction with the known limit (no turn id): a late `done` after the 60 s timeout can
+clear the next turn's flag, and the mute with it, so in that narrow window a muted turn could speak again. Not verified by ear in a
+real browser: a mic tap mid-reply in both modes.
