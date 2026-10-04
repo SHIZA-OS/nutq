@@ -223,3 +223,30 @@ test("a turn with no server row that timed out client-side (turn_timeout) is unm
   assert.equal(result.turns[0].outcome, "unmatched_no_signal");
   assert.deepEqual(result.turns[0].failure_events, []);
 });
+
+// Sentence streaming (?tts_stream=1) events: not failure events and not read by name, and tts_start before
+// done_received (the streaming order) is not read at all, so a completed turn stays completed.
+test("the sentence-streaming events, with tts_start before done_received, do not change a completed classification", () => {
+  const base = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_start", timestamp_ms: 450 },
+  ];
+  const streamed = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "tts_requested", timestamp_ms: 305, index: 0 },
+    { event: "tts_start", timestamp_ms: 350 },
+    { event: "tts_sentence_start", timestamp_ms: 350, index: 0 },
+    { event: "tts_text_mismatch", timestamp_ms: 400, chunks_chars: 10, full_response_chars: 12 },
+    { event: "done_received", timestamp_ms: 400 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+  const a = classifyCompletion({ events: streamed, sessions }, SK);
+  const b = classifyCompletion({ events: base, sessions }, SK);
+  assert.deepEqual(a.turns, b.turns);
+  assert.deepEqual(a.summary, b.summary);
+});

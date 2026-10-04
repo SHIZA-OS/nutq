@@ -276,3 +276,46 @@ test("an utterance blocked during turn 1's reply (its speech events and send_blo
   assert.deepEqual(a.turns[1], b.turns[1]);
   assert.deepEqual(a.turns[0], b.turns[0]);
 });
+
+// Sentence streaming (?tts_stream=1) adds tts_requested, tts_sentence_start and tts_text_mismatch. None is read by
+// name here, so none can change a stage. What does change is the order: tts_start (the first audible audio) can come
+// before done_received, so tts_start_delay (tts_start - done_received) goes negative. The other stages that end at
+// tts_start (post_trigger, commit_to_audio, user_perceived) stay the time to first audio.
+const STREAM_EVENTS = (t) => [
+  { event: "tts_requested", timestamp_ms: t, index: 0 },
+  { event: "tts_sentence_start", timestamp_ms: t + 1, index: 0 },
+  { event: "tts_text_mismatch", timestamp_ms: t + 2, chunks_chars: 10, full_response_chars: 12 },
+];
+
+test("the sentence-streaming events do not change any stage, wherever they fall", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const base = twoTurns();
+  const withNew = [...STREAM_EVENTS(-100), ...base.slice(0, 2), ...STREAM_EVENTS(1000), ...base.slice(2, 7), ...STREAM_EVENTS(2300), ...base.slice(7, 10), ...STREAM_EVENTS(5000), ...base.slice(10), ...STREAM_EVENTS(9600)];
+  assert.deepEqual(joinLatency({ events: withNew, sessions }, SK), joinLatency({ events: base, sessions }, SK));
+});
+
+test("with sentence streaming tts_start is before done_received: tts_start_delay is negative, the other stages are time to first audio", () => {
+  const events = [
+    { event: "speech_start", timestamp_ms: 0 },
+    { event: "speech_end", timestamp_ms: 900 },
+    { event: "stt_committed", timestamp_ms: 950 },
+    { event: "ws_message_sent", timestamp_ms: 1510, send_trigger: "auto_silence" },
+    { event: "first_chunk_received", timestamp_ms: 1800 },
+    { event: "tts_requested", timestamp_ms: 1805, index: 0 },
+    { event: "tts_start", timestamp_ms: 1850 }, // once per turn: the first sentence is audible
+    { event: "tts_sentence_start", timestamp_ms: 1850, index: 0 },
+    { event: "tts_requested", timestamp_ms: 1900, index: 1 },
+    { event: "tts_end", timestamp_ms: 1990 },
+    { event: "tts_sentence_start", timestamp_ms: 1995, index: 1 },
+    { event: "done_received", timestamp_ms: 2200 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, "t1")] };
+  const t = joinLatency({ events, sessions }, SK).turns[0];
+  assert.equal(t.client.tts_start_ms, 1850);
+  assert.equal(t.stages_ms.tts_start_delay, -350); // 1850 - 2200
+  assert.equal(t.stages_ms.post_trigger, 340); // 1850 - 1510
+  assert.equal(t.stages_ms.commit_to_audio, 900); // 1850 - 950
+  assert.equal(t.stages_ms.user_perceived, 340);
+  assert.equal(t.stages_ms.full_completion, 690); // 2200 - 1510, unchanged
+  assert.deepEqual(t.missing_client_events, []);
+});
