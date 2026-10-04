@@ -6,7 +6,7 @@
 //   node eval/runner/replay-commits.mjs [--cases id,id] [--pre-roll 4] [--model model/base]
 //     [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--frames 95-120]
 //     [--wer <label> [--phases 8]] [--policy fixed:<ms>|semantic|semantic:d,u,o,floor,ceil] [--latency-scale 1]
-//     [--gate <results dir>]
+//     [--gate <results dir>] [--streams <file.jsonl>]
 // --frames A-B also prints the Silero probability and the pause EMA of each input frame A..B.
 //
 // --wer <label> is the phase-swept WER mode: instead of printing commits, every case is run at each
@@ -45,6 +45,11 @@
 // the true end of speech it ended. --gate <results dir> compares every v1 case, per phase, with that earlier sweep: it
 // fails (exit 1) when a case has a new error against the reference, and lists changed hypotheses for review.
 //
+// --streams <file> appends one JSON line per case and phase to that file: the events and commits in the order they
+// happened (frame, kind, commit audio length, real text, measured model run time) and the VAD probability of every frame,
+// everything endpoint-sweep.mjs needs to replay other end-of-turn policies on this run without running the model again.
+// Run it with --policy fixed:999999 so that no turn ends early and every commit is seen.
+//
 // Limits: offline frames skip Chrome's mic processing (echo cancellation, noise suppression,
 // auto gain, resampling), so a replay can differ from a mic run of the same recording.
 // VAD options and the default pre-roll mirror src/main.ts; keep them in step.
@@ -52,7 +57,7 @@
 import { chromium } from "playwright-core";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { parseJsonl, scoreRun, loadFlags } from "./wer.mjs";
 import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
 import { analyzeTurn, compareGate, parsePolicy, summarize } from "./endpoint-metrics.mjs";
@@ -64,7 +69,7 @@ const FRAME_MS = 32; // 512 samples at 16 kHz
 const GRACE_FRAMES = Math.floor(10000 / FRAME_MS); // run-wer.mjs stops manually this long after the WAV ends
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, preRoll: 4, frames: null, wer: null, phases: 8, policy: undefined, latencyScale: 1, gate: null }; // 4 = PRE_ROLL_FRAMES in src/main.ts
+  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, preRoll: 4, frames: null, wer: null, phases: 8, policy: undefined, latencyScale: 1, gate: null, streams: null }; // 4 = PRE_ROLL_FRAMES in src/main.ts
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
     else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
@@ -76,6 +81,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--policy") args.policy = argv[++i];
     else if (argv[i] === "--latency-scale") args.latencyScale = Number(argv[++i]);
     else if (argv[i] === "--gate") args.gate = argv[++i];
+    else if (argv[i] === "--streams") args.streams = argv[++i].replace(/^~(?=\/)/, homedir());
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (!Number.isInteger(args.preRoll) || args.preRoll < 0) throw new Error("--pre-roll takes a whole number of frames");
@@ -136,7 +142,7 @@ async function main() {
           const { TurnPolicy, SEMANTIC_WAITS, endHint, waitFor } = await import("/src/turn-policy.ts");
           const { commitLatencyMs } = await import("/eval/runner/endpoint-metrics.mjs");
           // Per-case state the generate() wrapper and the callbacks write to.
-          const R = (window.__replay = { cur: 0, commits: [], pending: [], events: [], ema: 0, trace: [], policy: null, TurnPolicy, SEMANTIC_WAITS, endHint, waitFor });
+          const R = (window.__replay = { cur: 0, commits: [], pending: [], events: [], ema: 0, trace: [], policy: null, seq: [], TurnPolicy, SEMANTIC_WAITS, endHint, waitFor });
           const mkTranscriber = () =>
             new Transcriber(
               model,
@@ -146,15 +152,18 @@ async function main() {
                   R.trace[R.cur] = [p.isSpeech, ema];
                 },
                 onSpeechStart: (pre) => {
+                  R.seq.push({ k: "start", f: R.cur });
                   R.events.push({ ev: "speech_start", at: R.cur, preRoll: pre });
                   R.policy.speechStart(R.cur * frameMs);
                 },
                 onSpeechEnd: () => {
+                  R.seq.push({ k: "end", f: R.cur });
                   R.events.push({ ev: "speech_end", at: R.cur });
                   R.policy.speechEnd(R.cur * frameMs);
                   R.arm();
                 },
                 onMisfire: () => {
+                  R.seq.push({ k: "misfire", f: R.cur });
                   R.events.push({ ev: "misfire", at: R.cur });
                   R.policy.misfire(R.cur * frameMs);
                   R.arm();
@@ -178,12 +187,14 @@ async function main() {
             // The Transcriber runs model calls one at a time, in the order the commits were made, so the
             // next commit that was not skipped is the one this call belongs to.
             const c = R.pending.shift();
+            const t0 = performance.now();
             try {
               return (c.text = await real(audio));
             } catch (e) {
               c.error = String(e.message ?? e).split("\n")[0].slice(0, 80);
               throw e;
             } finally {
+              c.run_ms = Math.round(performance.now() - t0); // the real model run, for checking the latency model
               c.resolve(); // the text (or the error) is there; deliver() may now hand it to the policy
             }
           };
@@ -194,6 +205,7 @@ async function main() {
             const name = path === "commit" ? (n === 128 ? "cap" : "pause-EMA") : path === "speech_end" ? "onSpeechEnd" : path;
             const c = { path: name, fire: R.cur, from: R.cur - n + 1, to: R.cur, frames: n, samples: audio.length, ema: R.ema, skipped: audio.length < MIN_ENCODER_SAMPLES, text: null, error: null };
             R.commits.push(c);
+            R.seq.push({ k: "commit", f: R.cur, c: R.commits.length - 1 });
             if (!c.skipped) {
               R.pending.push(c);
               // The policy hears of the commit now, and of its text when the modelled run has finished: one
@@ -262,6 +274,7 @@ async function main() {
           R.commits = [];
           R.pending = [];
           R.events = [];
+          R.seq = [];
           R.trace = [];
           R.texts = []; // committed text the policy has been told about, in order
           R.finish = 0; // when the modelled model run of the last commit ends
@@ -306,7 +319,7 @@ async function main() {
           await t.stop(); // waits for every queued model call
           t.vadModel.destroy?.();
           t.audioContext.close();
-          return { nFile, nTotal: R.cur, trigger: final.reason, endMs: final.at, endState, arms: R.arms, truth, commits: R.commits, events: R.events, trace: R.trace };
+          return { nFile, nTotal: R.cur, trigger: final.reason, endMs: final.at, endState, arms: R.arms, truth, commits: R.commits, events: R.events, seq: R.seq, trace: R.trace };
         }, { samples: [...new Array(lead).fill(0), ...readSamples(wav)], frameMs: FRAME_MS, graceFrames: GRACE_FRAMES, policy: args.policySpec });
         if (!args.wer) {
           report(c, out, args.frames, turnReport(out, out.commits.filter((k) => !k.skipped && k.text).map((k) => k.text)));
@@ -323,6 +336,7 @@ async function main() {
         ];
         sweep[phase].attempted.push(c.id);
         sweep[phase].turns[c.id] = turnReport(out, texts);
+        if (args.streams) appendFileSync(args.streams, JSON.stringify(streamLine(c, phase, out)) + "\n");
         for (const k of out.commits.filter((k) => k.error)) sweep[phase].errors.push({ id: c.id, error: k.error });
         console.error(`phase ${phase} ${c.id.padEnd(7)} ${out.trigger.padEnd(12)} ${JSON.stringify(texts.join(" "))}`);
       }
@@ -508,6 +522,17 @@ function gateAgainst(dir, phaseSummaries) {
   });
   const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
   return { baseline: dir, phases: phaseSummaries.length, compared, fail, review, baseline_wer_mean: mean(baseWer), wer_mean: mean(gotWer), pass: fail.length === 0 };
+}
+
+// One case and phase as a self-contained stream for endpoint-sweep.mjs: the events and commits in the order they
+// happened, and the VAD probability of every frame (3 decimals). A commit under the encoder minimum has no model run.
+function streamLine(c, phase, out) {
+  const seq = out.seq.map((e) => {
+    if (e.k !== "commit") return e;
+    const k = out.commits[e.c];
+    return { k: "commit", f: e.f, from: k.from, samples: k.samples, skipped: k.skipped, path: k.path, text: k.text ?? "", run_ms: k.run_ms ?? null };
+  });
+  return { id: c.id, set: c.set ?? "v1", category: c.category, phase, nFile: out.nFile, nTotal: out.nTotal, seq, truth: out.truth.map((p) => Math.round(p * 1000) / 1000) };
 }
 
 // The end-of-turn report of one case: when and how the turn ended against the recorded speech (endpoint-metrics.mjs),
