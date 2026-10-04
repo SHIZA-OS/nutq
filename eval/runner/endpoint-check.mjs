@@ -12,7 +12,8 @@ const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
 // What the VAD probabilities of one recording say. `phases` is one probability array per phase of the frame grid (the
 // phases only shift the grid, so the first one gives the numbers and all of them give the spread of the longest gap).
 // - gaps_ms: the pauses (gaps of 16 frames or more between runs of speech), in order.
-// - burst: a short run (6 frames or fewer) in the first 4 frames and then a pause before the real speech.
+// - burst: a short run (6 frames or fewer) in the first 4 frames and then a pause before the real speech. A burst the VAD
+//   does not take for speech is found from the waveform instead (wavStats lead_peak, in takeFlags).
 export function measureTake(phases) {
   const runs = speechRuns(phases[0]);
   const gapsOf = (r) => r.slice(1).map((x, i) => (x.start - r[i].end - 1) * FRAME_MS);
@@ -31,7 +32,8 @@ export function measureTake(phases) {
   };
 }
 
-// Duration, peak (0 to 1), rms and the share of clipped samples of a 16 kHz mono int16 WAV.
+// Duration, peak (0 to 1), rms, the share of clipped samples and lead_peak (the peak of the first 256 ms, where a loud recording
+// burst sits) of a 16 kHz mono int16 WAV.
 export function wavStats(b) {
   for (let off = 12; off + 8 <= b.length; ) {
     const id = b.toString("ascii", off, off + 4);
@@ -39,15 +41,17 @@ export function wavStats(b) {
     if (id === "data") {
       const n = Math.min(size, b.length - off - 8) >> 1;
       let peak = 0;
+      let lead = 0;
       let sq = 0;
       let clipped = 0;
       for (let i = 0; i < n; i++) {
         const v = b.readInt16LE(off + 8 + 2 * i);
         peak = Math.max(peak, Math.abs(v));
+        if (i < 4096) lead = Math.max(lead, Math.abs(v));
         sq += v * v;
         if (Math.abs(v) >= 32767) clipped++;
       }
-      return { seconds: n / 16000, peak: peak / 32768, rms: Math.sqrt(sq / (n || 1)) / 32768, clipped_frac: n ? clipped / n : 0 };
+      return { seconds: n / 16000, peak: peak / 32768, lead_peak: lead / 32768, rms: Math.sqrt(sq / (n || 1)) / 32768, clipped_frac: n ? clipped / n : 0 };
     }
     off += 8 + size + (size % 2);
   }
@@ -76,7 +80,7 @@ export function takeFlags(c, m, w, wer) {
   }
   const others = m.gaps_ms.filter((g, i) => (c.pause_s === undefined ? true : i !== m.gaps_ms.indexOf(longest)) && g >= VAD_VISIBLE_MS);
   if (others.length) note.push("extra_gap");
-  if (m.burst) note.push("leading_burst");
+  if (m.burst || w.lead_peak >= 0.5) note.push("leading_burst"); // the VAD sees some bursts (bn-03), the waveform shows the others (fws-01, bn-01)
   return { unusable: [...new Set(unusable)].sort((a, b) => order(a) - order(b)), note };
 }
 

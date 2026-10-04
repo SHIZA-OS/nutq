@@ -51,6 +51,16 @@ const wav = (samples) => {
   return b;
 };
 
+test("wavStats: lead_peak is the peak of the first 256 ms (4096 samples), where a recording burst sits", () => {
+  const quietThenLoud = new Array(8192).fill(0);
+  quietThenLoud[100] = 3277; // 0.1 in the first 256 ms
+  quietThenLoud[5000] = 32767; // full scale, after it
+  assert.equal(wavStats(wav(quietThenLoud)).lead_peak.toFixed(2), "0.10");
+  const burst = new Array(8192).fill(0);
+  burst[10] = 32767;
+  assert.equal(wavStats(wav(burst)).lead_peak.toFixed(2), "1.00");
+});
+
 test("wavStats: duration, peak, rms and the share of clipped samples", () => {
   const w = wavStats(wav([0, 16384, -16384, 32767, 0, 0, 0, 0]));
   assert.equal(w.seconds, 8 / 16000);
@@ -61,7 +71,7 @@ test("wavStats: duration, peak, rms and the share of clipped samples", () => {
 });
 
 const take = (o) => ({ burst: false, gaps_ms: [], longest_gap_ms: null, first_speech_ms: 1000, last_speech_end_ms: 5000, file_ms: 10000, longest_gap_phases_ms: { min: 0, median: 0, max: 0 }, ...o });
-const stats = { seconds: 10, peak: 0.5, rms: 0.05, clipped_frac: 0 };
+const stats = { seconds: 10, peak: 0.5, rms: 0.05, clipped_frac: 0, lead_peak: 0 };
 
 test("takeFlags: a clean pause take has no flags", () => {
   const f = takeFlags({ category: "pause_function_word", pause_s: 2 }, take({ gaps_ms: [2016], longest_gap_ms: 2016 }), stats, 0.1);
@@ -77,6 +87,15 @@ test("takeFlags: no speech, a missing pause, speech cut off by the end of the fi
   assert.deepEqual(u({ category: "long_utterance" }, take(), { ...stats, clipped_frac: 0.02 }), ["clipped"]);
   assert.deepEqual(u({ category: "long_utterance" }, take(), { ...stats, peak: 0.01 }), ["very_quiet"]);
   assert.deepEqual(u({ category: "long_utterance" }, take(), stats, 0.8), ["transcript_far_from_script"]);
+});
+
+test("takeFlags: a near full-scale burst in the first 256 ms is a leading_burst note even when the VAD never saw it", () => {
+  const f = (peak) => takeFlags({ category: "long_utterance" }, take(), { ...stats, lead_peak: peak }, 0.1);
+  assert.deepEqual(f(1).note, ["leading_burst"]);
+  assert.deepEqual(f(0.49).note, []);
+  assert.deepEqual(f(1).unusable, []); // fws-01 and bn-01 are kept in the corpus deliberately
+  // noise-only recordings are all noise: no burst note
+  assert.deepEqual(takeFlags({ category: "noise_only" }, take(), { ...stats, lead_peak: 1 }, 0.1).note, []);
 });
 
 test("takeFlags: a pause far from the intended length, a second long gap and a leading burst are notes, not unusable", () => {
