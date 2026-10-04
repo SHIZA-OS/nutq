@@ -28,6 +28,12 @@ before(async () => {
     const model = "model/base";
     const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
     const log = { events: [], sizes: [], inFlight: 0, maxInFlight: 0 };
+    // performance.now() is what the Transcriber times a call with (wait_ms, run_ms). While `fake.on` it reads a clock
+    // that only moves when the fake model "takes" its 60 ms, so those times do not depend on how busy the machine
+    // is (the test's own synchronous work between two calls being queued took 27 ms and more under a parallel run).
+    const realNow = performance.now.bind(performance);
+    const fake = { on: false, now: 0 };
+    performance.now = () => (fake.on ? fake.now : realNow());
     Transcriber.models.set(model, {
       loadModel: async () => {},
       isLoaded: () => true,
@@ -38,6 +44,7 @@ before(async () => {
         log.sizes.push(audio.length);
         log.maxInFlight = Math.max(log.maxInFlight, ++log.inFlight);
         await sleep(60);
+        if (fake.on) fake.now += 60;
         log.inFlight--;
         log.events.push("e" + tag);
         if (tag === 9) throw new Error("boom");
@@ -104,15 +111,19 @@ before(async () => {
       empty: audioHash(new Float32Array(0)),
     };
 
+    // a pause commit (64 frames, tag 1) and, in the same tick, an onSpeechEnd commit (tag 2), on the fake clock
+    const overlap = await scenario(async (t, o, { talk, fill, feed }) => {
+      fake.on = true;
+      talk();
+      feed(64, 0, 1);
+      fill(2, 2);
+      o.onSpeechEnd(new Float32Array(0));
+    });
+    fake.on = false;
+
     return {
       hashes,
-      // a pause commit (64 frames, tag 1) and, in the same tick, an onSpeechEnd commit (tag 2)
-      overlap: await scenario(async (t, o, { talk, fill, feed }) => {
-        talk();
-        feed(64, 0, 1);
-        fill(2, 2);
-        o.onSpeechEnd(new Float32Array(0));
-      }),
+      overlap,
       // 2 frame commits at amplitude 0.1, 0.2, 0.1 (under the int16 clip that tags 1, 2, 3 hit)
       hashed: await scenario(async (t, o, { talk, fill }) => {
         for (const amp of [0.1, 0.2, 0.1]) {
@@ -246,9 +257,9 @@ test("a model error is reported as onModelError with its path, and later commits
 test("onModelCall reports each call's samples, wait and run time, and its skips", () => {
   const ran = r.overlap.calls.filter((c) => !c.skipped);
   assert.deepEqual(ran.map((c) => [c.path, c.samples]), [["update", 16 * 512], ["commit", 64 * 512], ["speech_end", 2 * 512]]);
-  assert.ok(ran.every((c) => c.run_ms >= 50), JSON.stringify(ran)); // the fake model takes 60 ms
-  assert.ok(ran[0].wait_ms < 30, "the update found the model idle");
-  assert.ok(ran[1].wait_ms >= 50 && ran[2].wait_ms >= ran[1].wait_ms + 50, "each later call waited for the earlier ones");
+  // On the fake clock all three were queued at 0 and the model takes 60 each: the first found the model idle, and each
+  // later one waited for every call before it.
+  assert.deepEqual(ran.map((c) => [c.wait_ms, c.run_ms]), [[0, 60], [60, 60], [120, 60]]);
   const skipped = r.overlap.calls.filter((c) => c.skipped);
   assert.deepEqual(skipped.map((c) => [c.path, c.samples, c.wait_ms, c.run_ms]), [["update", 32 * 512, 0, 0], ["update", 48 * 512, 0, 0]]);
   assert.deepEqual(r.shortStop.calls.map((c) => ({ ...c, audio_hash: undefined })), [{ path: "stop", samples: 512, audio_hash: undefined, wait_ms: 0, run_ms: 0, skipped: true }]);
