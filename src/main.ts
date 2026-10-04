@@ -2,6 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
+import { ReplyState } from "./turn-state";
 import { pickVoice, voiceLines } from "./voice";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
@@ -74,6 +75,7 @@ type EvalEvent =
   | "mic_settings"
   | "transcript_final"
   | "send_skipped"
+  | "send_blocked"
   | "stt_model"
   | "ws_message_sent"
   | "first_chunk_received"
@@ -171,6 +173,9 @@ evalDownloadBtn.addEventListener("click", () => {
 
 let socket: WebSocket | null = null;
 let replyBuffer = "";
+// Whether a reply is in flight (src/turn-state.ts): a message sent mid-turn is steering, not a new turn, so
+// nothing is sent until the running turn ends.
+const replyState = new ReplyState();
 let receivedSessionStart = false;
 let receivedFirstChunkThisTurn = false;
 
@@ -406,6 +411,8 @@ function connect() {
       return;
     }
 
+    replyState.frame(parsed); // done, aborted and a turn-failure error end the turn
+
     switch (parsed.type) {
       case "session_start":
         receivedSessionStart = true;
@@ -495,6 +502,7 @@ function connect() {
       );
     }
     setStatus(connStatus, "disconnected", "warn");
+    replyState.closed();
     socketOpen = false;
     updateMicState();
     socket = null;
@@ -510,6 +518,12 @@ type SendTrigger = "manual" | "auto_silence";
 function sendTranscript(text: string, trigger: SendTrigger) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     log("Cannot send: not connected");
+    return;
+  }
+  if (!replyState.trySend()) {
+    // The utterance is dropped, not held. Its text is in transcript_final in eval mode, so it is not repeated here.
+    log("A reply is still in progress, so this utterance was not sent");
+    logEvent("send_blocked", { reason: "reply_in_flight" });
     return;
   }
   replyBuffer = "";
