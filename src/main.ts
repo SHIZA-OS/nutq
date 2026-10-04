@@ -623,11 +623,15 @@ if ("speechSynthesis" in window) {
 const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice) : null;
 
 // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
-// is tts_error.
-function logTtsError(code: string | undefined) {
+// is tts_error. `cancelledBy` is the reason reported when the code is "canceled": that is what the browser reports
+// for our own cancel(), so the reason we gave it (see cancelSpeech) goes with it.
+function logTtsError(code: string | undefined, cancelledBy = "canceled") {
   const e = ttsErrorEvent(code);
-  logEvent(e.event, e.fields);
+  logEvent(e.event, e.event === "tts_cancelled" && code === "canceled" ? { reason: cancelledBy } : e.fields);
 }
+
+// Why speech was last cancelled (see cancelSpeech), for the browser's late "canceled" error on the flag-off path.
+let cancelReason = "canceled";
 
 // ?tts_stream=1 (any mode, default off): speak the reply sentence by sentence as its chunks arrive (src/sentence-splitter.ts
 // feeds src/speech-queue.ts) instead of once at done. Without a speech engine the flag does nothing and speak() reports it.
@@ -652,18 +656,22 @@ function logSpeechEvent(e: SpeechEvent) {
       logTtsError(e.code);
       break;
     case "cancelled":
-      logEvent("tts_cancelled", { reason: "canceled" });
+      logEvent("tts_cancelled", { reason: cancelReason });
       break;
   }
 }
 
-// Stops speech that is playing or queued. Called when a new message is sent and when a turn is aborted or the
-// connection closes, so an old reply is not read out over what comes next.
-function cancelSpeech() {
+// Stops speech that is playing or queued. Called when a new message is sent, when a turn is aborted, when the
+// connection closes and when the mic button starts listening, so an old reply is not read out over what comes next.
+// `reason` is what tts_cancelled reports; "canceled" is the default.
+function cancelSpeech(reason = "canceled") {
+  cancelReason = reason;
   splitter.reset();
   streamedChunks = "";
-  if (speechQueue) speechQueue.cancel();
-  else ttsEngine?.cancel();
+  if (speechQueue) {
+    speechQueue.cancel(); // reports tts_cancelled itself, now
+    cancelReason = "canceled";
+  } else ttsEngine?.cancel(); // the browser reports it, later, through the utterance's error
 }
 
 function speak(text: string) {
@@ -678,11 +686,12 @@ function speak(text: string) {
     logEvent("tts_skipped", { reason: "unsupported" });
     return;
   }
+  cancelReason = "canceled";
   ttsEngine.speak(
     spoken,
     (info) => logEvent("tts_start", { ...info, engine: ttsEngine.name }),
     () => logEvent("tts_end"),
-    logTtsError,
+    (code) => logTtsError(code, cancelReason),
   );
 }
 
@@ -898,6 +907,7 @@ micBtn.addEventListener("click", async () => {
     listening = true;
     turn = new TurnPolicy(silenceMs);
     logEvent("mic_button_press");
+    cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
     sessionTranscript = "";
     await startMicrophone(transcriber!);
   } else {

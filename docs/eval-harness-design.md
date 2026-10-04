@@ -65,7 +65,8 @@ plan):**
 - `send_blocked` `{reason: "reply_in_flight"}` (a message was not sent because a reply was still in flight; the
   utterance is dropped), `turn_timeout` `{ms}` (the in-flight flag was cleared after `ms` with no ending frame),
   `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis), `tts_end` (the utterance's
-  `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`) and `tts_error` `{message}`
+  `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`; `reason` is `mic_press` when the cancel was the mic
+  button starting to listen while speech was playing, for the browser's `canceled` report and for a streamed queue alike) and `tts_error` `{message}`
   (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`.
 - Sentence streaming (`?tts_stream=1`, default off): `tts_requested` `{index}` (a sentence was queued for speech;
   `index` counts from 0 within the turn), `tts_sentence_start` `{index}` (that sentence became audible, the engine's
