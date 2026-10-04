@@ -136,7 +136,13 @@ clears it, and recording is untouched. The delay is 5000 ms by default and can b
 mode (clamped to 800..8000; absent or not a number is the default). A transcript that is empty or only whitespace
 is not sent to the gateway (`send_skipped` event). The demo uses `?silence=1200` (added to the URL by
 `scripts/demo-chrome-linux.sh`): sends sooner, at the risk that a pause longer than 1.2 s ends the turn early. The public
-default stays 5000 until endpointing work picks a better one. A
+default stays 5000 until endpointing work picks a better one. `?endpoint=semantic` (opt-in, never the default) makes the
+wait depend on the transcript instead: `endHint` reads the text so far as `done` (ends in `. ? !`), `open` (ends in
+`...`, `,`, `;`, `:` or `-`, or its last word is a conjunction, article, preposition or filler, even after a full
+stop: "a flight and." is open; digits are words) or `unknown`, and each hint has its own wait, clamped to a floor and
+ceiling. With no text yet the wait is the `unknown` one, and it is held at least there while a commit is in flight. Text
+that arrives while the wait runs recomputes it and re-arms the timer. `?silence=<ms>` overrides it: with both, the fixed
+wait applies. The values in `SEMANTIC_WAITS` are placeholders until the replay sweep has run. A
 manual stop ends the turn at once with reason `manual`; once ended, a turn stays ended. `main.ts` drives it with
 `Date.now()` and one `setTimeout`, and the reason becomes the `trigger` of `transcript_final` and
 `ws_message_sent`. The offline replay (`replay-commits.mjs`) drives the same module with time taken from frame
@@ -175,6 +181,8 @@ Events added for WER measurement:
 
 - `stt_model` `{ model }`: logged once at page load.
 - `stt_committed` `{ text }`: each committed piece, with its text, in eval mode.
+- `endpoint` `{ hint, wait_ms, text_chars, commits_in_flight }`: only with `?endpoint=semantic`, while a wait is running: when it is armed (speech end or
+  misfire) and each time the committed text or the in-flight commit count changes it. `hint` is `done`, `open` or `unknown`, `wait_ms` the wait now in force.
 - `pre_roll` `{ frames }`: logged right after each `speech_start` in eval mode. `frames` is
   how many pre-roll frames were actually prepended (4 normally, 0 when speech restarts while
   the buffer already holds frames, for example after a misfire).

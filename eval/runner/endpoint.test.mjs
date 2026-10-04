@@ -21,7 +21,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { TurnPolicy, endHint, waitFor, SEMANTIC_WAITS } = await import("/src/turn-policy.ts");
+    const { TurnPolicy, endHint, waitFor, waitFromParams, SEMANTIC_WAITS } = await import("/src/turn-policy.ts");
     const out = {};
     const hints = [
       "Thank you.", "What time is it?", "Stop!", "Bring the blue folder to the office", "Stop", "", "   ",
@@ -104,6 +104,22 @@ before(async () => {
     p.transcript("and", 0);
     p.speechEnd(100);
     out.fixed = { endsAt: p.endsAt(), wait: p.wait() };
+
+    // ?silence and ?endpoint: silence is a fixed wait and wins; endpoint=semantic is opt-in; absent is the 5000 default
+    const sem = waitFromParams(null, "semantic");
+    out.params = {
+      none: waitFromParams(null, null),
+      silence: waitFromParams("1200", null),
+      silenceWins: waitFromParams("1200", "semantic"),
+      silenceClamped: waitFromParams("100", "semantic"),
+      emptySilence: typeof waitFromParams("", "semantic"),
+      otherEndpoint: [waitFromParams(null, ""), waitFromParams(null, "fixed"), waitFromParams(null, "Semantic")],
+      semanticType: typeof sem,
+      semanticDone: sem("Thank you.", 0),
+      semanticOpen: sem("and", 0),
+      semanticInFlight: sem("Thank you.", 1),
+      expected: [waitFor("Thank you.", SEMANTIC_WAITS, 0), waitFor("and", SEMANTIC_WAITS, 0), waitFor("Thank you.", SEMANTIC_WAITS, 1)],
+    };
     return out;
   });
 });
@@ -178,3 +194,20 @@ test("a misfire arms, a manual stop ends now, and text after the end changes not
 });
 
 test("a fixed number ignores the text entirely", () => assert.deepEqual(r.fixed, { endsAt: 2100, wait: 2000 }));
+
+test("without ?endpoint=semantic the wait is the fixed one: 5000 by default, ?silence=<ms> clamped, other endpoint values ignored", () => {
+  assert.equal(r.params.none, 5000);
+  assert.equal(r.params.silence, 1200);
+  assert.deepEqual(r.params.otherEndpoint, [5000, 5000, 5000]);
+});
+
+test("?silence is an override: with it, ?endpoint=semantic is ignored and the wait is fixed (and clamped)", () => {
+  assert.equal(r.params.silenceWins, 1200);
+  assert.equal(r.params.silenceClamped, 800);
+});
+
+test("?endpoint=semantic alone, or with an empty ?silence=, gives the text-dependent wait with the SEMANTIC_WAITS values", () => {
+  assert.equal(r.params.semanticType, "function");
+  assert.equal(r.params.emptySilence, "function");
+  assert.deepEqual([r.params.semanticDone, r.params.semanticOpen, r.params.semanticInFlight], r.params.expected);
+});

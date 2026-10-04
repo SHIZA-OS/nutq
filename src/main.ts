@@ -1,7 +1,7 @@
 import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
-import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
+import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
 import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { browserEngine } from "./tts-engine";
@@ -72,6 +72,7 @@ type EvalEvent =
   | "pre_roll"
   | "speech_end"
   | "vad_misfire"
+  | "endpoint"
   | "stt_committed"
   | "stt_error"
   | "stt_model_call"
@@ -744,10 +745,26 @@ let sessionTranscript = "";
 
 // When a turn ends, and why, is decided by TurnPolicy (src/turn-policy.ts); this file feeds it the
 // events and the time, and owns the one JS timer that fires the auto-silence it asks for.
-// Any mode: ?silence=<ms> sets the auto-silence delay (default 5000, clamped to 800..8000).
-const silenceMs = parseSilenceMs(urlParams.get("silence"));
-let turn = new TurnPolicy(silenceMs);
+// Any mode: ?silence=<ms> sets a fixed auto-silence delay (default 5000, clamped to 800..8000). ?endpoint=semantic
+// makes the delay depend on the transcript instead (see endHint in turn-policy.ts); ?silence overrides it.
+const endpointWait = waitFromParams(urlParams.get("silence"), urlParams.get("endpoint"));
+const isSemantic = typeof endpointWait === "function";
+let turn = new TurnPolicy(endpointWait);
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;
+// Commits (model calls that will add text) queued or running, from the Transcriber.
+let commitsInFlight = 0;
+
+// Semantic mode, while a wait is running: the hint and wait for the transcript as it is now, as an eval event.
+// Logged when the wait is armed and each time the text or the in-flight count changes it.
+function logEndpoint() {
+  if (!isSemantic || turn.endsAt() === null) return;
+  logEvent("endpoint", {
+    hint: endHint(sessionTranscript),
+    wait_ms: turn.wait(),
+    text_chars: sessionTranscript.length,
+    commits_in_flight: commitsInFlight,
+  });
+}
 
 function clearSilenceTimer() {
   if (silenceTimer !== null) {
@@ -765,7 +782,7 @@ function scheduleSilenceTimer() {
     silenceTimer = null;
     const end = turn.tick(at); // the timer fires at the deadline, so ask the policy at that time
     if (end) {
-      log(`No speech for ${silenceMs}ms, auto-sending`);
+      log(`No speech for ${turn.wait()}ms, auto-sending`);
       finishListening(end.reason);
     }
   }, Math.max(0, at - Date.now()));
@@ -833,11 +850,13 @@ function initTranscriber() {
         logEvent("speech_end");
         turn.speechEnd(Date.now());
         scheduleSilenceTimer();
+        logEndpoint();
       },
       onMisfire() {
         logEvent("vad_misfire");
         turn.misfire(Date.now());
         scheduleSilenceTimer();
+        logEndpoint();
       },
       onModelError(path: string, message: string) {
         // The error is caught in the Transcriber, so the global js_error handler never sees it.
@@ -855,6 +874,19 @@ function initTranscriber() {
         sessionTranscript = sessionTranscript ? `${sessionTranscript} ${text}` : text;
         committedTranscriptEl.textContent = sessionTranscript;
         log(`Committed transcript piece: "${text}" (accumulated: "${sessionTranscript}")`);
+        if (isSemantic) {
+          turn.transcript(sessionTranscript, Date.now()); // a running wait is recomputed and its timer re-armed
+          scheduleSilenceTimer();
+          logEndpoint();
+        }
+      },
+      onCommitsInFlight(n: number) {
+        commitsInFlight = n;
+        if (isSemantic) {
+          turn.setCommitsInFlight(n, Date.now());
+          scheduleSilenceTimer();
+          logEndpoint();
+        }
       },
     },
     false, // useVAD=false -> streaming mode
@@ -918,7 +950,7 @@ micBtn.addEventListener("click", async () => {
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;
-    turn = new TurnPolicy(silenceMs);
+    turn = new TurnPolicy(endpointWait);
     logEvent("mic_button_press");
     replyState.mute(); // a reply still arriving is not spoken either; ends with the turn (no effect if none is in flight)
     cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
