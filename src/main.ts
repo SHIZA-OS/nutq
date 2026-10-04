@@ -2,7 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
-import { ReplyState } from "./turn-state";
+import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, voiceLines } from "./voice";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
@@ -84,6 +84,7 @@ type EvalEvent =
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
+  | "turn_timeout"
   | "ws_error"
   | "ws_closed"
   | "turn_error_frame"
@@ -179,6 +180,31 @@ let replyBuffer = "";
 // Whether a reply is in flight (src/turn-state.ts): a message sent mid-turn is steering, not a new turn, so
 // nothing is sent until the running turn ends.
 const replyState = new ReplyState();
+let replyTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Keeps one timer in step with the reply state: it exists exactly while a reply is in flight, so every normal
+// clear (a done, an abort, a turn-failure error, a closed socket) cancels it just by calling this. If it fires,
+// the turn is given up on so the user is not blocked forever.
+function syncReplyTimer() {
+  if (replyTimer !== null) {
+    clearTimeout(replyTimer);
+    replyTimer = null;
+  }
+  const at = replyState.timesOutAt();
+  if (at === null) return;
+  replyTimer = setTimeout(() => {
+    replyTimer = null;
+    if (replyState.tick(at)) {
+      log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, giving up on it. You can speak again.`);
+      logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
+    }
+  }, Math.max(0, at - Date.now()));
+}
+
+// The reply state changed to "not in flight" (an ending frame or a close): drop the timer.
+function replyEnded() {
+  syncReplyTimer();
+}
 let receivedSessionStart = false;
 let receivedFirstChunkThisTurn = false;
 
@@ -414,7 +440,7 @@ function connect() {
       return;
     }
 
-    replyState.frame(parsed); // done, aborted and a turn-failure error end the turn
+    if (replyState.frame(parsed)) replyEnded(); // done, aborted and a turn-failure error end the turn
 
     switch (parsed.type) {
       case "session_start":
@@ -507,6 +533,7 @@ function connect() {
     }
     setStatus(connStatus, "disconnected", "warn");
     replyState.closed();
+    replyEnded();
     cancelSpeech();
     socketOpen = false;
     updateMicState();
@@ -525,12 +552,13 @@ function sendTranscript(text: string, trigger: SendTrigger) {
     log("Cannot send: not connected");
     return;
   }
-  if (!replyState.trySend()) {
+  if (!replyState.trySend(Date.now())) {
     // The utterance is dropped, not held. Its text is in transcript_final in eval mode, so it is not repeated here.
     log("A reply is still in progress, so this utterance was not sent");
     logEvent("send_blocked", { reason: "reply_in_flight" });
     return;
   }
+  syncReplyTimer();
   cancelSpeech();
   replyBuffer = "";
   replyBoxEl.textContent = "";

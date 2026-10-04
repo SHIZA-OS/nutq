@@ -55,42 +55,71 @@ before(async () => {
   await page.goto(vite.url);
   r = await page.evaluate(
     async ({ clearing, notClearing }) => {
-      const { ReplyState } = await import("/src/turn-state.ts");
+      const { ReplyState, REPLY_TIMEOUT_MS } = await import("/src/turn-state.ts");
       const out = {};
       let s = new ReplyState();
       out.fresh = s.inFlight;
-      out.firstSend = s.trySend();
+      out.firstSend = s.trySend(0);
       out.afterSend = s.inFlight;
-      out.secondSend = s.trySend(); // blocked, nothing changes
+      out.secondSend = s.trySend(5); // blocked, nothing changes
       out.afterBlocked = s.inFlight;
       out.clearing = clearing.map((f) => {
         const st = new ReplyState();
-        st.trySend();
+        st.trySend(0);
         const returned = st.frame(f);
-        const canSendAgain = st.trySend();
-        return { f, returned, inFlightAfter: canSendAgain ? "cleared" : "still", };
+        const deadlineAfterClear = st.timesOutAt();
+        const canSendAgain = st.trySend(1);
+        return { f, returned, inFlightAfter: canSendAgain ? "cleared" : "still", deadlineAfterClear };
       });
       out.notClearing = notClearing.map((f) => {
         const st = new ReplyState();
-        st.trySend();
+        st.trySend(0);
         const returned = st.frame(f);
-        return { f, returned, inFlight: st.inFlight, blocksSend: !st.trySend() };
+        return { f, returned, inFlight: st.inFlight, blocksSend: !st.trySend(1), deadline: st.timesOutAt() };
       });
       s = new ReplyState();
-      s.trySend();
+      s.trySend(0);
       s.closed();
-      out.afterClose = { inFlight: s.inFlight, canSend: s.trySend() };
+      out.afterClose = { inFlight: s.inFlight, canSend: s.trySend(1), }; 
       s = new ReplyState();
       out.doneWhileIdle = { returned: s.frame({ type: "done" }), inFlight: s.inFlight };
       out.closeWhileIdle = (() => { const x = new ReplyState(); x.closed(); return x.inFlight; })();
       // a refused second message (EMPTY_CONTENT) then the real end of the turn
       s = new ReplyState();
-      s.trySend();
+      s.trySend(0);
       s.frame({ type: "error", code: "EMPTY_CONTENT" });
-      const stillBlocked = !s.trySend();
+      const stillBlocked = !s.trySend(1);
       s.frame({ type: "chunk", content: "a" });
       s.frame({ type: "done" });
-      out.sequence = { stillBlocked, afterDone: s.inFlight, canSendAfter: s.trySend() };
+      out.sequence = { stillBlocked, afterDone: s.inFlight, canSendAfter: s.trySend(2) };
+      // the safety timeout, with a fake clock
+      out.REPLY_TIMEOUT_MS = REPLY_TIMEOUT_MS;
+      s = new ReplyState();
+      out.idleTimer = { timesOutAt: s.timesOutAt(), tick: s.tick(1e12) };
+      s.trySend(1000);
+      out.timeout = {
+        timesOutAt: s.timesOutAt(),
+        justBefore: s.tick(1000 + REPLY_TIMEOUT_MS - 1),
+        stillInFlight: s.inFlight,
+        atDeadline: s.tick(1000 + REPLY_TIMEOUT_MS),
+        afterTimeout: { inFlight: s.inFlight, timesOutAt: s.timesOutAt(), tickAgain: s.tick(1e12), canSend: s.trySend(70000), newDeadline: s.timesOutAt() },
+      };
+      s = new ReplyState();
+      s.trySend(0);
+      s.frame({ type: "chunk", content: "x" });
+      s.frame({ type: "error", code: "STEERING_CLOSED" });
+      out.deadlineNotMoved = s.timesOutAt(); // activity and refused messages do not extend it
+      s = new ReplyState();
+      s.trySend(0);
+      s.frame({ type: "done" });
+      out.tickAfterDone = { tick: s.tick(1e12), timesOutAt: s.timesOutAt() }; // a normal clear cancels the timeout
+      s = new ReplyState();
+      s.trySend(0);
+      s.closed();
+      out.tickAfterClose = { tick: s.tick(1e12), timesOutAt: s.timesOutAt() };
+      s = new ReplyState(500);
+      s.trySend(100);
+      out.custom = { timesOutAt: s.timesOutAt(), at: s.tick(600) };
       return out;
     },
     { clearing: CLEARING, notClearing: NOT_CLEARING },
@@ -137,3 +166,27 @@ test("a done or a close while nothing is in flight changes nothing", () => {
 test("a refused mid-turn message does not end the turn; the real end does", () => {
   assert.deepEqual(r.sequence, { stillBlocked: true, afterDone: false, canSendAfter: true });
 });
+
+test("a normal clear leaves no deadline, so the caller's timer is cancelled with it", () => {
+  for (const c of r.clearing) assert.equal(c.deadlineAfterClear, null, JSON.stringify(c.f));
+  assert.deepEqual(r.afterClose, { inFlight: false, canSend: true });
+  assert.deepEqual(r.tickAfterDone, { tick: false, timesOutAt: null });
+  assert.deepEqual(r.tickAfterClose, { tick: false, timesOutAt: null });
+});
+
+test("frames that do not end the turn keep the deadline", () => {
+  for (const c of r.notClearing) assert.equal(c.deadline, 60000, JSON.stringify(c.f));
+  assert.equal(r.deadlineNotMoved, 60000); // sent at 0, a chunk and a refused message did not move it
+});
+
+test("the safety timeout is 60000 ms from the send, clears the flag once, and a new send gets a new deadline", () => {
+  assert.equal(r.REPLY_TIMEOUT_MS, 60000);
+  assert.deepEqual(r.idleTimer, { timesOutAt: null, tick: false });
+  assert.equal(r.timeout.timesOutAt, 61000);
+  assert.equal(r.timeout.justBefore, false);
+  assert.equal(r.timeout.stillInFlight, true);
+  assert.equal(r.timeout.atDeadline, true);
+  assert.deepEqual(r.timeout.afterTimeout, { inFlight: false, timesOutAt: null, tickAgain: false, canSend: true, newDeadline: 130000 });
+});
+
+test("the timeout can be set", () => assert.deepEqual(r.custom, { timesOutAt: 600, at: true }));

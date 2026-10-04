@@ -10,18 +10,28 @@
 // are replies to a bad or refused message and do not end the turn.
 const TURN_FAILURE_CODES = new Set(["PROVIDER_ERROR", "AUTH_ERROR", "AGENT_ERROR"]);
 
-export class ReplyState {
-  private flying = false;
+// Safety net: if no frame ends the turn this long after the message was sent (a gateway that hangs, a lost
+// frame), the flag is cleared so the user is not blocked forever. A turn that really takes longer than this is
+// let through as steering, which is what the guard exists to avoid, so it is a ceiling and not a typical wait.
+export const REPLY_TIMEOUT_MS = 60000;
 
-  get inFlight(): boolean {
-    return this.flying;
+export class ReplyState {
+  private sentAt: number | null = null;
+  private timeoutMs: number;
+
+  constructor(timeoutMs: number = REPLY_TIMEOUT_MS) {
+    this.timeoutMs = timeoutMs;
   }
 
-  // A message is about to be sent. Returns true and marks a reply in flight, or false (nothing changes) if one
-  // already is, in which case the caller must not send.
-  trySend(): boolean {
-    if (this.flying) return false;
-    this.flying = true;
+  get inFlight(): boolean {
+    return this.sentAt !== null;
+  }
+
+  // A message is about to be sent at time `now` (milliseconds, any origin). Returns true and marks a reply in
+  // flight, or false (nothing changes) if one already is, in which case the caller must not send.
+  trySend(now: number): boolean {
+    if (this.sentAt !== null) return false;
+    this.sentAt = now;
     return true;
   }
 
@@ -32,13 +42,26 @@ export class ReplyState {
       frame.type === "done" ||
       frame.type === "aborted" ||
       (frame.type === "error" && typeof frame.code === "string" && TURN_FAILURE_CODES.has(frame.code));
-    if (!ends || !this.flying) return false;
-    this.flying = false;
+    if (!ends || this.sentAt === null) return false;
+    this.sentAt = null;
     return true;
   }
 
   // The socket closed: whatever was in flight is gone.
   closed(): void {
-    this.flying = false;
+    this.sentAt = null;
+  }
+
+  // When the flag clears by itself, so the caller can keep one timer: null whenever nothing is in flight, which
+  // is also how every normal clear (a frame, a close) cancels it.
+  timesOutAt(): number | null {
+    return this.sentAt === null ? null : this.sentAt + this.timeoutMs;
+  }
+
+  // Time has reached `now`: if the reply has been in flight for the whole timeout, clear the flag and return true.
+  tick(now: number): boolean {
+    if (this.sentAt === null || now < this.sentAt + this.timeoutMs) return false;
+    this.sentAt = null;
+    return true;
   }
 }
