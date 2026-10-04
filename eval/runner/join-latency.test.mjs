@@ -319,3 +319,77 @@ test("with sentence streaming tts_start is before done_received: tts_start_delay
   assert.equal(t.stages_ms.full_completion, 690); // 2200 - 1510, unchanged
   assert.deepEqual(t.missing_client_events, []);
 });
+
+// tts_muted (a mic tap during the reply; the rest of it is not spoken). Point "done" on a turn with done_received marks
+// the turn muted: tts_start is expected to be absent, so it is not a missing client event, and the tts_start stages are
+// null with an explicit reason. Point "chunk" alone is not read, and tts_muted without done_received is not read.
+const mutedTurn = (extra) => [
+  { event: "speech_start", timestamp_ms: 0 },
+  { event: "speech_end", timestamp_ms: 900 },
+  { event: "stt_committed", timestamp_ms: 950 },
+  { event: "ws_message_sent", timestamp_ms: 1510, send_trigger: "auto_silence" },
+  { event: "first_chunk_received", timestamp_ms: 1800 },
+  ...extra,
+];
+const MUTED_DONE = { event: "tts_muted", timestamp_ms: 2201, reason: "mic_press", point: "done", chars: 34 };
+const MUTED_CHUNK = { event: "tts_muted", timestamp_ms: 1900, reason: "mic_press", point: "chunk", chars: 12 };
+
+test("a muted turn (done_received and tts_muted point done, no tts_start) is reported muted: tts_start stages null with a reason, not a missing event", () => {
+  const events = mutedTurn([MUTED_CHUNK, { event: "done_received", timestamp_ms: 2200 }, MUTED_DONE]);
+  const sessions = { [SK]: [serverTurn(1, "t1")] };
+  const t = joinLatency({ events, sessions }, SK).turns[0];
+  assert.deepEqual(t.muted, { reason: "mic_press", chars: 34 });
+  assert.equal(t.tts_start_null_reason, "muted:mic_press");
+  assert.deepEqual(t.missing_client_events, []);
+  assert.equal(t.client.tts_start_ms, null);
+  for (const stage of ["tts_start_delay", "post_trigger", "commit_to_audio", "user_perceived"]) assert.equal(t.stages_ms[stage], null, stage);
+  assert.equal(t.stages_ms.dispatch_to_first_chunk, 290); // the stages that do not need tts_start are unchanged
+  assert.equal(t.stages_ms.full_completion, 690);
+  assert.equal(t.stages_ms.stt_tail, 50);
+});
+
+test("without tts_muted a turn with no tts_start is still a missing client event, and muted is null", () => {
+  const events = mutedTurn([{ event: "done_received", timestamp_ms: 2200 }]);
+  const t = joinLatency({ events, sessions: { [SK]: [serverTurn(1, "t1")] } }, SK).turns[0];
+  assert.deepEqual(t.missing_client_events, ["tts_start"]);
+  assert.equal(t.muted, null);
+  assert.equal(t.tts_start_null_reason, null);
+});
+
+test("tts_muted point chunk alone, or without done_received, is not read: tts_start is still missing", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1")] };
+  const chunkOnly = joinLatency({ events: mutedTurn([MUTED_CHUNK, { event: "done_received", timestamp_ms: 2200 }]), sessions }, SK).turns[0];
+  assert.deepEqual(chunkOnly.missing_client_events, ["tts_start"]);
+  assert.equal(chunkOnly.muted, null);
+  const noDone = joinLatency({ events: mutedTurn([MUTED_DONE]), sessions }, SK).turns[0];
+  assert.deepEqual(noDone.missing_client_events, ["done_received", "tts_start"]);
+  assert.equal(noDone.muted, null);
+});
+
+test("a muted turn whose audio did start before the tap keeps its real tts_start stages, marked muted with no null reason", () => {
+  const events = mutedTurn([{ event: "tts_start", timestamp_ms: 1850 }, MUTED_CHUNK, { event: "done_received", timestamp_ms: 2200 }, MUTED_DONE]);
+  const t = joinLatency({ events, sessions: { [SK]: [serverTurn(1, "t1")] } }, SK).turns[0];
+  assert.deepEqual(t.muted, { reason: "mic_press", chars: 34 });
+  assert.equal(t.tts_start_null_reason, null);
+  assert.equal(t.stages_ms.post_trigger, 340); // 1850 - 1510
+  assert.deepEqual(t.missing_client_events, []);
+});
+
+test("a muted turn does not change its neighbours: the turn before and the turn after read as they do without it", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2"), serverTurn(3, "t3")] };
+  const turn = (sendAt, extra) => [
+    { event: "speech_start", timestamp_ms: sendAt - 1500 },
+    { event: "speech_end", timestamp_ms: sendAt - 600 },
+    { event: "stt_committed", timestamp_ms: sendAt - 560 },
+    { event: "ws_message_sent", timestamp_ms: sendAt, send_trigger: "auto_silence" },
+    { event: "first_chunk_received", timestamp_ms: sendAt + 300 },
+    ...extra,
+  ];
+  const spoken = (at) => [{ event: "done_received", timestamp_ms: at + 700 }, { event: "tts_start", timestamp_ms: at + 750 }];
+  const muted = (at) => [{ event: "done_received", timestamp_ms: at + 700 }, { ...MUTED_DONE, timestamp_ms: at + 701 }];
+  const withMuted = joinLatency({ events: [...turn(2000, spoken(2000)), ...turn(9000, muted(9000)), ...turn(16000, spoken(16000))], sessions }, SK).turns;
+  const allSpoken = joinLatency({ events: [...turn(2000, spoken(2000)), ...turn(9000, spoken(9000)), ...turn(16000, spoken(16000))], sessions }, SK).turns;
+  assert.deepEqual(withMuted[0], allSpoken[0]);
+  assert.deepEqual(withMuted[2], allSpoken[2]);
+  assert.equal(withMuted[1].muted.reason, "mic_press");
+});

@@ -88,7 +88,11 @@ plan):**
   gateway sent one), the same in both modes and not emitted when it is empty. `point: "chunk"` (flag on only) marks
   when muting first took effect, on the first chunk of the turn that was not spoken, and its `chars` is the length of
   that one chunk, not a total. Each point is reported at most once per turn. Nothing is spoken from a muted turn at
-  `done` either: no tail, no `full_response` fallback, no `tts_text_mismatch`, no `tts_skipped`.
+  `done` either: no tail, no `full_response` fallback, no `tts_text_mismatch`, no `tts_skipped`. `join-latency.mjs` reads
+  `point: "done"` on a turn with `done_received`: the turn gets `muted` `{reason, chars}`, and with no `tts_start`
+  (nothing was audible) `tts_start` is not a missing client event, the `tts_start` stages are null, and
+  `tts_start_null_reason` is `muted:<reason>`; if audio did start before the tap its stages are kept and the reason is
+  null. `point: "chunk"` alone is not read. `completion.mjs` does not read it (pinned in both test files).
 
 Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
 from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side

@@ -250,3 +250,42 @@ test("the sentence-streaming events, with tts_start before done_received, do not
   assert.deepEqual(a.turns, b.turns);
   assert.deepEqual(a.summary, b.summary);
 });
+
+// tts_muted (a mic tap during the reply) is not a failure event and is not read by name, and a muted turn has
+// done_received but no tts_start, which completion does not read: a muted turn with a success row stays completed.
+test("a muted turn (done_received, tts_muted, no tts_start) is classified exactly like the same turn spoken", () => {
+  const spoken = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_start", timestamp_ms: 450 },
+  ];
+  const muted = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "tts_muted", timestamp_ms: 320, reason: "mic_press", point: "chunk", chars: 12 },
+    { event: "tts_cancelled", timestamp_ms: 310, reason: "mic_press" },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_muted", timestamp_ms: 401, reason: "mic_press", point: "done", chars: 34 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+  const a = classifyCompletion({ events: muted, sessions }, SK);
+  const b = classifyCompletion({ events: spoken, sessions }, SK);
+  assert.deepEqual(a.turns, b.turns);
+  assert.deepEqual(a.summary, b.summary);
+  assert.equal(a.turns[0].outcome, "completed");
+});
+
+test("a muted turn with no server row and no failure event is unmatched_no_signal, as an unmuted one would be", () => {
+  const events = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_muted", timestamp_ms: 401, reason: "mic_press", point: "done", chars: 34 },
+  ];
+  const result = classifyCompletion({ events, sessions: {} }, null, { noServerSession: true });
+  assert.equal(result.turns[0].outcome, "unmatched_no_signal");
+  assert.deepEqual(result.turns[0].failure_events, []);
+});

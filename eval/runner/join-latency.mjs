@@ -135,13 +135,19 @@ function segmentTurns(events) {
     const firstChunk = postWindow.find((e) => e.event === "first_chunk_received") ?? null;
     const done = postWindow.find((e) => e.event === "done_received") ?? null;
     const ttsStart = postWindow.find((e) => e.event === "tts_start") ?? null;
+    // A reply the mic was tapped during is not spoken at done (tts_muted, point "done"). Its absence of tts_start is
+    // expected, not a missing client event. The "chunk" point alone (no done) is not read. If audio did start before
+    // the tap (tts_start present), the tts_start stages are real and are kept.
+    const ttsMuted = done ? postWindow.find((e) => e.event === "tts_muted" && e.point === "done") ?? null : null;
+    const muted = ttsMuted ? { reason: ttsMuted.reason ?? null, chars: ttsMuted.chars ?? null } : null;
+    const ttsStartNullReason = muted && !ttsStart ? `muted:${muted.reason}` : null;
 
     const missing = [];
     if (!lastSttCommitted) missing.push("stt_committed");
     if (!endOfSpeech) missing.push("end_of_speech");
     if (!firstChunk) missing.push("first_chunk_received");
     if (!done) missing.push("done_received");
-    if (!ttsStart) missing.push("tts_start");
+    if (!ttsStart && !muted) missing.push("tts_start");
 
     const ms = (a, b) => (a != null && b != null ? b - a : null);
 
@@ -187,6 +193,8 @@ function segmentTurns(events) {
         timer_wait_ms: timerWaitMs,
       },
       user_perceived_note: userPerceivedNote,
+      muted,
+      tts_start_null_reason: ttsStartNullReason,
       missing_client_events: missing,
     });
   }
@@ -283,6 +291,8 @@ export function joinLatency({ events, sessions }, sessionKey, { noServerSession 
       client: c.client,
       stages_ms: c.stages_ms,
       user_perceived_note: c.user_perceived_note,
+      muted: c.muted,
+      tts_start_null_reason: c.tts_start_null_reason,
       missing_client_events: c.missing_client_events,
       server: {
         session_key: key,
