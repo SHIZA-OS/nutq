@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, serialized model calls, encoder minimum-length guard in commit(), onMisfire callback), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough, pre-roll, pause gate counts recorded frames only, serialized model calls, encoder minimum-length guard in commit(), onMisfire callback, onCommitsInFlight callback), model.ts (loadModel retry after failure).
 
 import { Settings } from "./constants";
 import MoonshineModel from "./model";
@@ -58,6 +58,7 @@ export interface VADThresholdOptions {
  * @property onModelError(path, message) - Nutq addition. A model call failed and the error was caught. path is
  * "update", "commit" (pause or cap), "speech_end" or "stop". A failed commit loses that piece of text.
  *
+ * @property onCommitsInFlight(n) - Nutq addition. How many commits (not streaming updates, not skipped ones) are queued or running: called with the new count when a commit is queued and again when it has finished, after its text was delivered through onTranscriptionCommitted. A failed model call counts down too.
  * @property onModelCall(info) - Nutq addition. One call per model call: { path, samples, audio_hash, wait_ms, run_ms, skipped }. audio_hash is audioHash() of the audio the call was given.
  * wait_ms is the time from enqueue to the start of the call, run_ms the time the model took. skipped is true
  * when no model run happened: a commit under the encoder minimum, or an update dropped because the model was busy.
@@ -92,6 +93,8 @@ interface TranscriberCallbacks {
     onModelError: (path: string, message: string) => any;
 
     onModelCall: (info: { path: string; samples: number; audio_hash: string; wait_ms: number; run_ms: number; skipped: boolean }) => any;
+
+    onCommitsInFlight: (n: number) => any;
 }
 
 const defaultTranscriberCallbacks: TranscriberCallbacks = {
@@ -133,6 +136,7 @@ const defaultTranscriberCallbacks: TranscriberCallbacks = {
         Log.error("Transcriber.onModelError(" + path + ", " + message + ")");
     },
     onModelCall: function () {},
+    onCommitsInFlight: function () {},
 };
 
 /**
@@ -287,6 +291,7 @@ class Transcriber {
     // Nutq addition: every model call runs through this chain, one at a time (see enqueue()).
     private queue: Promise<void> = Promise.resolve();
     private inFlight: number = 0;
+    private commitsInFlight: number = 0;
 
     protected audioContext: AudioContext;
     public isActive: boolean = false;
@@ -418,9 +423,11 @@ class Transcriber {
             this.skipped(path, audio);
             return this.queue;
         }
+        this.callbacks.onCommitsInFlight(++this.commitsInFlight);
+        // enqueue() never rejects, and its promise settles after the text was delivered
         return this.enqueue(path, audio, (text) => {
             if (text) this.callbacks.onTranscriptionCommitted(text, this.getAudioBuffer(audio));
-        });
+        }).then(() => this.callbacks.onCommitsInFlight(--this.commitsInFlight));
     }
 
     /**
