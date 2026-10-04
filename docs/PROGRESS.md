@@ -380,3 +380,36 @@ Transcriber commits a transcript on stop), which also covers the failure-error c
 send are still not exercised by a test. Interaction with the known limit (no turn id): a late `done` after the 60 s timeout can
 clear the next turn's flag, and the mute with it, so in that narrow window a muted turn could speak again. Not verified by ear in a
 real browser: a mic tap mid-reply in both modes.
+
+Semantic endpointing, build (2026-10-04): the auto-send wait can now depend on the transcript, opt-in with `?endpoint=semantic`; the code
+default is still the fixed 5000 ms and `?silence=<ms>` is still a fixed wait that ignores the text and wins when both are given. `turn-policy.ts`:
+`TurnPolicy(number | (text, commitsInFlight) => ms)` keeps `armedAt` and recomputes the deadline when `transcript(text, at)` or
+`setCommitsInFlight(n, at)` changes the wait (a speech start clears it for good; text that moves the deadline into the past ends the turn
+when it arrived); `endHint` reads done / open / unknown (an open-list word beats terminal punctuation, so "a flight and." is open; digits are
+words; a trailing `...` `,` `;` `:` `-` is open); `waitFor` gives one wait per hint, clamped, and holds a short wait at the `unknown` one while a
+commit is in flight. The Transcriber has `onCommitsInFlight(n)`. `main.ts` feeds both and re-arms the timer, and logs an `endpoint` event
+`{ hint, wait_ms, text_chars, commits_in_flight }` when a wait is armed and on each recompute. The open list is tier 1 only (conjunctions,
+articles and determiners, prepositions, fillers); auxiliary verbs and pronouns are left to the sweep. `SEMANTIC_WAITS` (done 300, unknown 1500,
+open 3500, floor 150, ceiling 8000) are placeholders, the middle of the planned sweep grid, not results. The suite went from 180 to 219 tests. The
+wiring is tested against a fake Transcriber; it has not been run with the real model and microphone, and no endpoint event from a real run has
+been looked at.
+
+Replay (`replay-commits.mjs`): `--policy fixed:<ms>|semantic|semantic:d,u,o,floor,ceil`, `--latency-scale`, `--gate <results dir>`. The replay has no
+real clock, so a commit's text reaches the policy at its fire time plus 269 ms per second of audio minus 61 ms (floor 100), a line fitted to 297 live
+commit calls (residual sd 191 ms), one commit at a time. Events inside a frame are timed at the start of that frame, as before (up to 32 ms). Each
+case now reports its pauses, whether the turn was cut off, the wait after the true end of speech and the hint and wait at the last arm; the speech
+runs come from a second VAD pass over the whole file (probability 0.5 or above, gaps under 512 ms bridged). That pass misses soft speech in the
+noise cases, so for those a cut-off shows up as a deleted word, not as `premature`. Correction to the Phase 1 note that v1 cannot show a premature
+send: cas-01 has a 960 ms pause that the VAD reports as a misfire followed by speech 192 ms later, and bn-03 contains a 1.3 s gap, so a wait
+that short after a misfire would cut them.
+
+v1 gate against `2026-10-04-wer-replay-head-policy` (8 phases x 37 cases): `fixed:5000` reproduces the baseline exactly (0 of 296 hypotheses differ;
+`2026-10-04-wer-gate-fixed5000`; median wait after the true end 5768 ms, which is 768 ms of VAD redemption plus 5000). The placeholder semantic
+policy fails it (`2026-10-04-wer-gate-semantic`): 2 of 296 differ, both bn-03. Its reference is only "Set a timer for ten minutes."; the recording also
+holds a stray soft "Yes." later, which the baseline kept (WER 33%) and the semantic run lost (WER 17% in phase 0) because the VAD misfire at 896 ms
+armed a 1500 ms wait that ended the turn at 2396 ms. The `unknown` wait therefore has to be long enough for that case to pass the gate; the
+sweep decides the value. v1 wait after the true end under the placeholders: median 1100 ms, p90 2268 ms, max 4300 ms (fixed 5000: 5768, 5800, 6152).
+These come from the replay with a modelled model latency, not from live runs.
+
+v2 set: 15 recordings in `cases.jsonl` (`set: v2`: mp-01 to mp-12, te-01, te-02, ls-01), recorded with `eval/wer/record.sh` (new per-case `seconds`, and
+a `pause_s` prompt that says to count the pause silently). Not recorded yet, so no premature-send number exists.
