@@ -1,5 +1,6 @@
 // Tests that tapping the mic button to start listening cancels speech and reports tts_cancelled { reason: "mic_press" },
-// with ?tts_stream=1 and without, against a local stub gateway and the real page in headless Chrome. The Transcriber
+// and, when a reply is still in flight, mutes the rest of it (tts_muted), with ?tts_stream=1 and without, against a
+// local stub gateway and the real page in headless Chrome. The Transcriber
 // module is replaced in the page by a minimal fake (served by route interception) and getUserMedia by a fake stream, so
 // the mic button works with no speech model, no microphone and no network. speechSynthesis.speak and cancel are
 // recorders and the test fires the utterance callbacks itself. Runs with the rest of the suite via `npm test`.
@@ -28,7 +29,8 @@ const FAKE_TRANSCRIBER = `export class Transcriber {
   async load() {}
   attachStream() {}
   async start() {}
-  async stop() {}
+  // A transcript is committed on stop only when the test asks, so a stop sends a message (a reply in flight).
+  async stop() { if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
 }`;
 
 async function openPage(query) {
@@ -36,6 +38,7 @@ async function openPage(query) {
   await page.route(/\/src\/vendor\/transcriber\.ts/, (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER }));
   await page.addInitScript(() => {
     window.__sp = { utterances: [], cancels: 0 };
+    window.__commitOnStop = false;
     window.speechSynthesis.speak = (u) => window.__sp.utterances.push(u);
     window.speechSynthesis.cancel = () => window.__sp.cancels++;
     navigator.mediaDevices.getUserMedia = async () => ({ getAudioTracks: () => [{ getSettings: () => ({}) }] });
@@ -54,6 +57,8 @@ async function openPage(query) {
   const state = () =>
     page.evaluate(() => ({
       cancels: window.__sp.cancels,
+      spoken: window.__sp.utterances.map((u) => u.text),
+      hint: document.getElementById("mic-hint").textContent,
       events: [...document.getElementById("log").textContent.matchAll(/EVENT (\{.*\})/g)].map((m) => JSON.parse(m[1])),
     }));
   const fire = (i, kind, code) =>
@@ -67,10 +72,18 @@ async function openPage(query) {
     await page.click("#mic-btn");
     await page.waitForTimeout(150);
   };
-  return { page, send, state, fire, mic };
+  // A turn: tap to start listening, tap to stop; the stop commits a transcript, so a message is sent and a reply is in flight.
+  const turn = async () => {
+    await page.evaluate(() => (window.__commitOnStop = true));
+    await mic();
+    await mic();
+  };
+  return { page, send, state, fire, mic, turn };
 }
 
 const cancelled = (events) => events.filter((e) => e.event === "tts_cancelled").map((e) => e.reason);
+const muted = (events) => events.filter((e) => e.event === "tts_muted").map(({ reason, point, chars }) => [reason, point, chars]);
+const names = (events, ...of) => events.filter((e) => of.includes(e.event)).map((e) => e.event);
 
 before(async () => {
   server = http.createServer((_, res) => res.end("stub")).listen(0, "127.0.0.1");
@@ -131,6 +144,70 @@ before(async () => {
   await p.send({ type: "aborted" });
   r.onAborted = await p.state();
   client.destroy();
+  await p.page.close();
+
+  // A reply in flight when the mic is tapped. Flag off: nothing is spoken at done, the guard still blocks the user's own
+  // utterance, and the next turn speaks normally.
+  p = await openPage("");
+  await p.turn();
+  await p.send({ type: "chunk", content: "Part of the reply. " });
+  await p.mic(); // the tap under test: start listening while the reply is in flight
+  await p.mic(); // the user "spoke" and stops: the guard blocks the send
+  r.offMutedBlocked = await p.state();
+  await p.send({ type: "done", full_response: "A reply that should not be spoken.", tokens_used: 1 });
+  r.offMuted = await p.state();
+  await p.turn(); // the next turn: not muted
+  await p.send({ type: "done", full_response: "Second reply, spoken.", tokens_used: 1 });
+  r.offNext = await p.state();
+  client.destroy();
+  await p.page.close();
+
+  // Flag on: a sentence already spoken is cancelled, later chunks and the full_response at done are not spoken.
+  p = await openPage("tts_stream=1");
+  await p.turn();
+  await p.send({ type: "chunk", content: "A long enough sentence is here. " });
+  await p.fire(0, "start");
+  await p.mic();
+  await p.send({ type: "chunk", content: "Another long sentence follows here. " });
+  await p.send({ type: "chunk", content: "And a third long sentence too. " });
+  r.onMutedChunks = await p.state();
+  await p.send({ type: "done", full_response: "A long enough sentence is here. Another long sentence follows here. And a third long sentence too. ", tokens_used: 1 });
+  r.onMuted = await p.state();
+  await p.mic(); // stop listening: the reply is over, so this sends the next message, and no tap happens during its reply
+  await p.send({ type: "chunk", content: "The next turn is spoken. " });
+  r.onNext = await p.state();
+  client.destroy();
+  await p.page.close();
+
+  // Flag on, a tap before any chunk, then only a full_response at done: the fallback does not speak it.
+  p = await openPage("tts_stream=1");
+  await p.turn();
+  await p.mic();
+  await p.send({ type: "done", full_response: "  Full reply with no chunks.  ", tokens_used: 1 });
+  r.onFallbackMuted = await p.state();
+  client.destroy();
+  await p.page.close();
+
+  // No reply in flight: a tap does not mute, so an unsolicited chunk is spoken as before.
+  p = await openPage("tts_stream=1");
+  await p.mic();
+  await p.send({ type: "chunk", content: "Not muted, nothing was in flight. " });
+  r.onNoFlight = await p.state();
+  client.destroy();
+  await p.page.close();
+
+  // The mute ends with an aborted turn and with a turn-failure error; the next turn is spoken.
+  p = await openPage("tts_stream=1");
+  await p.turn();
+  await p.mic();
+  await p.send({ type: "aborted" });
+  await p.mic(); // stop listening: the turn is over, so this sends the next message
+  await p.send({ type: "chunk", content: "After the abort, spoken. " });
+  r.onAfterAbort = await p.state();
+  await p.send({ type: "error", code: "PROVIDER_ERROR", message: "x" }); // a failed turn is cancelled and not read out
+  r.onAfterFailure = await p.state();
+  client.destroy();
+  await p.page.close();
 });
 
 after(async () => {
@@ -161,6 +238,56 @@ test("flag on: tapping the mic while a sentence is spoken cancels the queue at o
   assert.equal(r.onTap.cancels - r.onBefore.cancels, 1);
   assert.deepEqual(cancelled(r.onTap.events), ["mic_press"]);
   assert.equal(r.onTap.events.filter((e) => e.event === "tts_end").length, 0); // the late end is ignored
+});
+
+test("flag off: a reply in flight when the mic is tapped is not spoken at done; tts_muted point done carries the trimmed reply length", () => {
+  assert.deepEqual(r.offMuted.spoken, []);
+  assert.deepEqual(muted(r.offMuted.events), [["mic_press", "done", "A reply that should not be spoken.".length]]);
+  assert.deepEqual(names(r.offMuted.events, "tts_start", "tts_skipped", "tts_end"), []);
+});
+
+test("the in-flight guard is unchanged: the utterance spoken during the muted reply is blocked with the hint", () => {
+  assert.deepEqual(names(r.offMutedBlocked.events, "send_blocked"), ["send_blocked"]);
+  assert.equal(r.offMutedBlocked.hint, "Still answering, try again");
+});
+
+test("flag off: the mute ended with the turn, so the next turn is spoken and not reported muted", () => {
+  assert.deepEqual(r.offNext.spoken, ["Second reply, spoken."]);
+  assert.equal(muted(r.offNext.events).length, 1); // only the first turn's
+});
+
+test("flag on: after the tap the sentence spoken is cancelled and later chunks are not spoken; tts_muted point chunk is reported once", () => {
+  assert.equal(r.onMutedChunks.spoken.length, 1);
+  assert.deepEqual(muted(r.onMutedChunks.events), [["mic_press", "chunk", "Another long sentence follows here. ".length]]);
+  assert.deepEqual(cancelled(r.onMutedChunks.events), ["mic_press"]);
+});
+
+test("flag on: at done nothing is spoken, no tail, no fallback, no mismatch; tts_muted point done carries the trimmed full_response length", () => {
+  assert.equal(r.onMuted.spoken.length, 1);
+  const total = "A long enough sentence is here. Another long sentence follows here. And a third long sentence too.".length;
+  assert.deepEqual(muted(r.onMuted.events), [["mic_press", "chunk", "Another long sentence follows here. ".length], ["mic_press", "done", total]]);
+  assert.deepEqual(names(r.onMuted.events, "tts_text_mismatch", "tts_skipped"), []);
+});
+
+test("flag on: the mute ended with the turn, so the next turn's chunks are spoken", () => {
+  assert.equal(r.onNext.spoken.at(-1), "The next turn is spoken.");
+});
+
+test("flag on: a tap before any chunk, then only a full_response at done: the fallback does not speak it", () => {
+  assert.deepEqual(r.onFallbackMuted.spoken, []);
+  assert.deepEqual(muted(r.onFallbackMuted.events), [["mic_press", "done", "Full reply with no chunks.".length]]);
+  assert.deepEqual(names(r.onFallbackMuted.events, "tts_requested"), []);
+});
+
+test("no reply in flight: a mic tap does not mute", () => {
+  assert.deepEqual(r.onNoFlight.spoken, ["Not muted, nothing was in flight."]);
+  assert.deepEqual(muted(r.onNoFlight.events), []);
+});
+
+test("the mute ends with an aborted turn; a turn-failure error cancels what is being read out (flag on)", () => {
+  assert.equal(r.onAfterAbort.spoken.at(-1), "After the abort, spoken.");
+  assert.deepEqual(cancelled(r.onAfterFailure.events).slice(-1), ["canceled"]);
+  assert.equal(r.onAfterFailure.cancels, r.onAfterAbort.cancels + 1);
 });
 
 test("flag on: stopping the listening does not cancel speech, and a later abort is reported as canceled", () => {

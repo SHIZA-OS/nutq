@@ -81,6 +81,14 @@ plan):**
   the time to first audio; `completion.mjs` reads none of these events (both pinned in the two test files). A turn
   that reaches `done` with no sentence queued (no chunk frames came) speaks `full_response` once, trimmed, through the
   same queue (`tts_requested` `{index: 0}`, then `tts_text_mismatch`); if that is empty it is `tts_skipped`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
+- `tts_muted` `{reason, point, chars}`: the mic button was tapped while a reply was in flight, so the rest of that reply is
+  not spoken (with or without `?tts_stream=1`); `reason` is `mic_press`. The mute ends with the turn: done, aborted, a
+  turn-failure error, a closed socket or the 60 s timeout. `chars` means two different things by `point`. `point: "done"`
+  is the total: the characters of text that went unspoken for the turn, the trimmed reply (`full_response` when the
+  gateway sent one), the same in both modes and not emitted when it is empty. `point: "chunk"` (flag on only) marks
+  when muting first took effect, on the first chunk of the turn that was not spoken, and its `chars` is the length of
+  that one chunk, not a total. Each point is reported at most once per turn. Nothing is spoken from a muted turn at
+  `done` either: no tail, no `full_response` fallback, no `tts_text_mismatch`, no `tts_skipped`.
 
 Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
 from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side

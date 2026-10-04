@@ -87,6 +87,7 @@ type EvalEvent =
   | "tts_start"
   | "tts_sentence_start"
   | "tts_text_mismatch"
+  | "tts_muted"
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
@@ -457,6 +458,7 @@ function connect() {
       return;
     }
 
+    const muted = replyState.muted; // read before frame(): a done clears the mute with the flag
     const turnEnded = replyState.frame(parsed); // done, aborted and a turn-failure error end the turn
     if (turnEnded) replyEnded();
     if (turnEnded && parsed.type === "error" && speechQueue) cancelSpeech(); // flag on: a failed turn is not read out
@@ -478,7 +480,10 @@ function connect() {
         replyBuffer += parsed.content ?? "";
         replyBoxEl.textContent = replyBuffer;
         // Flag on: each sentence is queued as it closes. Only chunk frames are spoken, never thinking, tool or plan frames.
-        if (speechQueue) {
+        if (speechQueue && muted) {
+          // The mic was tapped during this reply: its later chunks are shown but not spoken. Reported once per turn.
+          if (replyState.firstMutedChunk()) logEvent("tts_muted", { reason: "mic_press", point: "chunk", chars: String(parsed.content ?? "").length });
+        } else if (speechQueue) {
           streamedChunks += parsed.content ?? "";
           for (const sentence of splitter.push(parsed.content ?? "")) speechQueue.enqueue(sentence);
         }
@@ -488,7 +493,8 @@ function connect() {
         replyBuffer = parsed.full_response ?? replyBuffer;
         replyBoxEl.textContent = replyBuffer;
         log(`Reply complete (${parsed.tokens_used ?? "?"} tokens)`);
-        if (speechQueue) finishStreamedSpeech(parsed.full_response);
+        if (muted) skipMutedSpeech();
+        else if (speechQueue) finishStreamedSpeech(parsed.full_response);
         else speak(replyBuffer);
         break;
       }
@@ -693,6 +699,13 @@ function speak(text: string) {
     () => logEvent("tts_end"),
     (code) => logTtsError(code, cancelReason),
   );
+}
+
+// At done of a reply the mic was tapped during (both modes): nothing is spoken, not a tail, not the full_response
+// fallback, and no speak(). `chars` is the trimmed reply, the total that went unspoken; none is not an event.
+function skipMutedSpeech() {
+  const chars = speechText(replyBuffer)?.length ?? 0;
+  if (chars > 0) logEvent("tts_muted", { reason: "mic_press", point: "done", chars });
 }
 
 // Flag on, at done: queue what is left of the reply and end the turn. The speech comes from the chunks; if the two
@@ -907,6 +920,7 @@ micBtn.addEventListener("click", async () => {
     listening = true;
     turn = new TurnPolicy(silenceMs);
     logEvent("mic_button_press");
+    replyState.mute(); // a reply still arriving is not spoken either; ends with the turn (no effect if none is in flight)
     cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
     sessionTranscript = "";
     await startMicrophone(transcriber!);
