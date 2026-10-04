@@ -38,6 +38,11 @@ export class SpeechQueue {
     this.emit = emit;
   }
 
+  // How many sentences this turn has had queued so far.
+  get sentences(): number {
+    return this.requested;
+  }
+
   // Queue a sentence; it plays after the ones before it.
   enqueue(text: string): void {
     const index = this.requested++;

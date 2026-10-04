@@ -78,8 +78,8 @@ plan):**
   the flag on `tts_start` can come before `done_received`, so `tts_start_delay` in `join-latency.mjs` (`tts_start -
   done_received`) can be negative for such a turn, while `post_trigger`, `commit_to_audio` and `user_perceived` stay
   the time to first audio; `completion.mjs` reads none of these events (both pinned in the two test files). A turn
-  with no chunk frames is silent with the flag on (the speech comes from the chunks), which shows as `tts_skipped`
-  followed by `tts_text_mismatch`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
+  that reaches `done` with no sentence queued (no chunk frames came) speaks `full_response` once, trimmed, through the
+  same queue (`tts_requested` `{index: 0}`, then `tts_text_mismatch`); if that is empty it is `tts_skipped`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
 
 Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
 from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side

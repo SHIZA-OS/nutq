@@ -121,14 +121,25 @@ before(async () => {
   r.onMismatch = await on.state();
   r.onMismatch.events = r.onMismatch.events.slice(before);
 
-  // An empty reply is skipped as it is with the flag off; a reply with no chunk frames at all is silent under the flag.
+  // An empty reply is skipped as it is with the flag off.
   const before2 = (await on.state()).events.length;
   await on.send({ type: "done", full_response: "", tokens_used: 1 });
   await on.send({ type: "chunk", content: "   " });
   await on.send({ type: "done", full_response: "   ", tokens_used: 1 });
-  await on.send({ type: "done", full_response: "No chunk frames came before this.", tokens_used: 1 });
   r.onEmpty = await on.state();
   r.onEmpty.events = r.onEmpty.events.slice(before2);
+
+  // A turn with no chunk frames, or none that closed a sentence into the queue: full_response is spoken once, trimmed,
+  // through the same queue, and the mismatch is still reported.
+  const before4 = (await on.state()).events.length;
+  await on.send({ type: "done", full_response: "No chunk frames came before this.", tokens_used: 1 });
+  await on.fire(4, "start");
+  await on.fire(4, "end");
+  await on.send({ type: "done", full_response: "  Padded reply, spoken trimmed.\n", tokens_used: 1 });
+  await on.fire(5, "start");
+  await on.fire(5, "end");
+  r.onFallback = await on.state();
+  r.onFallback.events = r.onFallback.events.slice(before4);
 
   // An aborted turn cancels the queue: one tts_cancelled, no more speech, and the cancelled sentence's late end is ignored.
   const spokenBefore = (await on.state()).spoken.length;
@@ -220,11 +231,30 @@ test("flag on: a full_response that differs from the chunks is reported, the chu
   );
 });
 
-test("flag on: an empty reply is tts_skipped as with the flag off; a reply with no chunk frames is silent but reports the mismatch", () => {
+test("flag on: an empty or whitespace-only reply is tts_skipped as with the flag off, and nothing is spoken", () => {
   assert.equal(r.onEmpty.spoken.length, 4); // nothing new was spoken
   assert.deepEqual(
     r.onEmpty.events.filter((e) => e.event.startsWith("tts_")).map((e) => [e.event, e.reason ?? null]),
-    [["tts_skipped", "empty"], ["tts_skipped", "empty"], ["tts_skipped", "empty"], ["tts_text_mismatch", null]],
+    [["tts_skipped", "empty"], ["tts_skipped", "empty"]],
+  );
+});
+
+test("flag on: a turn at done with no sentence queued speaks full_response once, trimmed, through the queue, and still reports the mismatch", () => {
+  assert.deepEqual(r.onFallback.spoken.slice(4), ["No chunk frames came before this.", "Padded reply, spoken trimmed."]);
+  assert.deepEqual(
+    r.onFallback.events.filter((e) => e.event.startsWith("tts_")).map((e) => [e.event, e.index ?? null]),
+    [
+      ["tts_requested", 0],
+      ["tts_text_mismatch", null],
+      ["tts_start", null],
+      ["tts_sentence_start", 0],
+      ["tts_end", null],
+      ["tts_requested", 0],
+      ["tts_text_mismatch", null],
+      ["tts_start", null],
+      ["tts_sentence_start", 0],
+      ["tts_end", null],
+    ],
   );
 });
 

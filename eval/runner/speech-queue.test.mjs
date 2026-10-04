@@ -127,6 +127,21 @@ before(async () => {
     out.finishWhilePlayingEvents = s.events.filter((e) => e.type === "requested" || e.type === "start").map((e) => [e.type, e.index, e.first ?? null]);
     out.finishEmpty = setup().queue.finish();
 
+    // `sentences` is how many were queued this turn so far, readable before finish() ends the turn.
+    s = setup();
+    const counts = [s.queue.sentences];
+    s.queue.enqueue("aaaa");
+    s.queue.enqueue("bbbb");
+    counts.push(s.queue.sentences);
+    s.queue.finish();
+    s.clock.tick(100);
+    counts.push(s.queue.sentences); // the turn is over
+    s.queue.enqueue("cccc");
+    counts.push(s.queue.sentences);
+    s.queue.cancel();
+    counts.push(s.queue.sentences);
+    out.counts = counts;
+
     // cancel() mid-sentence: queued sentences are dropped, the engine is stopped, one cancelled event, and
     // nothing else is reported, not the cancelled utterance's own error and not its late end.
     s = setup();
@@ -227,6 +242,10 @@ test("after finish() and a full drain, the next sentence is a new turn: index 0 
     ["requested", 0, null],
     ["start", 0, true],
   ]);
+});
+
+test("sentences counts what this turn has queued so far, and starts again after the turn ends or is cancelled", () => {
+  assert.deepEqual(r.counts, [0, 2, 0, 1, 0]);
 });
 
 test("cancel() drops what is queued, stops the engine and reports one cancelled; the cancelled sentence reports nothing more", () => {

@@ -686,13 +686,19 @@ function speak(text: string) {
   );
 }
 
-// Flag on, at done: queue what is left of the reply and end the turn. The speech comes from the chunks, never from
-// full_response; if the two differ that is reported (tts_text_mismatch) and nothing is spoken again.
+// Flag on, at done: queue what is left of the reply and end the turn. The speech comes from the chunks; if the two
+// differ that is reported (tts_text_mismatch) and nothing is spoken again. The one exception is a turn in which no
+// sentence was queued at all (no chunk frames came): then full_response is spoken once, through the same queue,
+// so the reply is not silent.
 function finishStreamedSpeech(fullResponse: unknown) {
   if (!speechQueue) return;
   const chunked = streamedChunks;
   streamedChunks = "";
   for (const tail of splitter.flush()) speechQueue.enqueue(tail);
+  if (speechQueue.sentences === 0 && typeof fullResponse === "string") {
+    const spoken = speechText(fullResponse);
+    if (spoken !== null) speechQueue.enqueue(spoken);
+  }
   if (speechQueue.finish() === 0) logEvent("tts_skipped", { reason: "empty" });
   if (typeof fullResponse === "string" && fullResponse !== chunked) {
     logEvent("tts_text_mismatch", { chunks_chars: chunked.length, full_response_chars: fullResponse.length });

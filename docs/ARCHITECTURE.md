@@ -162,7 +162,8 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 - `?tts_stream=1` (any mode, default off): speak the reply sentence by sentence as its chunks arrive instead of
   once at `done`. Chunk deltas go through `src/sentence-splitter.ts`, closed sentences are queued in
   `src/speech-queue.ts` and spoken one at a time by the engine in `src/tts-engine.ts` (the browser's Web Speech, the
-  only engine), and the tail is flushed at `done`. The speech comes from the chunks, not `full_response`; the queue
+  only engine), and the tail is flushed at `done`. The speech comes from the chunks, not `full_response` (unless no sentence was queued by `done`, when `full_response`
+  is spoken once, trimmed, through the same queue); the queue
   is cancelled on aborted, a turn-failure error, a closed socket, the reply timeout and a new send. Only `chunk`
   frames are spoken, never `thinking`, `tool_call` or `plan`.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value

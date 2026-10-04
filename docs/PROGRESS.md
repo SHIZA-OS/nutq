@@ -335,3 +335,12 @@ text without `. ? !` and whitespace (an unpunctuated list, or Arabic, Urdu or CJ
 `done` arrives. Separate from this work: `serial-model.test.mjs` asserts a wall-clock wait under 30 ms; it failed in 3 of 3
 default parallel `npm test` runs made during this work (after passing in two earlier ones) on this 8-core machine, and
 passed alone and with `--test-concurrency=3`, so it is load sensitive; it was not changed.
+
+Sentence streaming follow-ups (2026-10-04), superseding two notes in the entry above. (1) With `?tts_stream=1`, a turn that
+reaches `done` with no sentence queued now speaks `full_response` once, trimmed, through the same queue (nothing if it is
+empty, then `tts_skipped`), and `tts_text_mismatch` is still reported, so a reply with no chunk frames is no longer silent.
+(2) `serial-model.test.mjs` no longer asserts a wall-clock wait: the failing wait was the first call's, which includes the
+test's own synchronous work between two calls being queued (30 ms in the run that failed, with the second call queued 27
+ms after the first), so it grew with machine load. The test now reads `performance.now` from a clock that only moves when the
+fake model finishes its 60 ms, and `wait_ms` and `run_ms` are exactly [0, 60], [60, 60], [120, 60]. Three consecutive plain
+`npm test` runs passed (152 of 152); with the fallback's two new tests the suite is 154.
