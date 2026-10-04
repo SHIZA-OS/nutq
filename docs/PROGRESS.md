@@ -344,3 +344,24 @@ test's own synchronous work between two calls being queued (30 ms in the run tha
 ms after the first), so it grew with machine load. The test now reads `performance.now` from a clock that only moves when the
 fake model finishes its 60 ms, and `wait_ms` and `run_ms` are exactly [0, 60], [60, 60], [120, 60]. Three consecutive plain
 `npm test` runs passed (152 of 152); with the fallback's two new tests the suite is 154.
+
+Replay check and TTS follow-ups (2026-10-04). STT is unchanged: `git diff 29852d5..0f5f295 --stat` lists nothing under
+`src/vendor` and no change to `turn-policy.ts` or `mic-constraints.ts`; `main.ts` changed only in reply and TTS handling.
+The phase-swept replay at 0f5f295 (written to `eval/results/2026-10-04-wer-replay-0f5f295`, not committed) matches
+`replay-head` (f2de874) phase by phase: v1 normalized WER 9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7 and 12.0%, mean 10.6%,
+first words 22.6 of 26, and every case hypothesis is the same in all 8 phases. Only the trigger differs: f2de874 ended turns by
+a manual stop, HEAD ends them with the turn policy (36 by auto-silence and 1 manual, sil-01, per phase). Against
+`replay-head-policy` the hypotheses are also identical; sh-01, sh-02, sh-04 and bn-03 now end by auto-silence instead of
+manually, which fits a5339f8 (a VAD misfire arms auto-send; bn-03 was not checked on its own). With no voice chosen the
+utterance now asks for `en-US`: the voice Chrome flagged as default in a saved real-run log was Google Deutsch. Which voice
+Chrome then uses cannot be observed from the page (`utterance.voice` stays null, no event names a voice, and headless Chrome on
+this machine lists none), so `tts_start.voice` stays the default-flag guess and may now name a voice that is not the one
+spoken. Tapping the mic button to start listening cancels speech (`tts_cancelled` `{reason: "mic_press"}`); not handled: a
+reply still arriving after the tap is still spoken (its later chunks with `?tts_stream=1`, its `done` without). The
+`tts_text_mismatch` with `chunks_chars` 175 and `full_response_chars` 126 (`nutq-events-1791110340369.jsonl`, the turn
+sent at 10:38:42 UTC): ZeroClaw's runtime trace shows iteration 1 ended in a `web_search_tool` call and iteration 2's
+`turn_final_response` is exactly 126 characters, and the client's first chunk (10:38:43.031) arrived before iteration 1's
+response completed (10:38:43.440). The gateway forwards every live-streamed text delta as a chunk, including text before a tool
+call, while `done.full_response` is only the final iteration's text (`accumulated_display_text` in
+`crates/zeroclaw-runtime/src/agent/turn/mod.rs` is appended only on the iteration with no tool calls). So the 49 extra characters
+are text streamed in iteration 1; the trace does not record that text, so its content is not verified. With `?tts_stream=1` it is spoken.
