@@ -441,6 +441,7 @@ function connect() {
         speak(replyBuffer);
         break;
       case "aborted":
+        cancelSpeech();
         log("Turn aborted by server");
         logEvent("turn_aborted");
         break;
@@ -506,6 +507,7 @@ function connect() {
     }
     setStatus(connStatus, "disconnected", "warn");
     replyState.closed();
+    cancelSpeech();
     socketOpen = false;
     updateMicState();
     socket = null;
@@ -529,6 +531,7 @@ function sendTranscript(text: string, trigger: SendTrigger) {
     logEvent("send_blocked", { reason: "reply_in_flight" });
     return;
   }
+  cancelSpeech();
   replyBuffer = "";
   replyBoxEl.textContent = "";
   receivedFirstChunkThisTurn = false;
@@ -558,6 +561,12 @@ function loadVoices() {
 if ("speechSynthesis" in window) {
   loadVoices();
   window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+}
+
+// Stops speech that is playing or queued. Called when a new message is sent and when a turn is aborted or the
+// connection closes, so an old reply is not read out over what comes next.
+function cancelSpeech() {
+  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 
 function speak(text: string) {
