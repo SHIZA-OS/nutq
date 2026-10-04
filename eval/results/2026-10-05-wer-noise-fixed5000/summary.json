@@ -1,0 +1,193 @@
+{
+  "run": {
+    "label": "noise-fixed5000",
+    "date": "2026-10-05",
+    "model": "model/base",
+    "pre_roll_frames": 4,
+    "phases": 8,
+    "phase_step_samples": 64,
+    "phase_method": "phase p prepends p * phase_step_samples zero samples to the WAV",
+    "end_of_turn": "turn policy (src/turn-policy.ts) with time from frame positions; after the WAV, silence until it ends the turn or WAV duration + 10 s, then a manual stop",
+    "policy": "fixed:5000",
+    "latency_scale": 1,
+    "missing_audio": []
+  },
+  "endpoint": {
+    "policy": "fixed:5000",
+    "latency_scale": 1,
+    "v1": {
+      "cases": 8,
+      "with_pause": 0,
+      "premature": 0,
+      "true_ends": 0,
+      "wait_median_ms": null,
+      "wait_p90_ms": null,
+      "wait_max_ms": null
+    },
+    "all": {
+      "cases": 48,
+      "with_pause": 10,
+      "premature": 0,
+      "true_ends": 23,
+      "wait_median_ms": 5768,
+      "wait_p90_ms": 5768,
+      "wait_max_ms": 5864
+    }
+  },
+  "gate": null,
+  "per_phase": [
+    {
+      "phase": 0,
+      "lead_samples": 0,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 2,
+      "turns_manual": 4,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 1,
+      "lead_samples": 64,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 2,
+      "lead_samples": 128,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 3,
+      "lead_samples": 192,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 4,
+      "lead_samples": 256,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 5,
+      "lead_samples": 320,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 6,
+      "lead_samples": 384,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    },
+    {
+      "phase": 7,
+      "lead_samples": 448,
+      "v1_num_norm_wer": null,
+      "v1_raw_wer": null,
+      "ref_words": 0,
+      "n_scored": 0,
+      "first_word_26": 0,
+      "first_word_soft_ok": 0,
+      "turns_auto_silence": 3,
+      "turns_manual": 3,
+      "n_commit_cases": 0,
+      "errors": 0
+    }
+  ],
+  "mean_across_phases": {
+    "v1_num_norm_wer": 0,
+    "v1_raw_wer": 0,
+    "first_word_26": 0
+  },
+  "v1_num_norm_wer_range": [
+    0,
+    0
+  ],
+  "cases": [
+    {
+      "id": "nts-01",
+      "reference": "Stop.",
+      "mean_num_norm_wer": 0.625,
+      "distinct_hypotheses": 3,
+      "hypotheses": [
+        "",
+        "",
+        "Stop.",
+        "",
+        "",
+        "Stop",
+        "Stop",
+        ""
+      ],
+      "pause_ms": 1376,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        5768,
+        5736,
+        4264,
+        5768,
+        5768,
+        5736,
+        5768,
+        5736
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 5000
+    }
+  ]
+}

@@ -1,0 +1,1723 @@
+{
+  "run": {
+    "label": "endpoint-tier1",
+    "date": "2026-10-05",
+    "model": "model/base",
+    "pre_roll_frames": 4,
+    "phases": 8,
+    "phase_step_samples": 64,
+    "phase_method": "phase p prepends p * phase_step_samples zero samples to the WAV",
+    "end_of_turn": "turn policy (src/turn-policy.ts) with time from frame positions; after the WAV, silence until it ends the turn or WAV duration + 10 s, then a manual stop",
+    "policy": "fixed:999999",
+    "latency_scale": 1,
+    "missing_audio": []
+  },
+  "endpoint": {
+    "policy": "fixed:999999",
+    "latency_scale": 1,
+    "v1": {
+      "cases": 296,
+      "with_pause": 42,
+      "premature": 0,
+      "true_ends": 0,
+      "wait_median_ms": null,
+      "wait_p90_ms": null,
+      "wait_max_ms": null
+    },
+    "all": {
+      "cases": 456,
+      "with_pause": 156,
+      "premature": 0,
+      "true_ends": 0,
+      "wait_median_ms": null,
+      "wait_p90_ms": null,
+      "wait_max_ms": null
+    }
+  },
+  "gate": null,
+  "per_phase": [
+    {
+      "phase": 0,
+      "lead_samples": 0,
+      "v1_num_norm_wer": 0.09829059829059829,
+      "v1_raw_wer": 0.14102564102564102,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 17,
+      "errors": 0
+    },
+    {
+      "phase": 1,
+      "lead_samples": 64,
+      "v1_num_norm_wer": 0.1111111111111111,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 23,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 19,
+      "errors": 0
+    },
+    {
+      "phase": 2,
+      "lead_samples": 128,
+      "v1_num_norm_wer": 0.10683760683760683,
+      "v1_raw_wer": 0.1452991452991453,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 16,
+      "errors": 0
+    },
+    {
+      "phase": 3,
+      "lead_samples": 192,
+      "v1_num_norm_wer": 0.1111111111111111,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 17,
+      "errors": 0
+    },
+    {
+      "phase": 4,
+      "lead_samples": 256,
+      "v1_num_norm_wer": 0.10256410256410256,
+      "v1_raw_wer": 0.14102564102564102,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 24,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 16,
+      "errors": 0
+    },
+    {
+      "phase": 5,
+      "lead_samples": 320,
+      "v1_num_norm_wer": 0.09401709401709402,
+      "v1_raw_wer": 0.13675213675213677,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 17,
+      "errors": 0
+    },
+    {
+      "phase": 6,
+      "lead_samples": 384,
+      "v1_num_norm_wer": 0.10683760683760683,
+      "v1_raw_wer": 0.14957264957264957,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 22,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 16,
+      "errors": 0
+    },
+    {
+      "phase": 7,
+      "lead_samples": 448,
+      "v1_num_norm_wer": 0.11965811965811966,
+      "v1_raw_wer": 0.15384615384615385,
+      "ref_words": 234,
+      "n_scored": 36,
+      "first_word_26": 24,
+      "first_word_soft_ok": 5,
+      "turns_auto_silence": 0,
+      "turns_manual": 57,
+      "n_commit_cases": 17,
+      "errors": 0
+    }
+  ],
+  "mean_across_phases": {
+    "v1_num_norm_wer": 0.1063034188034188,
+    "v1_raw_wer": 0.14583333333333331,
+    "first_word_26": 22.625
+  },
+  "v1_num_norm_wer_range": [
+    0.09401709401709402,
+    0.11965811965811966
+  ],
+  "cases": [
+    {
+      "id": "fws-01",
+      "reference": "The meeting starts at nine in the morning.",
+      "mean_num_norm_wer": 0.078125,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in 1888 The morning",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the morning. The morning.",
+        "The meeting starts at 9 in the morning.",
+        "The meeting starts at 9 in the meeting. The morning"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fws-02",
+      "reference": "A cup of coffee would be nice right now.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now.",
+        "A cup of coffee would be nice right now."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fws-03",
+      "reference": "It's going to rain later this afternoon.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon.",
+        "It's going to rain later this afternoon."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fws-04",
+      "reference": "So what time does the store close today?",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "So what time does the store closed? So what time does",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store close today?",
+        "So what time does the store closed so what time does the",
+        "So what time does the store close to store? So what time"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fws-05",
+      "reference": "The train leaves from platform four.",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train lives from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4.",
+        "The train leads from platform 4."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fst-01",
+      "reference": "Seven people are coming to dinner tonight.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fst-02",
+      "reference": "Monday is the busiest day of the week.",
+      "mean_num_norm_wer": 0.078125,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Bhante is the busiest day of the week.",
+        "Monday is the busiest day of the week."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fst-03",
+      "reference": "Please remind me to call the bank tomorrow.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow.",
+        "Please remind me to call the bank tomorrow."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fst-04",
+      "reference": "Twelve students passed the final exam.",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 3,
+      "hypotheses": [
+        "12 students passed the final exam.",
+        "Well students, pasta. I don't like it.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "12 students passed the final exam.",
+        "Well students, past the final exam."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "fst-05",
+      "reference": "Bring the blue folder to the office.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office",
+        "Bring the blue folder to the office.",
+        "Bring the blue folder to the office."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "pw-01",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "mean_num_norm_wer": 0.2361111111111111,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "The good brown fox Jumps over the lazy dog",
+        "The good brown fox Jumps over the lazy door",
+        "The good brown fox Jumped over the lazy dog",
+        "The good brown fox Jumps over the lazy door",
+        "The good brown box Jump over the lazy dog",
+        "The good brown box Jumps over the lazy door",
+        "The good brown box Jump over the lazy dog",
+        "The good brown fox Jumps over the lazy dog"
+      ],
+      "pause_ms": 608,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "pw-02",
+      "reference": "A fox ran quickly across the field.",
+      "mean_num_norm_wer": 0.07142857142857142,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the fair.",
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the field.",
+        "A fox ran quickly across the field."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "pw-03",
+      "reference": "She jumps rope every morning before school.",
+      "mean_num_norm_wer": 0.14285714285714282,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school.",
+        "She jumps rope every morning before the school."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "pw-04",
+      "reference": "Click the button and wait for a quick reply.",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 8,
+      "hypotheses": [
+        "Click the button and wait for a quick review Bly",
+        "Click the button and wait for a quick clip. Like.",
+        "Click the button and wait for a quick clip Like.",
+        "Click the button and wait for a quick read. Like.",
+        "Click the button and wait for a quick view Blight",
+        "Click the button and wait for a quick click. We ply.",
+        "Click the button and wait for a quick click. You play.",
+        "Click the button and wait for a quick view Blight."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-01",
+      "reference": "What is the capital of Australia?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-02",
+      "reference": "How many minutes are in a day?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?",
+        "How many minutes are in a day?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-03",
+      "reference": "Set a timer for ten minutes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes.",
+        "Set a timer for 10 minutes."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-04",
+      "reference": "Tell me a short fact about the moon.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon.",
+        "Tell me a short fact about the moon",
+        "Tell me a short fact about the moon"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-05",
+      "reference": "What is the difference between a virus and bacteria?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?",
+        "What is the difference between a virus and bacteria?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "aq-06",
+      "reference": "Translate good morning into Spanish.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish.",
+        "Translate good morning into Spanish."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "num-01",
+      "reference": "Add twenty five and seventeen.",
+      "mean_num_norm_wer": 0.15,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "Add 25 and 17.",
+        "At 25 and 17.",
+        "At 25 and 17.",
+        "Add 25 and 17."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "num-02",
+      "reference": "My flight is at half past six.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "My flight is at half past six",
+        "My flight is at half past six",
+        "My flight is at half past six",
+        "My flight is at half past six.",
+        "My flight is at half past six",
+        "My flight is at half past six.",
+        "My flight is at half past six.",
+        "My flight is at half past six"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "num-03",
+      "reference": "Call me back in fifteen minutes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes",
+        "Call me back in 15 minutes."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "cas-01",
+      "reference": "Um, can you tell me what day it is?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is",
+        "Um can you tell me What day it is?",
+        "Um can you tell me What day it is?"
+      ],
+      "pause_ms": 960,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "cas-02",
+      "reference": "Hey, uh, what's the weather looking like?",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?",
+        "Hey, oh, what's the weather looking like?"
+      ],
+      "pause_ms": 576,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "cas-03",
+      "reference": "Wait, no, I meant the other one.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no I meant the other one",
+        "Wait no i meant the other one",
+        "Wait no I meant the other one"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "sh-01",
+      "reference": "Yes.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes.",
+        "Yes."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "sh-02",
+      "reference": "Stop.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Stop",
+        "Stop",
+        "Stop",
+        "Stop.",
+        "Stop",
+        "Stop",
+        "Stop",
+        "Stop"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "sh-03",
+      "reference": "Thank you.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you.",
+        "Thank you."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "sh-04",
+      "reference": "What?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?",
+        "What?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-01",
+      "reference": "What is the capital of Australia?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?",
+        "What is the capital of Australia?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-02",
+      "reference": "How many minutes are in a day?",
+      "mean_num_norm_wer": 0.2857142857142857,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "How many minutes are in the in?",
+        "How many minutes are in the?",
+        "How many minutes are in the in?",
+        "How many minutes I in the in?",
+        "How many minutes I in the in?",
+        "How many minutes are in the day?",
+        "How many minutes are in the day",
+        "How many minutes are in the in?"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-03",
+      "reference": "Set a timer for ten minutes.",
+      "mean_num_norm_wer": 0.5833333333333334,
+      "distinct_hypotheses": 7,
+      "hypotheses": [
+        "Set a timer for 10 minutes. Yes.",
+        "That's a timer for 10 minutes. Yes.",
+        "I am a fourth and winners",
+        "I'm a fourth and winners",
+        "I am a fourth and winners",
+        "2. Set the timer for 10 minutes",
+        "Set the timer for 10 minutes",
+        "That's a time of fortune."
+      ],
+      "pause_ms": 1344,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-04",
+      "reference": "The meeting starts at nine in the morning.",
+      "mean_num_norm_wer": 0.25,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning.",
+        "The meeting started 9 in the morning."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-05",
+      "reference": "Seven people are coming to dinner tonight.",
+      "mean_num_norm_wer": 0.017857142857142856,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight. For",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight.",
+        "Seven people are coming to dinner tonight."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "bn-06",
+      "reference": "The quick brown fox jumps over the lazy dog.",
+      "mean_num_norm_wer": 0.48611111111111116,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "Aku, that way Brown pox jam Over the lazy dog",
+        "Akku. Dakku. Brown folks jump Over the lazy dog",
+        "Akur, Dakwit, Dakwit, Brown pox jam Over the lazy dog",
+        "Akur, Dakwin, Dakwin, Brown folks jump Over the lazy dog",
+        "Akku. Dakku. Brown folks jump Over the lazy dog",
+        "Akur, Dakwi, Brown folks jump Over the lazy dog",
+        "Aku. Dakui. Brown folks jump Over the lazy dog",
+        "Akur, Dakwi, Brown folks jump Over the lazy dog"
+      ],
+      "pause_ms": 1312,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "nts-01",
+      "reference": "Stop.",
+      "mean_num_norm_wer": 0.625,
+      "distinct_hypotheses": 3,
+      "hypotheses": [
+        "",
+        "",
+        "Stop.",
+        "",
+        "",
+        "Stop",
+        "Stop",
+        ""
+      ],
+      "pause_ms": 1376,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-01",
+      "reference": "I was thinking we could go to the new place on Main Street.",
+      "mean_num_norm_wer": 0.14423076923076922,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "I was thinking we could go to the Place on the main street",
+        "I was thinking we could go to the Place on the main street.",
+        "I was thinking we could go to the You place on the main street",
+        "I was thinking we could go to the Place on the main street.",
+        "I was thinking we could go to the New place on the main street.",
+        "I was thinking we could go to the Place on the main street.",
+        "I was thinking we could go to the Place on the main street",
+        "I was thinking we could go to the. Place on the main street"
+      ],
+      "pause_ms": 2560,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-02",
+      "reference": "Please send the report to Sarah and Michael after lunch.",
+      "mean_num_norm_wer": 0.2625,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "Please send the report to Sarah and Michael after the line.",
+        "Please send the report to Sarah and Michael after 2020. The lunch",
+        "Please send the report to Sarah and Michael after 2019. The lunch",
+        "Please send the report to Sarah and Michael after 2019. The lunch",
+        "Please send the report to Sarah and Michael after the line.",
+        "Please send the report to Sarah and Michael are 12 years old. The lunch",
+        "Please send the report to Sarah and Michael are often in the The lunch",
+        "Please send the report to Sarah and Michael after The lunch"
+      ],
+      "pause_ms": 2048,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-03",
+      "reference": "I want to book a flight and a hotel for the weekend.",
+      "mean_num_norm_wer": 0.16666666666666666,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "I want to book a flight and The battle for the weekend.",
+        "I want to book a flight and Total for the weekend.",
+        "I want to book a flight and Until for the weekend.",
+        "I want to book a flight and L for the weekend.",
+        "I want to book a flight and The battle for the weekend.",
+        "I want to book a flight and Total for the weekend.",
+        "I want to book a flight and Total for the weekend.",
+        "I want to book a flight and Total for the weekend."
+      ],
+      "pause_ms": 2912,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-04",
+      "reference": "I want to book a flight and a hotel for the weekend.",
+      "mean_num_norm_wer": 0.1875,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "I want to book a flight and Button for a weekend.",
+        "I want to book a flight and A hotel for a weekend.",
+        "I want to book a flight and. Button for a weekend",
+        "I want to book a flight and A hotel for a weekend.",
+        "I want to book a flight and. And for a weekend",
+        "I want to book a flight and A hotel for a weekend.",
+        "I want to book a flight and Return for a weekend.",
+        "I want to book a flight and. Button for a weekend."
+      ],
+      "pause_ms": 2016,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-05",
+      "reference": "I want to book a flight and a hotel for the weekend.",
+      "mean_num_norm_wer": 0.27083333333333337,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "I want to book a flight and Total for a weekend.",
+        "I want to book up light and Total for a weekend.",
+        "I want to book a flight and Until for a weekend.",
+        "I want to book a flight and Double for a weekend.",
+        "I want to book a flight and Double for a weekend.",
+        "I want to book a flight and Total for a weekend",
+        "I want to book a flight and Double for a weekend.",
+        "I want to book a flight and Until for a weekend"
+      ],
+      "pause_ms": 2656,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-06",
+      "reference": "So what time does the pharmacy open tomorrow?",
+      "mean_num_norm_wer": 0.3125,
+      "distinct_hypotheses": 5,
+      "hypotheses": [
+        "So what Time does the pharmacy open to marrow.",
+        "So what Time does the pharmacy open to my room.",
+        "So what Time does the pharmacy open to my room.",
+        "So, what Time does the pharmacy open to my room.",
+        "So what Time does the pharmacy open to my own.",
+        "So what Time does the pharmacy open to my room.",
+        "So what Time does the pharmacy open to my room.",
+        "So what Time does the pharmacy open tomorrow."
+      ],
+      "pause_ms": 1664,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-07",
+      "reference": "Um can you set a reminder for Friday morning?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?",
+        "Can you set a reminder for Friday morning?"
+      ],
+      "pause_ms": 2176,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-08",
+      "reference": "Remind me to call the dentist because my tooth has been hurting all week.",
+      "mean_num_norm_wer": 0.30357142857142855,
+      "distinct_hypotheses": 3,
+      "hypotheses": [
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. And remind me to call the dentist because. My tooth has been hurting all week.",
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. Remind me to call the dentist because... My tooth has been hurting all week.",
+        "Remind me to the. And remind me to call the dentist because... My tooth has been hurting all week."
+      ],
+      "pause_ms": 2976,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-09",
+      "reference": "Can you tell me what the weather is like in Lisbon tomorrow?",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?",
+        "Can you tell me? What the weather is like in Lisbon tomorrow?",
+        "Can you tell me What the weather is like in Lisbon tomorrow?"
+      ],
+      "pause_ms": 1888,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-10",
+      "reference": "I need to move my appointment from Tuesday to Thursday afternoon.",
+      "mean_num_norm_wer": 0.011363636363636364,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. Tom Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon.",
+        "I need to move my appointment. From Tuesday to Thursday afternoon."
+      ],
+      "pause_ms": 1920,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-11",
+      "reference": "Set a timer for ten minutes and remind me to check the oven.",
+      "mean_num_norm_wer": 0.038461538461538464,
+      "distinct_hypotheses": 4,
+      "hypotheses": [
+        "Set a timer for 10 minutes. Remind me to check the oven",
+        "Set a timer for 10 minutes Remind me to check the oven",
+        "Set a timer for 10 minutes And remind me to check the oven.",
+        "Set a timer for 10 minutes And remind me to check the oven.",
+        "Set a timer for 10 minutes And remind me to check the oven.",
+        "Set a timer for 10 minutes And remind me to check the oven.",
+        "Set a timer for ten minutes. Remind me to check the oven",
+        "Set a timer for 10 minutes Remind me to check the oven"
+      ],
+      "pause_ms": 1696,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "mp-12",
+      "reference": "Yes. Please go ahead and send it.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 2,
+      "hypotheses": [
+        "Yes Please go ahead and send it.",
+        "Yes. Please go ahead and send it.",
+        "Yes. Please go ahead and send it.",
+        "Yes Please go ahead and send it.",
+        "Yes. Please go ahead and send it.",
+        "Yes Please go ahead and send it.",
+        "Yes Please go ahead and send it.",
+        "Yes Please go ahead and send it."
+      ],
+      "pause_ms": 2624,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "te-01",
+      "reference": "That should be everything, thanks, um.",
+      "mean_num_norm_wer": 0.19999999999999998,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks.",
+        "There should be everything. Thanks."
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "done",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "te-02",
+      "reference": "I think that is everything for now, so.",
+      "mean_num_norm_wer": 0,
+      "distinct_hypotheses": 1,
+      "hypotheses": [
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so",
+        "I think that is everything for now so"
+      ],
+      "pause_ms": null,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "open",
+      "wait_at_arm_ms": 999999
+    },
+    {
+      "id": "ls-01",
+      "reference": "On Thursday I need to pick up my daughter from school, then drive to the airport, and return the rental car before six.",
+      "mean_num_norm_wer": 0.10869565217391303,
+      "distinct_hypotheses": 6,
+      "hypotheses": [
+        "On Thursday, I need to pick up my daughter from school. Then drive to the airport and return the rental",
+        "On Thursday, I need to pick up my daughter from school. Then drive to the airport and return the rental",
+        "On Thursday, I need to pick up my daughter from school. Then drive to the airport and return the rental",
+        "On Thursday I need to pick up my daughter from school. Then drive to the airport And return the rental car before 6.",
+        "On Thursday, I need to pick up my daughter from school. Then drive to the airport and return the rental Card before six",
+        "On Thursday, I need to pick up my daughter for school. Then drives to the Airport and return the rental car before 6.",
+        "On Thursday, I need to pick up my daughter for school. Then drive to the airport and return the render Card before six",
+        "On Thursday, I need to pick up my daughter for school. Then drives to the A report and returned the rental car before 6."
+      ],
+      "pause_ms": 576,
+      "premature_phases": 0,
+      "wait_after_true_end_ms": [
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 999999
+    }
+  ]
+}

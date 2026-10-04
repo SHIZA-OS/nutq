@@ -400,16 +400,35 @@ commit calls (residual sd 191 ms), one commit at a time. Events inside a frame a
 case now reports its pauses, whether the turn was cut off, the wait after the true end of speech and the hint and wait at the last arm; the speech
 runs come from a second VAD pass over the whole file (probability 0.5 or above, gaps under 512 ms bridged). That pass misses soft speech in the
 noise cases, so for those a cut-off shows up as a deleted word, not as `premature`. Correction to the Phase 1 note that v1 cannot show a premature
-send: cas-01 has a 960 ms pause that the VAD reports as a misfire followed by speech 192 ms later, and bn-03 contains a 1.3 s gap, so a wait
-that short after a misfire would cut them.
+send: cas-01 has a 960 ms pause that the VAD reports as a misfire followed by speech 192 ms later, so a wait that short after a misfire would cut
+it. (This note first said bn-03 has a 1.3 s gap too. That was wrong: the gap the replay measured there runs from the leading recording burst at
+frames 0 to 2 to the speech, not a pause inside a sentence.)
 
 v1 gate against `2026-10-04-wer-replay-head-policy` (8 phases x 37 cases): `fixed:5000` reproduces the baseline exactly (0 of 296 hypotheses differ;
 `2026-10-04-wer-gate-fixed5000`; median wait after the true end 5768 ms, which is 768 ms of VAD redemption plus 5000). The placeholder semantic
 policy fails it (`2026-10-04-wer-gate-semantic`): 2 of 296 differ, both bn-03. Its reference is only "Set a timer for ten minutes."; the recording also
 holds a stray soft "Yes." later, which the baseline kept (WER 33%) and the semantic run lost (WER 17% in phase 0) because the VAD misfire at 896 ms
-armed a 1500 ms wait that ended the turn at 2396 ms. The `unknown` wait therefore has to be long enough for that case to pass the gate; the
-sweep decides the value. v1 wait after the true end under the placeholders: median 1100 ms, p90 2268 ms, max 4300 ms (fixed 5000: 5768, 5800, 6152).
+armed a 1500 ms wait that ended the turn at 2396 ms. (Under the gate rule changed afterwards, to fail only on a new error against the reference, this is a review item, not a failure: see the
+endpoint sweep entry below.) v1 wait after the true end under the placeholders: median 1100 ms, p90 2268 ms, max 4300 ms (fixed 5000: 5768, 5800, 6152).
 These come from the replay with a modelled model latency, not from live runs.
 
 v2 set: 15 recordings in `cases.jsonl` (`set: v2`: mp-01 to mp-12, te-01, te-02, ls-01), recorded with `eval/wer/record.sh` (new per-case `seconds`, and
 a `pause_s` prompt that says to count the pause silently). Not recorded yet, so no premature-send number exists.
+
+Endpoint sweep (2026-10-05, `eval/results/2026-10-05-endpoint-sweep/`): all 57 recordings (37 v1, 20 v2: no-01 to no-04, nts-01, mp-01 to mp-12, te-01, te-02,
+ls-01) x 8 phases. The v1 gate now fails only on a new error against the reference (more substitutions, deletions or insertions after number
+normalization) and lists other changed hypotheses for review; it first crashed on silence-scored cases (empty reference), now fixed. Re-run: `fixed:5000`
+passes with nothing listed; the placeholder semantic policy passes with bn-03 listed (phase 0: the stray "Yes." is gone, fewer errors; phase 1: only
+the final full stop changed). The sweep ran the real Transcriber once per recording and phase (`--streams`) and replayed 640 policies on those streams
+with the real TurnPolicy (`endpoint-sim.mjs`) at model-latency scales 0.5, 1 and 2. The simulator matches the real replay exactly (cuts by recording,
+median, p90, max wait, number of turns) for all five policies that were also run for real. It does not model the flush `stop()` does at an early end:
+in the real replay `semantic:0,1500,2500,0` and `fixed:1500` each sent a non-empty message on one noise-only turn-phase (no-01 phase 4: "It") where
+the simulator said none. Findings (the report has the numbers): no semantic policy gets under 12 pause cuts of 96 (fixed:3000 has 0 and fixed:2200
+has 8), because Moonshine's mid-sentence full stops (mp-10) and pauses after a complete clause (mp-12) read as done and the grid's `done` tops out
+at 1000 ms; the pauses after function words are protected (0 of 64 cut with `open` at 2500 or more). At equal-or-fewer cuts semantic policies save
+about 1.2 to 1.95 s of median wait and 30 to 730 ms of p90 against the best fixed wait. Tier 2 (auxiliary verbs, subject pronouns) never beat tier
+1: 219 of its 315 policies are dominated and none is better. `semantic:0,1000,2500,0` fails the real v1 gate (sh-02 "Stop" is lost in two phases,
+bn-03 in one). The measured pauses of the 12 pause takes are 1.6 to 3.0 s, not the intended 1, 2 and 3.5 s (mp-03, intended 1 s, measures 2.9 s), so
+the dose-response by pause length cannot be tested. Limits: 12 pause recordings by one speaker; the 8 phases only shift the frame grid, so they are not
+independent; cuts are dominated by single recordings (mp-10 for the semantic points, mp-08 for fixed:2200). Not changed: `SEMANTIC_WAITS`, the
+code default (5000) and the demo script. The sweep script, the take check and the burst detector are in `eval/runner/endpoint-*.mjs`.

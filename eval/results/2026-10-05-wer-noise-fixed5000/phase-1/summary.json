@@ -1,0 +1,444 @@
+{
+  "run": {
+    "label": "noise-fixed5000",
+    "date": "2026-10-05",
+    "model": "model/base",
+    "pre_roll_frames": 4,
+    "phases": 8,
+    "phase_step_samples": 64,
+    "phase_method": "phase p prepends p * phase_step_samples zero samples to the WAV",
+    "end_of_turn": "turn policy (src/turn-policy.ts) with time from frame positions; after the WAV, silence until it ends the turn or WAV duration + 10 s, then a manual stop",
+    "policy": "fixed:5000",
+    "latency_scale": 1,
+    "missing_audio": [],
+    "phase": 1,
+    "lead_samples": 64,
+    "attempted": [
+      "sil-01",
+      "no-01",
+      "no-02",
+      "no-03",
+      "no-04",
+      "nts-01"
+    ],
+    "errors": []
+  },
+  "meta": {
+    "n_cases": 6,
+    "n_scored": 1,
+    "n_silence": 5,
+    "n_no_transcript": 0
+  },
+  "overall_excluding_silence": {
+    "n_cases": 1,
+    "n_scored": 1,
+    "n_no_transcript": 0,
+    "ref_words": 1,
+    "S": 0,
+    "D": 1,
+    "I": 0,
+    "wer": 1,
+    "n_has_digits": 0,
+    "n_commit_mismatch": 0,
+    "first_word_ok": 0,
+    "first_word_ok_rate": 0,
+    "num_norm": {
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": 0,
+      "first_word_ok_rate": 0
+    }
+  },
+  "case_sets": {
+    "v1": {
+      "n_cases": 0,
+      "n_scored": 0,
+      "n_no_transcript": 0,
+      "ref_words": 0,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": null,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "ref_words": 0,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": null,
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    },
+    "all": {
+      "n_cases": 1,
+      "n_scored": 1,
+      "n_no_transcript": 0,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": 0,
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": 0,
+        "first_word_ok_rate": 0
+      }
+    }
+  },
+  "by_category": {
+    "noise_then_short": {
+      "n_cases": 1,
+      "n_scored": 1,
+      "n_no_transcript": 0,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": 0,
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": 0,
+        "first_word_ok_rate": 0
+      }
+    }
+  },
+  "by_condition": {
+    "quiet": {
+      "n_cases": 1,
+      "n_scored": 1,
+      "n_no_transcript": 0,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": 0,
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": 0,
+        "first_word_ok_rate": 0
+      }
+    }
+  },
+  "first_word": {
+    "first_word_soft": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    },
+    "first_word_strong": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    }
+  },
+  "silence": {
+    "expected_words": 0,
+    "cases": [
+      {
+        "id": "sil-01",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "manual"
+      },
+      {
+        "id": "no-01",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "auto_silence"
+      },
+      {
+        "id": "no-02",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "manual"
+      },
+      {
+        "id": "no-03",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "auto_silence"
+      },
+      {
+        "id": "no-04",
+        "status": "silence",
+        "words_produced": 0,
+        "trigger": "manual"
+      }
+    ]
+  },
+  "no_transcript": [],
+  "commit_mismatch": [],
+  "cases": [
+    {
+      "id": "sil-01",
+      "category": "silence",
+      "condition": "quiet",
+      "reference": "",
+      "set": "v1",
+      "hypothesis": "",
+      "trigger": "manual",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "no-01",
+      "category": "noise_only",
+      "condition": "quiet",
+      "reference": "",
+      "set": "v2",
+      "hypothesis": "",
+      "trigger": "auto_silence",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "no-02",
+      "category": "noise_only",
+      "condition": "quiet",
+      "reference": "",
+      "set": "v2",
+      "hypothesis": "",
+      "trigger": "manual",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "no-03",
+      "category": "noise_only",
+      "condition": "quiet",
+      "reference": "",
+      "set": "v2",
+      "hypothesis": "",
+      "trigger": "auto_silence",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "no-04",
+      "category": "noise_only",
+      "condition": "quiet",
+      "reference": "",
+      "set": "v2",
+      "hypothesis": "",
+      "trigger": "manual",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "silence",
+      "words_produced": 0,
+      "expected_words": 0
+    },
+    {
+      "id": "nts-01",
+      "category": "noise_then_short",
+      "condition": "quiet",
+      "reference": "Stop.",
+      "set": "v2",
+      "hypothesis": "",
+      "trigger": "auto_silence",
+      "has_digits": false,
+      "commit_mismatch": false,
+      "n_commits": 0,
+      "status": "scored",
+      "empty_hypothesis": true,
+      "ref_words": 1,
+      "S": 0,
+      "D": 1,
+      "I": 0,
+      "wer": 1,
+      "first_word_ok": false,
+      "alignment": [
+        {
+          "op": "del",
+          "ref": "stop",
+          "hyp": null
+        }
+      ],
+      "num_norm": {
+        "ref_words": 1,
+        "S": 0,
+        "D": 1,
+        "I": 0,
+        "wer": 1,
+        "first_word_ok": false
+      }
+    }
+  ],
+  "turns": {
+    "sil-01": {
+      "trigger": "manual",
+      "turn_end_ms": 17984,
+      "last_speech_end_ms": null,
+      "pauses": [],
+      "pause_ms": null,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": null,
+      "hint_at_arm": null,
+      "wait_at_arm_ms": null,
+      "text_chars_at_arm": null,
+      "commits_in_flight_at_arm": null,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    },
+    "no-01": {
+      "trigger": "auto_silence",
+      "turn_end_ms": 7176,
+      "last_speech_end_ms": 1408,
+      "pauses": [],
+      "pause_ms": null,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": 5768,
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 5000,
+      "text_chars_at_arm": 0,
+      "commits_in_flight_at_arm": 0,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    },
+    "no-02": {
+      "trigger": "manual",
+      "turn_end_ms": 17984,
+      "last_speech_end_ms": null,
+      "pauses": [],
+      "pause_ms": null,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": null,
+      "hint_at_arm": null,
+      "wait_at_arm_ms": null,
+      "text_chars_at_arm": null,
+      "commits_in_flight_at_arm": null,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    },
+    "no-03": {
+      "trigger": "auto_silence",
+      "turn_end_ms": 6344,
+      "last_speech_end_ms": 1856,
+      "pauses": [
+        {
+          "start_ms": 576,
+          "end_ms": 1760,
+          "ms": 1184
+        }
+      ],
+      "pause_ms": 1184,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": 4488,
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 5000,
+      "text_chars_at_arm": 0,
+      "commits_in_flight_at_arm": 0,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    },
+    "no-04": {
+      "trigger": "manual",
+      "turn_end_ms": 17984,
+      "last_speech_end_ms": null,
+      "pauses": [],
+      "pause_ms": null,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": null,
+      "hint_at_arm": null,
+      "wait_at_arm_ms": null,
+      "text_chars_at_arm": null,
+      "commits_in_flight_at_arm": null,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    },
+    "nts-01": {
+      "trigger": "auto_silence",
+      "turn_end_ms": 10568,
+      "last_speech_end_ms": 4832,
+      "pauses": [
+        {
+          "start_ms": 3648,
+          "end_ms": 4576,
+          "ms": 928
+        }
+      ],
+      "pause_ms": 928,
+      "premature": false,
+      "cut_into_pause_ms": null,
+      "wait_after_true_end_ms": 5736,
+      "hint_at_arm": "unknown",
+      "wait_at_arm_ms": 5000,
+      "text_chars_at_arm": 0,
+      "commits_in_flight_at_arm": 1,
+      "hint_at_end": "unknown",
+      "wait_at_end_ms": 5000,
+      "commits_in_flight_at_end": 0,
+      "sent_text": ""
+    }
+  }
+}
