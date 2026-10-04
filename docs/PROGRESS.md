@@ -317,3 +317,21 @@ Voice (supersedes the local-voice and launch-flag notes above): local espeak-ng 
 Turn state and TTS hygiene (2026-10-04): a message is no longer sent while a reply is in flight (`src/turn-state.ts`; a mid-turn message is steering in ZeroClaw, so the utterance is dropped, not held), `speak()` trims the reply and reports skipped, ended and failed speech, and speech is cancelled when a message is sent, a turn is aborted or the socket closes; new eval events `send_blocked`, `tts_skipped`, `tts_end` and `tts_error` (see eval-harness-design.md).
 
 In-flight guard follow-up (2026-10-04): the guard clears itself after `REPLY_TIMEOUT_MS` (60000) with a log warning and the eval event `turn_timeout { ms }`, a blocked utterance shows "Still answering, try again" under the mic button until the reply ends, and speech cancelled or interrupted by the browser is the eval event `tts_cancelled { reason }` instead of `tts_error`.
+
+Sentence streaming for TTS (2026-10-04): behind `?tts_stream=1` (default off; with the flag off nothing changes except
+the new `engine` field on `tts_start`) the reply is spoken sentence by sentence as its chunks arrive, instead of once at
+`done`. `src/sentence-splitter.ts` splits the chunk deltas (`. ? !` then whitespace; not inside numbers or after Dr.
+Mr. Mrs. Ms. e.g. i.e. vs. U.S.; fragments under 20 characters merge into the next sentence; `flush()` at done),
+`src/speech-queue.ts` plays them one at a time with a generation counter so a cancelled run's late callbacks are
+ignored, and `src/tts-engine.ts` puts the browser (Web Speech) engine behind a small interface; it is the only engine.
+The speech comes from the chunks, never from `full_response` (a difference is `tts_text_mismatch` and nothing is
+spoken again), and the queue is cancelled on aborted, a failure error, a closed socket, the reply timeout and a new
+send. New eval events `tts_requested`, `tts_sentence_start` and `tts_text_mismatch` (see eval-harness-design.md, which
+also says how `join-latency.mjs` reads a streamed turn: `tts_start_delay` can be negative). The suite went from 116 to
+152 tests, all passing. Not measured and not claimed: any latency change. Not verified: speech by a real voice with the
+flag on; the cancels on a failure error, on the reply timeout and on a new send are in the code but no test reaches them
+(a send needs the microphone and the speech model). Known limits: a reply with no chunk frames is silent with the flag on;
+text without `. ? !` and whitespace (an unpunctuated list, or Arabic, Urdu or CJK terminators) is spoken whole when
+`done` arrives. Separate from this work: `serial-model.test.mjs` asserts a wall-clock wait under 30 ms; it failed in 3 of 3
+default parallel `npm test` runs made during this work (after passing in two earlier ones) on this 8-core machine, and
+passed alone and with `--test-concurrency=3`, so it is load sensitive; it was not changed.

@@ -67,6 +67,19 @@ plan):**
   `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis), `tts_end` (the utterance's
   `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`) and `tts_error` `{message}`
   (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`.
+- Sentence streaming (`?tts_stream=1`, default off): `tts_requested` `{index}` (a sentence was queued for speech;
+  `index` counts from 0 within the turn), `tts_sentence_start` `{index}` (that sentence became audible, the engine's
+  `onstart`) and `tts_text_mismatch` `{chunks_chars, full_response_chars}` (at `done`, `full_response` differed from
+  the joined chunks; the chunks were spoken and nothing was spoken again). `tts_start` keeps its meaning, the first
+  audible audio of the turn, and is emitted once per turn, so with the flag on it comes together with
+  `tts_sentence_start` for the first sentence that really starts; it gains an `engine` field (`browser`) with the flag
+  on or off. `tts_end`, `tts_cancelled` and `tts_error` are per utterance, so a streamed turn can have several, and
+  `tts_cancelled` `{reason: "canceled"}` is also what a cancel that drops a queued or playing sentence reports. With
+  the flag on `tts_start` can come before `done_received`, so `tts_start_delay` in `join-latency.mjs` (`tts_start -
+  done_received`) can be negative for such a turn, while `post_trigger`, `commit_to_audio` and `user_perceived` stay
+  the time to first audio; `completion.mjs` reads none of these events (both pinned in the two test files). A turn
+  with no chunk frames is silent with the flag on (the speech comes from the chunks), which shows as `tts_skipped`
+  followed by `tts_text_mismatch`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
 
 Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
 from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side
