@@ -4,6 +4,7 @@ import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
 import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
+import { browserEngine } from "./tts-engine";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -603,10 +604,13 @@ if ("speechSynthesis" in window) {
   window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
 }
 
+// The engine that speaks (src/tts-engine.ts); none when the browser has no speechSynthesis, and speak() says so.
+const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice) : null;
+
 // Stops speech that is playing or queued. Called when a new message is sent and when a turn is aborted or the
 // connection closes, so an old reply is not read out over what comes next.
 function cancelSpeech() {
-  if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  ttsEngine?.cancel();
 }
 
 function speak(text: string) {
@@ -616,28 +620,22 @@ function speak(text: string) {
     logEvent("tts_skipped", { reason: "empty" });
     return;
   }
-  if (!("speechSynthesis" in window)) {
+  if (!ttsEngine) {
     log("SpeechSynthesis not supported in this browser");
     logEvent("tts_skipped", { reason: "unsupported" });
     return;
   }
-  if (voices.length === 0) voices = window.speechSynthesis.getVoices();
-  const choice = pickVoice(voices, wantedVoice);
-  // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
-  // default is the best guess, so the event records where the name came from.
-  const used = choice.voice ?? voices.find((v) => v.default) ?? null;
-  const utterance = new SpeechSynthesisUtterance(spoken);
-  if (choice.voice) utterance.voice = choice.voice;
-  utterance.onstart = () =>
-    logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
-  utterance.onend = () => logEvent("tts_end");
-  // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
-  // is tts_error.
-  utterance.onerror = (ev) => {
-    const e = ttsErrorEvent(ev.error);
-    logEvent(e.event, e.fields);
-  };
-  window.speechSynthesis.speak(utterance);
+  ttsEngine.speak(
+    spoken,
+    (info) => logEvent("tts_start", { ...info, engine: ttsEngine.name }),
+    () => logEvent("tts_end"),
+    // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
+    // is tts_error.
+    (code) => {
+      const e = ttsErrorEvent(code);
+      logEvent(e.event, e.fields);
+    },
+  );
 }
 
 connectBtn.addEventListener("click", () => {
