@@ -42,19 +42,29 @@ const OPEN_WORDS = new Set(
     "our their to of in on at for with from by about into over under between through before after without um uh er erm hmm").split(" "),
 );
 
+// Tier 2, a second arm for the replay sweep and off unless asked for: auxiliary verbs, the pronouns that are only ever
+// subjects, and a modal before "you" ("can you"). "you" and "it" alone are left out because they end complete utterances
+// ("Thank you.", "send it.").
+const OPEN_WORDS_TIER2 = new Set(
+  "is are was were am be been being has have had do does did will would can could should shall may might must i we they he she".split(" "),
+);
+const OPEN_PAIR_TIER2 = /\b(can|could|would|will|do|did|should|shall|may|might|must) you$/;
+
 // "done": ends in . ? or ! and its last word is not an open word. "open": ends in ... , ; : or -, or its last
 // word (digits count as words) is an open word, punctuation or not. Everything else, including no text, is
 // "unknown". Moonshine base leaves out the full stop on about one complete sentence in five, so a missing
 // full stop is "unknown", not "open".
-export function endHint(text: string): EndHint {
+export function endHint(text: string, tier2 = false): EndHint {
   const t = text.trimEnd();
   if (/(\.\.\.|\u2026|[,;:-])$/.test(t)) return "open";
-  const last = t.replace(/[.?!]+$/, "").match(/[\p{L}\p{N}']+$/u)?.[0].toLowerCase();
-  if (last !== undefined && OPEN_WORDS.has(last)) return "open";
+  const body = t.replace(/[.?!]+$/, "").trimEnd();
+  const last = body.match(/[\p{L}\p{N}']+$/u)?.[0].toLowerCase();
+  if (last !== undefined && (OPEN_WORDS.has(last) || (tier2 && OPEN_WORDS_TIER2.has(last)))) return "open";
+  if (tier2 && OPEN_PAIR_TIER2.test(body.toLowerCase())) return "open";
   return /[.?!]$/.test(t) ? "done" : "unknown";
 }
 
-export type SemanticWaits = { done: number; unknown: number; open: number; floor: number; ceiling: number };
+export type SemanticWaits = { done: number; unknown: number; open: number; floor: number; ceiling: number; tier2?: boolean };
 
 // PLACEHOLDER, not a result: the middle of the replay sweep grid, so that ?endpoint=semantic does something
 // before the sweep has run. Replace with the swept values. The code default stays the fixed 5000 either way.
@@ -63,7 +73,7 @@ export const SEMANTIC_WAITS: SemanticWaits = { done: 300, unknown: 1500, open: 3
 // The wait for this text, in ms after a speech end. No text is "unknown". While a commit is in flight the text
 // is not final, so the wait is at least the "unknown" one. Clamped to [floor, ceiling].
 export function waitFor(text: string | null, w: SemanticWaits, commitsInFlight: number): number {
-  let ms = w[endHint(text ?? "")];
+  let ms = w[endHint(text ?? "", w.tier2)];
   if (commitsInFlight > 0) ms = Math.max(ms, w.unknown);
   return Math.min(w.ceiling, Math.max(w.floor, ms));
 }

@@ -92,7 +92,8 @@ test("--policy: fixed:<ms>, semantic, semantic with five numbers; the default is
   assert.deepEqual(parsePolicy("fixed:1200"), { kind: "fixed", ms: 1200 });
   assert.deepEqual(parsePolicy("semantic"), { kind: "semantic", waits: null });
   assert.deepEqual(parsePolicy("semantic:0,1000,2500,0,8000"), { kind: "semantic", waits: { done: 0, unknown: 1000, open: 2500, floor: 0, ceiling: 8000 } });
-  for (const bad of ["fixed", "fixed:abc", "fixed:-1", "semantic:1,2,3", "semantic:a,b,c,d,e", "other", ""]) {
+  assert.deepEqual(parsePolicy("semantic:0,1000,2500,0,8000,tier2"), { kind: "semantic", waits: { done: 0, unknown: 1000, open: 2500, floor: 0, ceiling: 8000, tier2: true } });
+  for (const bad of ["fixed", "fixed:abc", "fixed:-1", "semantic:1,2,3", "semantic:a,b,c,d,e", "semantic:1,2,3,4,5,tier3", "other", ""]) {
     assert.throws(() => parsePolicy(bad), /--policy/, bad);
   }
 });

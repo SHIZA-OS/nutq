@@ -82,10 +82,10 @@ export function commitLatencyMs(samples, scale) {
 }
 
 // The --policy argument: "fixed:<ms>", "semantic" (the SEMANTIC_WAITS of src/turn-policy.ts) or
-// "semantic:<done>,<unknown>,<open>,<floor>,<ceiling>". Absent is the fixed 5000 the baselines were run with.
+// "semantic:<done>,<unknown>,<open>,<floor>,<ceiling>", with ",tier2" after them for the second open list (src/turn-policy.ts). Absent is the fixed 5000 the baselines were run with.
 export function parsePolicy(arg) {
   if (arg === undefined) return { kind: "fixed", ms: 5000 };
-  const bad = () => new Error(`--policy takes fixed:<ms>, semantic or semantic:<done>,<unknown>,<open>,<floor>,<ceiling>, got "${arg}"`);
+  const bad = () => new Error(`--policy takes fixed:<ms>, semantic or semantic:<done>,<unknown>,<open>,<floor>,<ceiling>[,tier2], got "${arg}"`);
   const num = (s) => (/^\d+$/.test(s) ? Number(s) : NaN);
   if (arg.startsWith("fixed:")) {
     const ms = num(arg.slice(6));
@@ -94,10 +94,12 @@ export function parsePolicy(arg) {
   }
   if (arg === "semantic") return { kind: "semantic", waits: null };
   if (arg.startsWith("semantic:")) {
-    const n = arg.slice(9).split(",").map(num);
-    if (n.length !== 5 || n.some(Number.isNaN)) throw bad();
+    const parts = arg.slice(9).split(",");
+    const tier2 = parts.length === 6 && parts[5] === "tier2";
+    const n = parts.slice(0, 5).map(num);
+    if ((parts.length !== 5 && !tier2) || n.length !== 5 || n.some(Number.isNaN)) throw bad();
     const [done, unknown, open, floor, ceiling] = n;
-    return { kind: "semantic", waits: { done, unknown, open, floor, ceiling } };
+    return { kind: "semantic", waits: { done, unknown, open, floor, ceiling, ...(tier2 ? { tier2 } : {}) } };
   }
   throw bad();
 }

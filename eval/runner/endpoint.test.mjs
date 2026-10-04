@@ -105,6 +105,11 @@ before(async () => {
     p.speechEnd(100);
     out.fixed = { endsAt: p.endsAt(), wait: p.wait() };
 
+    // tier 2 of the open list, a sweep arm that is off by default: auxiliary verbs, subject-only pronouns, "<modal> you"
+    const t2 = ["What is", "Can you", "So do I", "Thank you.", "Please send it.", "I think she", "What time is it?", "Bring the folder", "he"];
+    out.tier2 = { off: Object.fromEntries(t2.map((t) => [t, endHint(t)])), on: Object.fromEntries(t2.map((t) => [t, endHint(t, true)])) };
+    out.tier2Wait = [waitFor("What is", { ...W, tier2: true }, 0), waitFor("What is", W, 0)];
+
     // ?silence and ?endpoint: silence is a fixed wait and wins; endpoint=semantic is opt-in; absent is the 5000 default
     const sem = waitFromParams(null, "semantic");
     out.params = {
@@ -211,3 +216,16 @@ test("?endpoint=semantic alone, or with an empty ?silence=, gives the text-depen
   assert.equal(r.params.emptySilence, "function");
   assert.deepEqual([r.params.semanticDone, r.params.semanticOpen, r.params.semanticInFlight], r.params.expected);
 });
+
+test("tier 2 is off by default: auxiliary verbs and pronouns at the end are not open", () => {
+  assert.deepEqual(Object.values(r.tier2.off), ["unknown", "unknown", "unknown", "done", "done", "unknown", "done", "unknown", "unknown"]);
+});
+
+test("tier 2 on: an auxiliary verb, I/we/they/he/she or a modal before you at the end is open; thank you and send it are not", () => {
+  assert.deepEqual(r.tier2.on, {
+    "What is": "open", "Can you": "open", "So do I": "open", "Thank you.": "done", "Please send it.": "done",
+    "I think she": "open", "What time is it?": "done", "Bring the folder": "unknown", he: "open",
+  });
+});
+
+test("waitFor takes tier 2 from the waits object, off when it is absent", () => assert.deepEqual(r.tier2Wait, [3000, 1500]));
