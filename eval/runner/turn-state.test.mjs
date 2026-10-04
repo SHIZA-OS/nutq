@@ -120,6 +120,47 @@ before(async () => {
       s = new ReplyState(500);
       s.trySend(100);
       out.custom = { timesOutAt: s.timesOutAt(), at: s.tick(600) };
+
+      // The mute: set only while a reply is in flight, ended by every point that ends the flag.
+      s = new ReplyState();
+      out.muteIdle = { returned: s.mute(), muted: s.muted, firstChunk: s.firstMutedChunk() };
+      s.trySend(0);
+      out.muteFlight = { before: s.muted, returned: s.mute(), muted: s.muted, again: s.mute() };
+      out.muteEndedBy = clearing.map((f) => {
+        const st = new ReplyState();
+        st.trySend(0);
+        st.mute();
+        st.frame(f);
+        return { f, muted: st.muted };
+      });
+      out.muteKeptBy = notClearing.map((f) => {
+        const st = new ReplyState();
+        st.trySend(0);
+        st.mute();
+        st.frame(f);
+        return { f, muted: st.muted };
+      });
+      s = new ReplyState();
+      s.trySend(0);
+      s.mute();
+      s.closed();
+      out.muteClosed = s.muted;
+      s = new ReplyState();
+      s.trySend(1000);
+      s.mute();
+      const justBefore = (s.tick(1000 + REPLY_TIMEOUT_MS - 1), s.muted);
+      s.tick(1000 + REPLY_TIMEOUT_MS);
+      out.muteTimeout = { justBefore, afterTimeout: s.muted };
+      // The next turn starts unmuted, with a fresh once-per-turn chunk report.
+      s = new ReplyState();
+      s.trySend(0);
+      s.mute();
+      const first = [s.firstMutedChunk(), s.firstMutedChunk(), s.firstMutedChunk()];
+      s.frame({ type: "done" });
+      s.trySend(1);
+      const nextTurn = { muted: s.muted, firstChunk: s.firstMutedChunk() };
+      s.mute();
+      out.muteChunk = { first, nextTurn, nextTurnMuted: s.firstMutedChunk() };
       return out;
     },
     { clearing: CLEARING, notClearing: NOT_CLEARING },
@@ -190,3 +231,24 @@ test("the safety timeout is 60000 ms from the send, clears the flag once, and a 
 });
 
 test("the timeout can be set", () => assert.deepEqual(r.custom, { timesOutAt: 600, at: true }));
+
+test("mute() with no reply in flight does nothing; with one in flight it mutes, and muting again is harmless", () => {
+  assert.deepEqual(r.muteIdle, { returned: false, muted: false, firstChunk: false });
+  assert.deepEqual(r.muteFlight, { before: false, returned: true, muted: true, again: true });
+});
+
+test("the mute ends with done, aborted, each turn-failure error, a closed socket and the timeout", () => {
+  assert.equal(r.muteEndedBy.length, CLEARING.length);
+  for (const c of r.muteEndedBy) assert.equal(c.muted, false, JSON.stringify(c.f));
+  assert.equal(r.muteClosed, false);
+  assert.deepEqual(r.muteTimeout, { justBefore: true, afterTimeout: false });
+});
+
+test("frames that do not end the turn leave the mute set", () => {
+  assert.equal(r.muteKeptBy.length, NOT_CLEARING.length);
+  for (const c of r.muteKeptBy) assert.equal(c.muted, true, JSON.stringify(c.f));
+});
+
+test("firstMutedChunk is true once per muted turn and not at all when not muted; the next turn starts unmuted and fresh", () => {
+  assert.deepEqual(r.muteChunk, { first: [true, false, false], nextTurn: { muted: false, firstChunk: false }, nextTurnMuted: true });
+});

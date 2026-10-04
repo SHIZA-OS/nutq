@@ -18,6 +18,8 @@ export const REPLY_TIMEOUT_MS = 60000;
 export class ReplyState {
   private sentAt: number | null = null;
   private timeoutMs: number;
+  private isMuted = false;
+  private chunkNoted = false;
 
   constructor(timeoutMs: number = REPLY_TIMEOUT_MS) {
     this.timeoutMs = timeoutMs;
@@ -43,13 +45,33 @@ export class ReplyState {
       frame.type === "aborted" ||
       (frame.type === "error" && typeof frame.code === "string" && TURN_FAILURE_CODES.has(frame.code));
     if (!ends || this.sentAt === null) return false;
-    this.sentAt = null;
+    this.clear();
     return true;
   }
 
   // The socket closed: whatever was in flight is gone.
   closed(): void {
-    this.sentAt = null;
+    this.clear();
+  }
+
+  // The user took the floor (the mic was tapped) while this reply is in flight: nothing more of it is to be
+  // spoken. Returns false, and changes nothing, when no reply is in flight. The mute ends with the turn by
+  // construction: every point that clears the flag (frame, closed, tick) clears it too.
+  mute(): boolean {
+    if (this.sentAt === null) return false;
+    this.isMuted = true;
+    return true;
+  }
+
+  get muted(): boolean {
+    return this.isMuted;
+  }
+
+  // The first muted chunk of a muted turn: true once, so the caller reports it once.
+  firstMutedChunk(): boolean {
+    if (!this.isMuted || this.chunkNoted) return false;
+    this.chunkNoted = true;
+    return true;
   }
 
   // When the flag clears by itself, so the caller can keep one timer: null whenever nothing is in flight, which
@@ -61,7 +83,13 @@ export class ReplyState {
   // Time has reached `now`: if the reply has been in flight for the whole timeout, clear the flag and return true.
   tick(now: number): boolean {
     if (this.sentAt === null || now < this.sentAt + this.timeoutMs) return false;
-    this.sentAt = null;
+    this.clear();
     return true;
+  }
+
+  private clear(): void {
+    this.sentAt = null;
+    this.isMuted = false;
+    this.chunkNoted = false;
   }
 }
