@@ -144,7 +144,9 @@ const micHint = $<HTMLParagraphElement>("mic-hint");
 function updateMicState() {
   micBtn.disabled = !(modelState === "ready" && (socketOpen || isNoSend));
   micHint.textContent =
-    modelState === "failed"
+    blockedHint && replyState.inFlight
+      ? "Still answering, try again"
+      : modelState === "failed"
       ? "Speech model unavailable"
       : modelState === "idle"
         ? "Connect to load the speech model"
@@ -181,6 +183,9 @@ let replyBuffer = "";
 // nothing is sent until the running turn ends.
 const replyState = new ReplyState();
 let replyTimer: ReturnType<typeof setTimeout> | null = null;
+// Set when an utterance was blocked while a reply is in flight; shows a hint under the mic button until the
+// reply ends (see updateMicState).
+let blockedHint = false;
 
 // Keeps one timer in step with the reply state: it exists exactly while a reply is in flight, so every normal
 // clear (a done, an abort, a turn-failure error, a closed socket) cancels it just by calling this. If it fires,
@@ -197,13 +202,17 @@ function syncReplyTimer() {
     if (replyState.tick(at)) {
       log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, giving up on it. You can speak again.`);
       logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
+      blockedHint = false;
+      updateMicState();
     }
   }, Math.max(0, at - Date.now()));
 }
 
-// The reply state changed to "not in flight" (an ending frame or a close): drop the timer.
+// The reply state changed to "not in flight" (an ending frame or a close): drop the timer and the hint.
 function replyEnded() {
   syncReplyTimer();
+  blockedHint = false;
+  updateMicState();
 }
 let receivedSessionStart = false;
 let receivedFirstChunkThisTurn = false;
@@ -556,6 +565,8 @@ function sendTranscript(text: string, trigger: SendTrigger) {
     // The utterance is dropped, not held. Its text is in transcript_final in eval mode, so it is not repeated here.
     log("A reply is still in progress, so this utterance was not sent");
     logEvent("send_blocked", { reason: "reply_in_flight" });
+    blockedHint = true;
+    updateMicState();
     return;
   }
   syncReplyTimer();
