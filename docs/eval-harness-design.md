@@ -63,8 +63,10 @@ plan):**
 - `tts_start` (`SpeechSynthesisUtterance.onstart` fires; not yet confirmed live, sandbox environment
   has no working Web Speech API voices, needs verification on a real desktop browser)
 - `send_blocked` `{reason: "reply_in_flight"}` (a message was not sent because a reply was still in flight; the
-  utterance is dropped), `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis),
-  `tts_end` and `tts_error` `{message}` (the utterance's `onend` and `onerror`; a cancelled one reports `canceled`)
+  utterance is dropped), `turn_timeout` `{ms}` (the in-flight flag was cleared after `ms` with no ending frame),
+  `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis), `tts_end` (the utterance's
+  `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`) and `tts_error` `{message}`
+  (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`.
 
 Each event: `{event, timestamp_ms}`, plus optional extra fields merged in per call site. Corrected
 from an earlier draft of this section that said `{event, timestamp_ms, session_id}`: no client-side

@@ -187,3 +187,39 @@ test("session_id in the events file with no server rows classifies as dropped wi
   assert.equal(result.turns[0].outcome, "dropped");
   assert.equal(result.counts.dropped, 1);
 });
+
+// send_blocked, tts_skipped, tts_end, tts_error, tts_cancelled and turn_timeout are not in
+// FAILURE_CLIENT_EVENTS and are not read by name, so they must not change a classification. In particular a
+// turn that timed out client-side (turn_timeout) is not by itself a failure signal.
+const NEW_EVENTS = (t) => [
+  { event: "send_blocked", timestamp_ms: t, reason: "reply_in_flight" },
+  { event: "tts_skipped", timestamp_ms: t + 1, reason: "empty" },
+  { event: "tts_end", timestamp_ms: t + 2 },
+  { event: "tts_error", timestamp_ms: t + 3, message: "synthesis-failed" },
+  { event: "tts_cancelled", timestamp_ms: t + 4, reason: "canceled" },
+  { event: "turn_timeout", timestamp_ms: t + 5, ms: 60000 },
+];
+
+test("the new events do not change a completed classification", () => {
+  const base = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_start", timestamp_ms: 450 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+  const withNew = [...NEW_EVENTS(0), ...base.slice(0, 2), ...NEW_EVENTS(200), ...base.slice(2), ...NEW_EVENTS(500)];
+  assert.deepEqual(classifyCompletion({ events: withNew, sessions }, SK), classifyCompletion({ events: base, sessions }, SK));
+});
+
+test("a turn with no server row that timed out client-side (turn_timeout) is unmatched_no_signal, not dropped", () => {
+  const events = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    ...NEW_EVENTS(60200),
+  ];
+  const result = classifyCompletion({ events, sessions: {} }, null, { noServerSession: true });
+  assert.equal(result.turns[0].outcome, "unmatched_no_signal");
+  assert.deepEqual(result.turns[0].failure_events, []);
+});

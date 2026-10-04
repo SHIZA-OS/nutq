@@ -220,3 +220,59 @@ test("an events file spanning several session_ids needs an explicit --session", 
   assert.throws(() => joinLatency({ events, sessions }), /2 different session_start session_ids/);
   assert.equal(joinLatency({ events, sessions }, SESSION_KEY).session_key, SESSION_KEY);
 });
+
+// The events added with the in-flight guard and the TTS hygiene work (send_blocked, tts_skipped, tts_end,
+// tts_error, tts_cancelled, turn_timeout) are not read by name here, so they must not change any stage.
+const NEW_EVENTS = (t) => [
+  { event: "send_blocked", timestamp_ms: t, reason: "reply_in_flight" },
+  { event: "tts_skipped", timestamp_ms: t + 1, reason: "empty" },
+  { event: "tts_end", timestamp_ms: t + 2 },
+  { event: "tts_error", timestamp_ms: t + 3, message: "synthesis-failed" },
+  { event: "tts_cancelled", timestamp_ms: t + 4, reason: "canceled" },
+  { event: "turn_timeout", timestamp_ms: t + 5, ms: 60000 },
+];
+
+function twoTurns() {
+  return [
+    { event: "speech_start", timestamp_ms: 0 },
+    { event: "speech_end", timestamp_ms: 900 },
+    { event: "stt_committed", timestamp_ms: 950 },
+    { event: "ws_message_sent", timestamp_ms: 1510, send_trigger: "auto_silence" },
+    { event: "first_chunk_received", timestamp_ms: 1800 },
+    { event: "done_received", timestamp_ms: 2200 },
+    { event: "tts_start", timestamp_ms: 2250 },
+    { event: "speech_start", timestamp_ms: 3000 },
+    { event: "speech_end", timestamp_ms: 3800 },
+    { event: "stt_committed", timestamp_ms: 3850 },
+    { event: "ws_message_sent", timestamp_ms: 8800, send_trigger: "auto_silence" },
+    { event: "first_chunk_received", timestamp_ms: 9100 },
+    { event: "done_received", timestamp_ms: 9500 },
+    { event: "tts_start", timestamp_ms: 9560 },
+  ];
+}
+
+test("the new events do not change any stage, wherever they fall", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const base = twoTurns();
+  // inserted at the start, inside turn 1's window, between the turns, inside turn 2's window and at the end
+  const withNew = [...NEW_EVENTS(-100), ...base.slice(0, 2), ...NEW_EVENTS(1000), ...base.slice(2, 7), ...NEW_EVENTS(2300), ...base.slice(7, 10), ...NEW_EVENTS(5000), ...base.slice(10), ...NEW_EVENTS(9600)];
+  assert.deepEqual(joinLatency({ events: withNew, sessions }, SK), joinLatency({ events: base, sessions }, SK));
+});
+
+test("an utterance blocked during turn 1's reply (its speech events and send_blocked) does not change turn 2's stages", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const base = twoTurns();
+  const blocked = [
+    { event: "mic_button_press", timestamp_ms: 1900 },
+    { event: "speech_start", timestamp_ms: 1950 },
+    { event: "speech_end", timestamp_ms: 2050 },
+    { event: "stt_committed", timestamp_ms: 2100 },
+    { event: "send_blocked", timestamp_ms: 7100, reason: "reply_in_flight" }, // the auto-silence send, dropped
+  ];
+  const withBlocked = [...base.slice(0, 7), ...blocked, ...base.slice(7)];
+  const a = joinLatency({ events: withBlocked, sessions }, SK);
+  const b = joinLatency({ events: base, sessions }, SK);
+  assert.equal(a.turns.length, 2); // a blocked utterance is not a turn
+  assert.deepEqual(a.turns[1], b.turns[1]);
+  assert.deepEqual(a.turns[0], b.turns[0]);
+});
