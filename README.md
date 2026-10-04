@@ -15,12 +15,10 @@ npm run dev
 Requires Node.js and npm. Point nutq at your own ZeroClaw instance by filling in the gateway
 URL, agent alias, and pairing token in the app.
 
-## Demo on Linux (local voices)
+## Demo on Linux
 
-Chrome on Linux lists the local speech-dispatcher voices only when it is started with `--enable-speech-dispatcher`,
-and Nutq prefers a local voice for replies because it starts speaking quickly. The script uses a separate Chrome
-profile (`~/.nutq-demo-chrome`) so that flag always applies (Chrome ignores new flags when it hands a URL to an
-already running instance of the same profile) and the demo's pairing token stays apart from your everyday Chrome.
+The demo script opens Chrome with its own profile (`~/.nutq-demo-chrome`). That gives a clean window and keeps the
+demo's pairing token and the downloaded speech model cache between runs, apart from your everyday Chrome.
 
 1. Start ZeroClaw: in the ZeroClaw checkout run `docker compose up -d`, then check it answers with
    `docker exec zeroclaw zeroclaw agent -a default -m "reply with PONG only"`. Have a pairing code ready, see
@@ -33,8 +31,8 @@ already running instance of the same profile) and the demo's pairing token stays
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
 
-Replies are spoken with the browser's default voice; add `voice=<exact name>` to the URL to pick another (the page logs the
-voice list).
+Replies are spoken with the browser's default voice; add `voice=<exact name>` to the URL to pick another (the page
+logs the voice list).
 
 ## Pairing
 
