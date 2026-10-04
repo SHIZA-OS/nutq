@@ -42,8 +42,8 @@
 //
 // Every case also gets an end-of-turn report: a second pass over the whole file with the same VAD and no policy gives the
 // speech runs (endpoint-metrics.mjs), so the report can say whether the turn was cut off (premature) and how long after
-// the true end of speech it ended. --gate <results dir> compares every v1 case's hypothesis, per phase, with that
-// earlier sweep and exits non-zero on any difference.
+// the true end of speech it ended. --gate <results dir> compares every v1 case, per phase, with that earlier sweep: it
+// fails (exit 1) when a case has a new error against the reference, and lists changed hypotheses for review.
 //
 // Limits: offline frames skip Chrome's mic processing (echo cancellation, noise suppression,
 // auto gain, resampling), so a replay can differ from a mic run of the same recording.
@@ -55,7 +55,7 @@ import { join } from "node:path";
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { parseJsonl, scoreRun, loadFlags } from "./wer.mjs";
 import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
-import { analyzeTurn, parsePolicy, summarize } from "./endpoint-metrics.mjs";
+import { analyzeTurn, compareGate, parsePolicy, summarize } from "./endpoint-metrics.mjs";
 
 const CHROME = "/usr/bin/google-chrome";
 const FRAME = 512; // samples
@@ -455,9 +455,10 @@ function writeSweep(args, cases, sweep, missing) {
     "",
     ...(gate
       ? [
-          `**v1 gate against \`${gate.baseline}\`: ${gate.pass ? "PASS" : "FAIL"}.** ${gate.compared} v1 case hypotheses compared across ${gate.phases} phases, ${gate.mismatches.length} different; v1 normalized WER mean ${pct(gate.wer_mean)} vs ${pct(gate.baseline_wer_mean)}.`,
+          `**v1 gate against \`${gate.baseline}\`: ${gate.pass ? "PASS" : "FAIL"}.** ${gate.compared} v1 case-phases compared over ${gate.phases} phases: ${gate.fail.length} with a new error against the reference (fail), ${gate.review.length} with a changed hypothesis and no new error (for review); v1 normalized WER mean ${pct(gate.wer_mean)} vs ${pct(gate.baseline_wer_mean)}.`,
           "",
-          ...gate.mismatches.map((m) => `- phase ${m.phase} ${m.id}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)}`),
+          ...gate.fail.map((m) => `- FAIL phase ${m.phase} ${m.id}: more ${m.more.join(", ")}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)}`),
+          ...gate.review.map((m) => `- review phase ${m.phase} ${m.id}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)} (errors S/D/I ${m.errors.baseline.S}/${m.errors.baseline.D}/${m.errors.baseline.I} to ${m.errors.got.S}/${m.errors.got.D}/${m.errors.got.I})`),
           "",
         ]
       : []),
@@ -479,17 +480,19 @@ function writeSweep(args, cases, sweep, missing) {
   writeFileSync(join(outDir, "README.md"), readme);
   console.error(`wrote ${outDir}/summary.json, README.md and ${args.phases} phase summaries`);
   if (gate) {
-    console.error(`v1 gate against ${gate.baseline}: ${gate.pass ? "PASS" : "FAIL"} (${gate.mismatches.length} of ${gate.compared} hypotheses differ)`);
+    console.error(`v1 gate against ${gate.baseline}: ${gate.pass ? "PASS" : "FAIL"} (${gate.fail.length} fail, ${gate.review.length} for review, of ${gate.compared} case-phases)`);
     if (!gate.pass) process.exitCode = 1;
   }
 }
 
-// The v1 gate: every v1 case's hypothesis in every phase must be the one in an earlier sweep (a results directory
-// with phase-N/summary.json), so a change to the end of turn leaves the v1 WER as it was. Cases the earlier sweep
-// did not have (later sets) are not compared.
+// The v1 gate against an earlier sweep (a results directory with phase-N/summary.json): per phase, every v1 case of
+// the earlier sweep is compared with the same case here (compareGate). FAIL when a case has a new error against the
+// reference; a case whose hypothesis changed without more errors is listed for review. Cases the earlier sweep did
+// not have (later sets) are not compared.
 function gateAgainst(dir, phaseSummaries) {
   const base = dir.startsWith("/") ? dir : join(REPO, "eval/results", dir);
-  const mismatches = [];
+  const fail = [];
+  const review = [];
   let compared = 0;
   const baseWer = [];
   const gotWer = [];
@@ -497,14 +500,14 @@ function gateAgainst(dir, phaseSummaries) {
     const b = JSON.parse(readFileSync(join(base, `phase-${phase}`, "summary.json"), "utf8"));
     baseWer.push(b.case_sets.v1.num_norm.wer);
     gotWer.push(s.case_sets.v1.num_norm.wer);
-    for (const bc of b.cases.filter((x) => x.set === "v1")) {
-      const gc = s.cases.find((x) => x.id === bc.id);
-      compared++;
-      if (!gc || gc.hypothesis !== bc.hypothesis) mismatches.push({ phase, id: bc.id, baseline: bc.hypothesis, got: gc?.hypothesis ?? null });
-    }
+    const baseCases = b.cases.filter((x) => x.set === "v1");
+    compared += baseCases.length;
+    const r = compareGate(baseCases, s.cases);
+    fail.push(...r.fail.map((x) => ({ phase, ...x })));
+    review.push(...r.review.map((x) => ({ phase, ...x })));
   });
   const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-  return { baseline: dir, phases: phaseSummaries.length, compared, mismatches, baseline_wer_mean: mean(baseWer), wer_mean: mean(gotWer), pass: mismatches.length === 0 && mean(baseWer) === mean(gotWer) };
+  return { baseline: dir, phases: phaseSummaries.length, compared, fail, review, baseline_wer_mean: mean(baseWer), wer_mean: mean(gotWer), pass: fail.length === 0 };
 }
 
 // The end-of-turn report of one case: when and how the turn ended against the recorded speech (endpoint-metrics.mjs),

@@ -4,7 +4,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FRAME_MS, speechRuns, analyzeTurn, summarize, commitLatencyMs, parsePolicy, quantile } from "./endpoint-metrics.mjs";
+import { FRAME_MS, speechRuns, analyzeTurn, summarize, commitLatencyMs, parsePolicy, quantile, compareGate } from "./endpoint-metrics.mjs";
 
 // probabilities from a pattern: "s" = speech frame (0.9), "." = silence (0.05), "w" = in between (0.4)
 const probs = (pattern) => [...pattern].map((c) => (c === "s" ? 0.9 : c === "w" ? 0.4 : 0.05));
@@ -95,4 +95,44 @@ test("--policy: fixed:<ms>, semantic, semantic with five numbers; the default is
   for (const bad of ["fixed", "fixed:abc", "fixed:-1", "semantic:1,2,3", "semantic:a,b,c,d,e", "other", ""]) {
     assert.throws(() => parsePolicy(bad), /--policy/, bad);
   }
+});
+
+// --- the v1 gate: fail on a new error against the reference, list a changed hypothesis whose errors did not grow ---
+
+const gc = (id, hypothesis, S, D, I) => ({ id, hypothesis, num_norm: { S, D, I } });
+
+test("gate: an identical hypothesis is neither failed nor listed", () => {
+  const g = compareGate([gc("a", "hello there", 0, 0, 0)], [gc("a", "hello there", 0, 0, 0)]);
+  assert.deepEqual(g, { fail: [], review: [], unchanged: 1 });
+});
+
+test("gate: a new error of any kind (more substitutions, deletions or insertions) fails, and says which", () => {
+  const base = [gc("s", "a b", 0, 0, 0), gc("d", "a b", 0, 0, 0), gc("i", "a b", 0, 0, 0), gc("ok", "a b", 1, 0, 0)];
+  const got = [gc("s", "a x", 1, 0, 0), gc("d", "a", 0, 1, 0), gc("i", "a b c", 0, 0, 1), gc("ok", "a b", 1, 0, 0)];
+  const g = compareGate(base, got);
+  assert.deepEqual(g.fail.map((f) => [f.id, f.more]), [["s", ["S"]], ["d", ["D"]], ["i", ["I"]]]);
+  assert.deepEqual(g.review, []);
+  assert.equal(g.unchanged, 1);
+});
+
+test("gate: a changed hypothesis whose errors did not grow is listed for review, not failed", () => {
+  // the stray word that was an insertion is gone: fewer errors
+  const g = compareGate([gc("bn-03", "set a timer. yes.", 1, 0, 1)], [gc("bn-03", "set a timer.", 1, 0, 0)]);
+  assert.deepEqual(g.fail, []);
+  assert.deepEqual(g.review, [{ id: "bn-03", baseline: "set a timer. yes.", got: "set a timer.", errors: { baseline: { S: 1, D: 0, I: 1 }, got: { S: 1, D: 0, I: 0 } } }]);
+  // only punctuation or case changed, same errors
+  const p = compareGate([gc("p", "Yes.", 0, 0, 0)], [gc("p", "Yes", 0, 0, 0)]);
+  assert.equal(p.fail.length, 0);
+  assert.equal(p.review.length, 1);
+});
+
+test("gate: swapping one kind of error for another is a new error of that kind and fails", () => {
+  const g = compareGate([gc("x", "a b", 1, 0, 0)], [gc("x", "a", 0, 1, 0)]);
+  assert.deepEqual(g.fail.map((f) => [f.id, f.more]), [["x", ["D"]]]);
+});
+
+test("gate: a case missing from the new run fails; a case only in the new run is ignored", () => {
+  const g = compareGate([gc("gone", "a", 0, 0, 0)], [gc("new", "b", 0, 0, 5)]);
+  assert.deepEqual(g.fail.map((f) => [f.id, f.more]), [["gone", ["missing"]]]);
+  assert.equal(g.review.length, 0);
 });
