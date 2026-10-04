@@ -44,21 +44,21 @@ before(async () => {
 
     let t = setup(voices, null);
     t.speak("Hello there.");
-    out.noVoice = { name: t.engine.name, text: t.spoken[0].text, voice: t.spoken[0].voice };
+    out.noVoice = { name: t.engine.name, text: t.spoken[0].text, voice: t.spoken[0].voice, lang: t.spoken[0].lang };
     t.spoken[0].onstart();
     t.spoken[0].onend();
     out.noVoiceEvents = t.events;
 
     t = setup(voices, "samantha");
     t.speak("Hi.");
-    out.named = { voice: t.spoken[0].voice?.name ?? null };
+    out.named = { voice: t.spoken[0].voice?.name ?? null, lang: t.spoken[0].lang ?? null };
     t.spoken[0].onstart();
     out.namedStart = t.events;
 
     t = setup(voices, "Nobody");
     t.speak("Hi.");
     t.spoken[0].onstart();
-    out.missing = { voice: t.spoken[0].voice, events: t.events };
+    out.missing = { voice: t.spoken[0].voice, lang: t.spoken[0].lang, events: t.events };
 
     t = setup([v("Only", true)], null); // no voice flagged default: nothing to name
     t.speak("Hi.");
@@ -84,14 +84,18 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("the browser engine is named browser, speaks the text it is given and leaves the voice to the browser by default", () => {
-  assert.deepEqual(r.noVoice, { name: "browser", text: "Hello there.", voice: null });
+test("the browser engine is named browser, speaks the text it is given and leaves the voice to the browser, asking for en-US", () => {
+  assert.deepEqual(r.noVoice, { name: "browser", text: "Hello there.", voice: null, lang: "en-US" });
+});
+
+test("lang is en-US only when no voice was chosen: a voice that matched (?voice=) keeps its own language, a name that matched nothing gets en-US", () => {
+  assert.deepEqual(r.named, { voice: "Samantha", lang: null });
+  assert.equal(r.missing.lang, "en-US");
 });
 
 test("onStart carries the tts_start fields: the voice, whether it is local and where the name came from", () => {
   // No voice chosen: the voice flagged default is the best guess.
   assert.deepEqual(r.noVoiceEvents, [["start", { voice: "Google US English", local_service: false, voice_source: "browser_default" }], ["end"]]);
-  assert.equal(r.named.voice, "Samantha");
   assert.deepEqual(r.namedStart, [["start", { voice: "Samantha", local_service: true, voice_source: "param" }]]);
   assert.equal(r.missing.voice, null);
   assert.deepEqual(r.missing.events, [["start", { voice: "Google US English", local_service: false, voice_source: "browser_default" }]]);

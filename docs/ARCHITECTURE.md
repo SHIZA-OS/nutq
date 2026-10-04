@@ -156,7 +156,9 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 - `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
   at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
   log panel (at most 40 lines, with local and network counts) so a name can be copied from it. With no name, or a
-  name that matches nothing (which is logged), the browser's default voice is used. Choosing a local voice
+  name that matches nothing (which is logged), the browser's default voice is used, and the utterance asks for `en-US`
+  (`lang`) so the browser does not pick by the system language; which voice it then picks is not observable from the page,
+  so the `voice` field of `tts_start` stays a best guess (the voice flagged default). Choosing a local voice
   automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for the
   demo. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
 - `?tts_stream=1` (any mode, default off): speak the reply sentence by sentence as its chunks arrive instead of

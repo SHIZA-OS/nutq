@@ -28,6 +28,9 @@ export function browserEngine(synth: SpeechSynthesis, wantedVoice: string | null
       const used = choice.voice ?? voices.find((v) => v.default) ?? null;
       const utterance = new SpeechSynthesisUtterance(text);
       if (choice.voice) utterance.voice = choice.voice;
+      // No voice chosen: ask for English, so the browser does not pick by the system language (the voice it flagged as
+      // default was a German one in a real run). voice_source stays browser_default; the browser still picks the voice.
+      else utterance.lang = "en-US";
       utterance.onstart = () => onStart({ voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
       utterance.onend = () => onEnd();
       utterance.onerror = (ev) => onError(ev.error);
