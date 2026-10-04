@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Records the WER case set (eval/wer/cases.jsonl) one case at a time.
 # Audio goes outside the repo, to ~/Shiza/nutq-eval-audio/cases/<id>.wav.
+# Each recording is 8 seconds unless the case sets "seconds" (a whole number), for cases with a long pause in them.
+# A case with "pause_s" has a pause in the middle of the sentence (marked [PAUSE] in its "prompt"); the screen then
+# says how long, and to count it silently.
 # Usage: eval/wer/record.sh [--only <id>] [--dry-run]
 #   --only <id>  re-record a single case even if its WAV exists
 #   --dry-run    print each case and the arecord command, record nothing
@@ -40,6 +43,9 @@ for line in "${lines[@]}"; do
   condition=$(jq -r .condition <<<"$line")
   reference=$(jq -r .reference <<<"$line")
   prompt=$(jq -r '.prompt // empty' <<<"$line")
+  secs=$(jq -r '.seconds // 8' <<<"$line")
+  pause_s=$(jq -r '.pause_s // empty' <<<"$line")
+  [[ "$secs" =~ ^[1-9][0-9]*$ ]] || { echo "$id: seconds must be a whole number above 0, got \"$secs\"" >&2; exit 2; }
   out="$outdir/$id.wav"
 
   if [ -n "$only" ]; then
@@ -49,13 +55,14 @@ for line in "${lines[@]}"; do
     continue
   fi
 
-  cmd=(arecord -D default -f S16_LE -r 16000 -c 1 -d 8 -t wav "$out.tmp")
+  cmd=(arecord -D default -f S16_LE -r 16000 -c 1 -d "$secs" -t wav "$out.tmp")
 
   if [ "$dry" -eq 1 ]; then
     echo "---"
     echo "id: $id  category: $category  condition: $condition"
     echo "reference: \"$reference\""
     [ -n "$prompt" ] && echo "prompt: $prompt"
+    [ -n "$pause_s" ] && echo "pause: about $pause_s s, counted silently ($secs second recording)"
     [ "$condition" = "background_noise" ] && [ "$noise_prompted" -eq 0 ] &&
       { echo "(would pause: Turn on a fan or TV at normal volume, then press Enter.)"; noise_prompted=1; }
     [ "$id" = "sil-01" ] && echo "(would print: Stay silent for the whole recording.)"
@@ -79,9 +86,12 @@ for line in "${lines[@]}"; do
     else
       printf '  %s\n\n\n' "$reference"
     fi
+    if [ -n "$pause_s" ]; then
+      printf '  At [PAUSE], stop for about %s s. Count the pause SILENTLY in your head;\n  do not say the numbers out loud. Then carry on with the sentence.\n\n\n' "$pause_s"
+    fi
     echo "  Recording in 2..."; sleep 1
     echo "  1..."; sleep 1
-    echo "  GO (8 seconds)"
+    echo "  GO ($secs seconds)"
     "${cmd[@]}"
     aplay -q "$out.tmp"
 
