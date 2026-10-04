@@ -5,6 +5,8 @@ import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
 import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { browserEngine } from "./tts-engine";
+import { SentenceSplitter } from "./sentence-splitter";
+import { SpeechQueue, type SpeechEvent } from "./speech-queue";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -81,7 +83,10 @@ type EvalEvent =
   | "ws_message_sent"
   | "first_chunk_received"
   | "done_received"
+  | "tts_requested"
   | "tts_start"
+  | "tts_sentence_start"
+  | "tts_text_mismatch"
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
@@ -204,6 +209,7 @@ function syncReplyTimer() {
     if (replyState.tick(at)) {
       log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, giving up on it. You can speak again.`);
       logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
+      if (speechQueue) cancelSpeech(); // flag on: a reply that never ended is not read out any further
       blockedHint = false;
       updateMicState();
     }
@@ -451,7 +457,9 @@ function connect() {
       return;
     }
 
-    if (replyState.frame(parsed)) replyEnded(); // done, aborted and a turn-failure error end the turn
+    const turnEnded = replyState.frame(parsed); // done, aborted and a turn-failure error end the turn
+    if (turnEnded) replyEnded();
+    if (turnEnded && parsed.type === "error" && speechQueue) cancelSpeech(); // flag on: a failed turn is not read out
 
     switch (parsed.type) {
       case "session_start":
@@ -469,14 +477,21 @@ function connect() {
         }
         replyBuffer += parsed.content ?? "";
         replyBoxEl.textContent = replyBuffer;
+        // Flag on: each sentence is queued as it closes. Only chunk frames are spoken, never thinking, tool or plan frames.
+        if (speechQueue) {
+          streamedChunks += parsed.content ?? "";
+          for (const sentence of splitter.push(parsed.content ?? "")) speechQueue.enqueue(sentence);
+        }
         break;
-      case "done":
+      case "done": {
         logEvent("done_received");
         replyBuffer = parsed.full_response ?? replyBuffer;
         replyBoxEl.textContent = replyBuffer;
         log(`Reply complete (${parsed.tokens_used ?? "?"} tokens)`);
-        speak(replyBuffer);
+        if (speechQueue) finishStreamedSpeech(parsed.full_response);
+        else speak(replyBuffer);
         break;
+      }
       case "aborted":
         cancelSpeech();
         log("Turn aborted by server");
@@ -607,10 +622,48 @@ if ("speechSynthesis" in window) {
 // The engine that speaks (src/tts-engine.ts); none when the browser has no speechSynthesis, and speak() says so.
 const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice) : null;
 
+// A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
+// is tts_error.
+function logTtsError(code: string | undefined) {
+  const e = ttsErrorEvent(code);
+  logEvent(e.event, e.fields);
+}
+
+// ?tts_stream=1 (any mode, default off): speak the reply sentence by sentence as its chunks arrive (src/sentence-splitter.ts
+// feeds src/speech-queue.ts) instead of once at done. Without a speech engine the flag does nothing and speak() reports it.
+const splitter = new SentenceSplitter();
+let streamedChunks = ""; // the chunks of this turn so far, to compare with full_response at done
+const speechQueue = urlParams.get("tts_stream") === "1" && ttsEngine ? new SpeechQueue(ttsEngine, logSpeechEvent) : null;
+
+function logSpeechEvent(e: SpeechEvent) {
+  switch (e.type) {
+    case "requested":
+      logEvent("tts_requested", { index: e.index });
+      break;
+    case "start":
+      // tts_start keeps its meaning: the first audible audio of the turn, once per turn.
+      if (e.first) logEvent("tts_start", { ...e.info, engine: ttsEngine?.name });
+      logEvent("tts_sentence_start", { index: e.index });
+      break;
+    case "end":
+      logEvent("tts_end");
+      break;
+    case "error":
+      logTtsError(e.code);
+      break;
+    case "cancelled":
+      logEvent("tts_cancelled", { reason: "canceled" });
+      break;
+  }
+}
+
 // Stops speech that is playing or queued. Called when a new message is sent and when a turn is aborted or the
 // connection closes, so an old reply is not read out over what comes next.
 function cancelSpeech() {
-  ttsEngine?.cancel();
+  splitter.reset();
+  streamedChunks = "";
+  if (speechQueue) speechQueue.cancel();
+  else ttsEngine?.cancel();
 }
 
 function speak(text: string) {
@@ -629,13 +682,21 @@ function speak(text: string) {
     spoken,
     (info) => logEvent("tts_start", { ...info, engine: ttsEngine.name }),
     () => logEvent("tts_end"),
-    // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
-    // is tts_error.
-    (code) => {
-      const e = ttsErrorEvent(code);
-      logEvent(e.event, e.fields);
-    },
+    logTtsError,
   );
+}
+
+// Flag on, at done: queue what is left of the reply and end the turn. The speech comes from the chunks, never from
+// full_response; if the two differ that is reported (tts_text_mismatch) and nothing is spoken again.
+function finishStreamedSpeech(fullResponse: unknown) {
+  if (!speechQueue) return;
+  const chunked = streamedChunks;
+  streamedChunks = "";
+  for (const tail of splitter.flush()) speechQueue.enqueue(tail);
+  if (speechQueue.finish() === 0) logEvent("tts_skipped", { reason: "empty" });
+  if (typeof fullResponse === "string" && fullResponse !== chunked) {
+    logEvent("tts_text_mismatch", { chunks_chars: chunked.length, full_response_chars: fullResponse.length });
+  }
 }
 
 connectBtn.addEventListener("click", () => {
