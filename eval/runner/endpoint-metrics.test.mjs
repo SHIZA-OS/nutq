@@ -136,3 +136,21 @@ test("gate: a case missing from the new run fails; a case only in the new run is
   assert.deepEqual(g.fail.map((f) => [f.id, f.more]), [["gone", ["missing"]]]);
   assert.equal(g.review.length, 0);
 });
+
+// A case with an empty reference (sil-01, no-01 to no-04) is scored "silence": no num_norm, words_produced instead.
+const sc = (id, hypothesis, words) => ({ id, hypothesis, status: "silence", words_produced: words });
+
+test("gate: a silence case is compared by the words it produced (each is an insertion), and does not crash", () => {
+  assert.deepEqual(compareGate([sc("no-01", "", 0)], [sc("no-01", "", 0)]), { fail: [], review: [], unchanged: 1 });
+  const more = compareGate([sc("no-01", "", 0)], [sc("no-01", "Yes.", 1)]);
+  assert.deepEqual(more.fail.map((f) => [f.id, f.more]), [["no-01", ["I"]]]);
+  const fewer = compareGate([sc("no-01", "Yes.", 1)], [sc("no-01", "", 0)]);
+  assert.deepEqual([fewer.fail.length, fewer.review.length], [0, 1]);
+});
+
+test("gate: a case that was scored before and has no transcript now fails as unscored; an unscored baseline case never fails", () => {
+  const noTranscript = { id: "x", status: "no_transcript", reason: "no_transcript_final" };
+  assert.deepEqual(compareGate([gc("x", "a b", 0, 0, 0)], [noTranscript]).fail.map((f) => [f.id, f.more]), [["x", ["unscored"]]]);
+  const g = compareGate([noTranscript], [gc("x", "a b", 5, 5, 5)]);
+  assert.deepEqual([g.fail.length, g.review.length], [0, 1]);
+});

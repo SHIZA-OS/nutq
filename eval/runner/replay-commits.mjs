@@ -472,7 +472,7 @@ function writeSweep(args, cases, sweep, missing) {
           `**v1 gate against \`${gate.baseline}\`: ${gate.pass ? "PASS" : "FAIL"}.** ${gate.compared} v1 case-phases compared over ${gate.phases} phases: ${gate.fail.length} with a new error against the reference (fail), ${gate.review.length} with a changed hypothesis and no new error (for review); v1 normalized WER mean ${pct(gate.wer_mean)} vs ${pct(gate.baseline_wer_mean)}.`,
           "",
           ...gate.fail.map((m) => `- FAIL phase ${m.phase} ${m.id}: more ${m.more.join(", ")}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)}`),
-          ...gate.review.map((m) => `- review phase ${m.phase} ${m.id}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)} (errors S/D/I ${m.errors.baseline.S}/${m.errors.baseline.D}/${m.errors.baseline.I} to ${m.errors.got.S}/${m.errors.got.D}/${m.errors.got.I})`),
+          ...gate.review.map((m) => `- review phase ${m.phase} ${m.id}: ${JSON.stringify(m.baseline)} became ${JSON.stringify(m.got)} (errors S/D/I ${sdi(m.errors.baseline)} to ${sdi(m.errors.got)})`),
           "",
         ]
       : []),
@@ -498,6 +498,8 @@ function writeSweep(args, cases, sweep, missing) {
     if (!gate.pass) process.exitCode = 1;
   }
 }
+
+const sdi = (e) => (e ? `${e.S}/${e.D}/${e.I}` : "unscored");
 
 // The v1 gate against an earlier sweep (a results directory with phase-N/summary.json): per phase, every v1 case of
 // the earlier sweep is compared with the same case here (compareGate). FAIL when a case has a new error against the

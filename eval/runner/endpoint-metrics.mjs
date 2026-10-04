@@ -103,10 +103,12 @@ export function parsePolicy(arg) {
 }
 
 // The v1 gate: compare each case of a new run with the same case of a baseline run (cases are the per-case rows of
-// a wer.mjs summary: id, hypothesis, num_norm { S, D, I }, errors counted against the reference after number
-// normalization). A case FAILS when it has more substitutions, deletions or insertions of reference words than the
-// baseline (`more` names which), or is missing from the new run. A case whose hypothesis changed but whose errors
-// did not grow is listed for REVIEW and does not fail. Cases only the new run has are not compared.
+// a wer.mjs summary). Errors are counted against the reference after number normalization: num_norm { S, D, I }; a case
+// with an empty reference (sil-01, no-01 to no-04) is scored "silence" and counts each word it produced as an insertion.
+// A case FAILS when it has more substitutions, deletions or insertions than the baseline (`more` names which), or is missing
+// from the new run, or was scored in the baseline and has no scored errors now (`unscored`). A case whose hypothesis changed
+// but whose errors did not grow is listed for REVIEW and does not fail. A baseline case with no scored errors cannot get
+// worse, so it is only ever listed. Cases only the new run has are not compared.
 export function compareGate(baseCases, gotCases) {
   const fail = [];
   const review = [];
@@ -117,8 +119,14 @@ export function compareGate(baseCases, gotCases) {
       fail.push({ id: b.id, more: ["missing"], baseline: b.hypothesis, got: null });
       continue;
     }
-    const more = ["S", "D", "I"].filter((k) => g.num_norm[k] > b.num_norm[k]);
-    const errors = { baseline: pick(b.num_norm), got: pick(g.num_norm) };
+    const be = errorsOf(b);
+    const ge = errorsOf(g);
+    if (be && !ge) {
+      fail.push({ id: b.id, more: ["unscored"], baseline: b.hypothesis, got: g.hypothesis ?? null });
+      continue;
+    }
+    const more = be ? ["S", "D", "I"].filter((k) => ge[k] > be[k]) : [];
+    const errors = { baseline: be, got: ge };
     if (more.length) fail.push({ id: b.id, more, baseline: b.hypothesis, got: g.hypothesis, errors });
     else if (g.hypothesis !== b.hypothesis) review.push({ id: b.id, baseline: b.hypothesis, got: g.hypothesis, errors });
     else unchanged++;
@@ -126,4 +134,4 @@ export function compareGate(baseCases, gotCases) {
   return { fail, review, unchanged };
 }
 
-const pick = ({ S, D, I }) => ({ S, D, I });
+const errorsOf = (c) => (c.num_norm ? { S: c.num_norm.S, D: c.num_norm.D, I: c.num_norm.I } : c.status === "silence" ? { S: 0, D: 0, I: c.words_produced ?? 0 } : null);
