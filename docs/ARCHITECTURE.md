@@ -155,14 +155,10 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   Chrome actually applied.
 - `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
   at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
-  log panel (at most 40 lines, with local and network counts) so a name can be copied from it. An unknown name is
-  logged and the browser default is used. With no name the reply voice is a local English one (Nutq's speech recognition is English only,
-  so replies are always English). The target language is `navigator.language` if it starts with "en", otherwise
-  "en-US". In order: the browser's default voice, only if it is local and its base language is "en" (a local default
-  in another language, such as Afrikaans under speech-dispatcher, is skipped); the first local voice whose lang equals
-  the target; the first local voice whose base language is "en"; otherwise the browser default. `voice_source` is
-  `auto_local` for the first three. On Linux Chrome only lists local voices (speech-dispatcher) when started
-  with `--enable-speech-dispatcher`.
+  log panel (at most 40 lines, with local and network counts) so a name can be copied from it. With no name, or a
+  name that matches nothing (which is logged), the browser's default voice is used. Choosing a local voice
+  automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for the
+  demo. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
 
@@ -178,7 +174,7 @@ Events added for WER measurement:
 - `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
   eval mode only (see "Model calls are serialized").
 - `tts_start` `{ voice, local_service, voice_source }`: the reply started to be spoken. `voice_source` is `param`
-  (chosen with `?voice=`), `auto_local` (picked by the rule above) or `browser_default`, where `voice` is the voice the browser flags as default, a best
+  (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
   guess because Chrome does not say which voice it picked; both are null if no voices were available.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when

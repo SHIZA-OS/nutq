@@ -33,9 +33,7 @@ already running instance of the same profile) and the demo's pairing token stays
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
 
-Replies are spoken with a local English voice by default (the browser's default voice if it is local and
-English, else the first local voice for your browser language if that is English (otherwise for en-US), else any local
-English voice); add `voice=<exact name>` to the URL to pick another (the page logs the
+Replies are spoken with the browser's default voice; add `voice=<exact name>` to the URL to pick another (the page logs the
 voice list).
 
 ## Pairing
