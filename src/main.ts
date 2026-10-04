@@ -3,7 +3,7 @@ import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, parseSilenceMs, transcriptToSend } from "./turn-policy";
 import { ReplyState } from "./turn-state";
-import { pickVoice, voiceLines } from "./voice";
+import { pickVoice, speechText, voiceLines } from "./voice";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
 // (positiveSpeechThreshold 0.5, negativeSpeechThreshold 0.35, minSpeechFrames 9,
@@ -81,6 +81,9 @@ type EvalEvent =
   | "first_chunk_received"
   | "done_received"
   | "tts_start"
+  | "tts_skipped"
+  | "tts_end"
+  | "tts_error"
   | "ws_error"
   | "ws_closed"
   | "turn_error_frame"
@@ -558,9 +561,15 @@ if ("speechSynthesis" in window) {
 }
 
 function speak(text: string) {
-  if (!text) return;
+  const spoken = speechText(text);
+  if (spoken === null) {
+    // An empty or whitespace-only reply is not spoken; say so instead of returning silently.
+    logEvent("tts_skipped", { reason: "empty" });
+    return;
+  }
   if (!("speechSynthesis" in window)) {
     log("SpeechSynthesis not supported in this browser");
+    logEvent("tts_skipped", { reason: "unsupported" });
     return;
   }
   if (voices.length === 0) voices = window.speechSynthesis.getVoices();
@@ -568,10 +577,13 @@ function speak(text: string) {
   // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
   // default is the best guess, so the event records where the name came from.
   const used = choice.voice ?? voices.find((v) => v.default) ?? null;
-  const utterance = new SpeechSynthesisUtterance(text);
+  const utterance = new SpeechSynthesisUtterance(spoken);
   if (choice.voice) utterance.voice = choice.voice;
   utterance.onstart = () =>
     logEvent("tts_start", { voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
+  utterance.onend = () => logEvent("tts_end");
+  // error is a SpeechSynthesisErrorCode such as "canceled", "interrupted" or "synthesis-failed".
+  utterance.onerror = (ev) => logEvent("tts_error", { message: ev.error ?? "unknown" });
   window.speechSynthesis.speak(utterance);
 }
 

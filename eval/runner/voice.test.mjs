@@ -20,7 +20,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { pickVoice, voiceLines } = await import("/src/voice.ts");
+    const { pickVoice, speechText, voiceLines } = await import("/src/voice.ts");
     const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
@@ -38,6 +38,7 @@ before(async () => {
       noNameWithLocalVoices: name(pickVoice(local, null)),
       emptyList: name(pickVoice([], null)),
       emptyListNamed: name(pickVoice([], "Samantha")),
+      speech: ["", " ", "\n\t  ", "\u00a0", "hi", "  Hi there.\n", "OK."].map((t) => speechText(t)),
       lines: voiceLines(list),
       manyLines: voiceLines(many, 40),
       none: voiceLines([]),
@@ -85,3 +86,7 @@ test("voiceLines caps a long list and says how many were left out", () => {
 });
 
 test("an empty list still gives the summary line", () => assert.deepEqual(r.none, ["Voices: 0 (0 local, 0 network). Pick one with ?voice=<exact name>."]));
+
+test("speechText trims the reply, and is null for empty or whitespace-only text (including a non-breaking space)", () => {
+  assert.deepEqual(r.speech, [null, null, null, null, "hi", "Hi there.", "OK."]);
+});

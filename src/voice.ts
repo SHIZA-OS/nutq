@@ -25,3 +25,9 @@ export function voiceLines(voices: VoiceInfo[], max = 40): string[] {
   if (voices.length > max) lines.push(`  ... and ${voices.length - max} more`);
   return lines;
 }
+
+// The text to speak: the reply trimmed, or null when it is empty or only whitespace (nothing to say).
+export function speechText(text: string): string | null {
+  const t = text.trim();
+  return t === "" ? null : t;
+}
