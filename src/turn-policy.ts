@@ -26,50 +26,120 @@ export function parseSilenceMs(param: string | null): number {
 
 export type TurnEnd = { at: number; reason: "auto_silence" | "manual" };
 
+// How long to wait after a speech end, given the transcript so far and how many commits (model calls that
+// will add text) are still in flight. A plain number is the same wait every time.
+export type WaitFn = (text: string, commitsInFlight: number) => number;
+
+// Whether the text so far reads as a finished thought. "open" means the speaker is probably about to go on.
+export type EndHint = "done" | "open" | "unknown";
+
+// Words a sentence does not end on: conjunctions, articles and determiners, prepositions, fillers. The last
+// word of the text is checked against this even when the model added a full stop after it ("...flight and.").
+// ponytail: tier 1 only. Auxiliary verbs and subject pronouns ("can you", "what is") are left out until the
+// replay sweep shows what they buy; "like", "no" and "one" are left out because they end complete utterances.
+const OPEN_WORDS = new Set(
+  ("and but or so because if that which when while although unless until as the a an this these those my your his her " +
+    "our their to of in on at for with from by about into over under between through before after without um uh er erm hmm").split(" "),
+);
+
+// "done": ends in . ? or ! and its last word is not an open word. "open": ends in ... , ; : or -, or its last
+// word (digits count as words) is an open word, punctuation or not. Everything else, including no text, is
+// "unknown". Moonshine base leaves out the full stop on about one complete sentence in five, so a missing
+// full stop is "unknown", not "open".
+export function endHint(text: string): EndHint {
+  const t = text.trimEnd();
+  if (/(\.\.\.|\u2026|[,;:-])$/.test(t)) return "open";
+  const last = t.replace(/[.?!]+$/, "").match(/[\p{L}\p{N}']+$/u)?.[0].toLowerCase();
+  if (last !== undefined && OPEN_WORDS.has(last)) return "open";
+  return /[.?!]$/.test(t) ? "done" : "unknown";
+}
+
+export type SemanticWaits = { done: number; unknown: number; open: number; floor: number; ceiling: number };
+
+// PLACEHOLDER, not a result: the middle of the replay sweep grid, so that ?endpoint=semantic does something
+// before the sweep has run. Replace with the swept values. The code default stays the fixed 5000 either way.
+export const SEMANTIC_WAITS: SemanticWaits = { done: 300, unknown: 1500, open: 3500, floor: 150, ceiling: MAX_SILENCE_MS };
+
+// The wait for this text, in ms after a speech end. No text is "unknown". While a commit is in flight the text
+// is not final, so the wait is at least the "unknown" one. Clamped to [floor, ceiling].
+export function waitFor(text: string | null, w: SemanticWaits, commitsInFlight: number): number {
+  let ms = w[endHint(text ?? "")];
+  if (commitsInFlight > 0) ms = Math.max(ms, w.unknown);
+  return Math.min(w.ceiling, Math.max(w.floor, ms));
+}
+
 export class TurnPolicy {
-  private silenceMs: number;
-  private deadline: number | null = null;
+  private waitFn: WaitFn;
+  private armedAt: number | null = null; // the speech end or misfire the wait counts from; null while speaking
+  private knownAt = -Infinity; // when the text or the in-flight count last changed the wait
+  private text = "";
+  private inFlight = 0;
   private ended: TurnEnd | null = null;
 
-  constructor(silenceMs: number = SILENCE_COMMIT_MS) {
-    this.silenceMs = silenceMs;
+  constructor(wait: number | WaitFn = SILENCE_COMMIT_MS) {
+    this.waitFn = typeof wait === "number" ? () => wait : wait;
   }
 
   // Speech started: any pending auto-silence is cancelled.
   speechStart(_at: number): void {
-    if (!this.ended) this.deadline = null;
+    if (!this.ended) this.armedAt = null;
   }
 
-  // Speech ended: auto-silence is armed to fire silenceMs later (a second speech end re-arms it).
+  // Speech ended: auto-silence is armed to fire one wait later (a second speech end re-arms it).
   speechEnd(at: number): void {
-    if (!this.ended) this.deadline = at + this.silenceMs;
+    if (!this.ended) this.armedAt = at;
   }
 
   // A VAD misfire (a segment too short to count as speech, so no speech end follows) arms auto-silence
   // the same way a speech end does; a later speech start still clears it. Without this a turn whose
   // only speech was a short word ("Yes.", "Stop") was never sent unless the user stopped it by hand.
   misfire(at: number): void {
-    if (!this.ended) this.deadline = at + this.silenceMs;
+    if (!this.ended) this.armedAt = at;
+  }
+
+  // The transcript so far, at time `at`. The wait is recomputed from it: while armed the deadline moves, and
+  // text that arrives after a speech start does not arm anything. If the new text puts the deadline in the
+  // past, the turn ends at `at`, the first moment anyone could know. A fixed wait ignores the text.
+  transcript(text: string, at: number): void {
+    if (this.ended) return;
+    this.change(at, () => (this.text = text));
+  }
+
+  // How many commits are in flight, at time `at` (see transcript for what changes).
+  setCommitsInFlight(n: number, at: number): void {
+    if (this.ended) return;
+    this.change(at, () => (this.inFlight = n));
+  }
+
+  private change(at: number, set: () => void): void {
+    const before = this.wait();
+    set();
+    if (this.wait() !== before) this.knownAt = Math.max(this.knownAt, at);
+  }
+
+  // The wait that applies to the transcript and in-flight count as they are now.
+  wait(): number {
+    return this.waitFn(this.text, this.inFlight);
   }
 
   // The user stopped the turn: it ends now, with reason "manual". A turn that already ended keeps
   // its first end.
   manualStop(at: number): TurnEnd {
-    this.deadline = null;
+    this.armedAt = null;
     return (this.ended ??= { at, reason: "manual" });
   }
 
   // When the pending auto-silence would end the turn, so a caller can schedule a timer; null if none.
   endsAt(): number | null {
-    return this.ended ? null : this.deadline;
+    if (this.ended || this.armedAt === null) return null;
+    return Math.max(this.armedAt + this.wait(), this.knownAt);
   }
 
   // Time has reached `now`: the end of the turn if there is one (an auto-silence ends at its
   // deadline, not at `now`), else null.
   tick(now: number): TurnEnd | null {
-    if (!this.ended && this.deadline !== null && now >= this.deadline) {
-      this.ended = { at: this.deadline, reason: "auto_silence" };
-    }
+    const at = this.endsAt();
+    if (at !== null && now >= at) this.ended = { at, reason: "auto_silence" };
     return this.ended;
   }
 }
