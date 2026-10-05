@@ -82,6 +82,12 @@ plan):**
   the time to first audio; `completion.mjs` reads none of these events (both pinned in the two test files). A turn
   that reaches `done` with no sentence queued (no chunk frames came) speaks `full_response` once, trimmed, through the
   same queue (`tts_requested` `{index: 0}`, then `tts_text_mismatch`); if that is empty it is `tts_skipped`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
+- `tts_dropped` `{reason, units, chars, partial_chars}` (`?tts_stream=1` only): a `tool_call` frame arrived and speech that had not been heard was
+  dropped, because text streamed before a tool call is not part of `full_response`. `reason` is `tool_call`. `units` is how many queued units were
+  dropped, including an utterance that was with the engine but not audible yet (the engine is told to cancel it, and no `tts_cancelled` is reported
+  for it); `chars` is those units' own characters, without join spaces; `partial_chars` is the unfinished text the splitter held. It is not emitted
+  when nothing was dropped, and an utterance that is audible is never dropped. A turn whose speech was all dropped has `tts_requested` events with no
+  `tts_sentence_start`; the done fallback may then speak `full_response` as one more unit (`tts_requested`, then `tts_text_mismatch`).
 - `tts_muted` `{reason, point, chars}`: the mic button was tapped while a reply was in flight, so the rest of that reply is
   not spoken (with or without `?tts_stream=1`); `reason` is `mic_press`. The mute ends with the turn: done, aborted, a
   turn-failure error, a closed socket or the 60 s timeout. `chars` means two different things by `point`. `point: "done"`

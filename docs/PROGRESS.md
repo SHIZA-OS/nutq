@@ -521,3 +521,24 @@ matched to a batch size. Mutation checks on the queue: 10 mutants (never merge, 
 no join space, wrong index, wrong units, wrong chars, waiting kept on cancel, finish counting utterances), all caught. Two mutants of an early
 version survived because the "first alone" guard was redundant (the first unit is alone because the queue pumps as soon as it is queued), so the
 guard was deleted.
+
+## Drop unheard speech on a tool call (2026-10-05)
+
+With `?tts_stream=1` text the agent streamed before a tool call was spoken, although it never reaches `full_response` (ZeroClaw keeps only the final
+iteration in `accumulated_display_text`, as reported by you; not checked in the ZeroClaw source here). Before this change a `tool_call` frame was only logged.
+Now it drops what has not been heard: the splitter's unfinished text, every queued unit, and the utterance with the engine if its audio has not started;
+an audible utterance plays to its end. New event `tts_dropped { reason, units, chars, partial_chars }`, only when something was dropped. Details in
+ARCHITECTURE ("Tool calls") and eval-harness-design.md.
+
+Decisions worth knowing. (1) "Not started speaking" is read as "not audible": an utterance handed to the browser whose `onstart` has not fired is dropped
+too, and the browser is told to cancel it. The first sentence of a reply sits in exactly that state for the voice's start delay (0.8 to 2 s in the
+gap experiment), which is when a tool call is likely to arrive, so leaving it would let the first pre-tool sentence through almost every time. If you
+want the literal reading (only units still in the queue), `SpeechQueue.drop()` is the one place to change. (2) The done fallback used `sentences === 0`,
+the turn's total; after a full drop that would stay above zero and the final answer would be silent. It now uses `fresh`, the units queued since the
+last tool call, so `full_response` is spoken when nothing was queued after it, including when an audible pre-tool utterance was left to play. (3) Not
+changed: `tts_text_mismatch` compares all chunks with `full_response`, so it will now and then be reported for a tool turn (it already was).
+
+Limits: chunks arrive before the `tool_call` frame, so text already audible when the frame arrives is heard; this was not measured against a real
+ZeroClaw tool turn, only with a stub gateway sending frames, so how often the first sentence is already audible is unknown. Mutation checks: 14 on
+the queue and splitter (one survivor, `fresh` not reset when a turn ends, covered by a new test) and 12 on the wiring (one survivor, no event for a
+drop of only unfinished text, covered by a new test); all caught after that. Not run: anything over the 57 recordings.

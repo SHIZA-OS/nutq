@@ -173,7 +173,7 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   only engine), and the tail is flushed at `done`. The speech comes from the chunks, not `full_response` (unless no sentence was queued by `done`, when `full_response`
   is spoken once, trimmed, through the same queue); the queue
   is cancelled on aborted, a turn-failure error, a closed socket, the reply timeout and a new send. Only `chunk`
-  frames are spoken, never `thinking`, `tool_call` or `plan`.
+  frames are spoken, never `thinking`, `tool_call` or `plan`. A `tool_call` frame drops speech that has not been heard (see "Tool calls" below).
 - `?reply=short|voice` (any mode, default `short`): which prefix goes in front of every message sent to the agent
   (`src/speech-text.ts`). `short` is the original, "1-2 short, complete sentences", kept byte for byte (a test pins it) so earlier eval
   runs can be repeated. `voice` asks for a thorough, complete answer written as speech: no markdown or dashes, short sentences, no URLs,
@@ -191,6 +191,19 @@ not split. `tts_requested` stays per unit and `speech_text` stays per unit (logg
 loses every unit of that utterance. The `full_response` fallback is one unit, so it plays alone and is not split. Queueing the next
 utterance ahead in the browser was measured and did not shorten the gap, so it is not done. The 1200 is a judgement, not a measured
 threshold (see PROGRESS).
+
+**Tool calls (`?tts_stream=1`).** The agent can stream text before a tool call, and that text is not in `full_response`, which holds only the
+last iteration. Chunks arrive before the `tool_call` frame, so some of it may already be audible; what has not been heard is dropped. On a
+`tool_call` frame `dropUnheardSpeech` (`main.ts`) discards the text the splitter holds (`pendingChars`, also resetting the open-code-fence
+state), and `SpeechQueue.drop()` removes every queued unit and the utterance with the engine if its audio has not started (the engine is told to
+cancel it, and its late callbacks are ignored). An utterance that is audible plays to its end and is not cancelled. Chunks after the call are
+spoken as usual, numbering goes on, and each further tool call repeats the drop. `tts_dropped { reason: "tool_call", units, chars, partial_chars }`
+is logged only when something was dropped (`units` and `chars` count the dropped units' own text, without join spaces; `partial_chars` the splitter
+text). The done fallback asks `SpeechQueue.fresh`, the units queued since the last tool call, instead of the turn's total: if nothing was queued
+after the last call (all of it dropped, or only audible text from before it), `full_response` is spoken once, because the final answer was not
+streamed. A turn with no tool call behaves as before. A muted turn has nothing queued or buffered, so a tool call in it does nothing and cannot unmute.
+With the flag off nothing changes. `tts_text_mismatch` is not changed: its chunk total still includes the text before a tool call, so it can be
+reported for any turn that used a tool.
 
 **Speech text.** Whatever the prefix, the agent may still send markdown, so every text handed to the voice goes through
 `speakable()` (`src/speech-text.ts`, pure): fenced code blocks are not read, inline code, bold and italic lose their markers,
