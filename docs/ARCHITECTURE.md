@@ -166,6 +166,31 @@ cancels speech). Only a press that would start listening is guarded: a press whi
 not look disabled during the window, because a disabled button swallows the click and the event could not be logged. 400 ms is a judgement, not
 measured.
 
+## One turn at a time: hold and send
+
+The gateway has no per-turn id, and a message sent while a turn is still running is not a new turn: ZeroClaw treats it as steering and merges it into the
+running turn (see `src/turn-state.ts`). So nothing is sent while a reply is in flight. `ReplyState.trySend()` sets the flag when a message goes out; the
+frames that end a turn clear it: `done`, `aborted`, and an `error` with a turn-failure code (`PROVIDER_ERROR`, `AUTH_ERROR`, `AGENT_ERROR`), and so does a closed
+socket. The only place a message frame is sent is `sendTranscript()`, behind `trySend()`; the one other `socket.send` is the auto-deny `approval_response`,
+which is not a message.
+
+An utterance that finishes while a reply is in flight (the user tapped the mic during the answer) is **held**, not dropped:
+
+- A non-empty utterance is held and `send_held { chars }` is logged, with the hint "Will send when the answer finishes" under the mic button. `chars` is the length
+  of the whole held message so far. An empty utterance is still `send_skipped`.
+- There is at most one held message. A later utterance is appended to it with a space, and `send_held` is logged again with the new total.
+- When a turn ends with `done`, `aborted` or a turn-failure error, `sendHeld()` sends the held message through `sendTranscript()` (same reply style, same
+  speech cancel, `send_trigger: "held"` on `ws_message_sent`) and logs `held_sent { chars, waited_ms, end }` just before it. `waited_ms` counts from when the
+  first part was held; `end` is `done`, `aborted` or `error`. It runs at the end of the frame handler, so the ending frame's own events (`done_received`, the
+  reply shown, `tts_muted`) belong to the turn that ended and not to the one just sent. A frame that does not end the turn (chunk, thinking, tool frames, a
+  non-turn `error` code) sends nothing.
+- If the user has the mic open again at that moment (`listening` is true), the new answer is muted (`ReplyState.mute()`, the same as a tap during a reply), so it is not read out over the
+  open mic; what they say next is held for that answer in turn.
+- If the socket closes with a message held, it is dropped: `held_dropped { reason: "closed", chars }`, a log line, and the hint "Message not sent, the connection
+  closed" until the next connection opens. It is not sent on a later connection.
+
+The utterance's own trigger (`manual` or `auto_silence`) is not kept on a held send; `send_trigger` is `held`.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL).

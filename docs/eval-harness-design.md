@@ -62,12 +62,17 @@ plan):**
 - `done_received` (the `{"type":"done","full_response":...}` frame arrives)
 - `tts_start` (`SpeechSynthesisUtterance.onstart` fires; not yet confirmed live, sandbox environment
   has no working Web Speech API voices, needs verification on a real desktop browser)
-- `send_blocked` `{reason: "reply_in_flight"}` (a message was not sent because a reply was still in flight; the
-  utterance is dropped), `turn_timeout` `{ms}` (the in-flight flag was cleared after `ms` with no ending frame),
+- `send_held` `{chars}` (an utterance finished while a reply was in flight and is held until the turn ends; `chars` is the length of the whole
+  held message so far, since a later utterance is appended with a space and logs it again), `held_sent` `{chars, waited_ms, end}` (the turn ended
+  with `end` = `done`, `aborted` or `error`, and the held message of `chars` characters is sent next as an ordinary message with `send_trigger: "held"`;
+  `waited_ms` is from the first hold to the send; logged just before that turn's `ws_message_sent`), `held_dropped` `{reason, chars}` (a held message was
+  not sent; `reason` is `closed` when the socket closed). `send_blocked` `{reason: "reply_in_flight"}` no longer exists: it was the old drop of such an
+  utterance, and older event files can still contain it. `turn_timeout` `{ms}` (the in-flight flag was cleared after `ms` with no ending frame),
   `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis), `tts_end` (the utterance's
   `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`; `reason` is `mic_press` when the cancel was the mic
   button starting to listen while speech was playing, for the browser's `canceled` report and for a streamed queue alike) and `tts_error` `{message}`
-  (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`.
+  (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`; neither are the three held events, and `send_trigger: "held"`
+  is read only by `join-latency.mjs` (below).
 - Sentence streaming (`?tts_stream=1`, default off): `tts_requested` `{index}` (a sentence was queued for speech;
   `index` counts from 0 within the turn), `tts_sentence_start` `{index, units, chars}` (an utterance became audible, the engine's
   `onstart`; since the speech queue merges the units that waited behind the first into one utterance, `index` is its first unit, `units`
@@ -115,8 +120,8 @@ correlation comes from the already-received `session_id` in `session_start`; per
 uses send-order matching against `runtime-trace.jsonl`, not a per-event ID).
 
 The one field currently using that extra-fields mechanism: `ws_message_sent` carries
-`send_trigger: "manual" | "auto_silence"`, recording whether the turn ended via the mic button's
-release or the 5000ms silence auto-send timer (`SILENCE_COMMIT_MS`, `src/main.ts`). Both paths funnel
+`send_trigger: "manual" | "auto_silence" | "held"`, recording whether the turn ended via the mic button's
+release or the 5000ms silence auto-send timer (`SILENCE_COMMIT_MS`, `src/main.ts`), or is a message that was held until the previous turn ended (`held`). Both paths funnel
 through one shared `finishListening(trigger)` function, so this is a real, threaded parameter, not an
 inference.
 
@@ -231,7 +236,14 @@ Staged latency, as actually implemented:
     system during it, so it's excluded and reported separately as `timer_wait_ms`:
     `ws_message_sent - speech_end` (`speech_end` is what arms the timer, see above).
 
-Every turn is tagged with `send_trigger` and `manual`/`auto_silence` turns are reported as separate
+  - **held turns** (`send_trigger: "held"`, an utterance finished during the previous turn's reply and sent when that turn ended): `user_perceived`
+    equals `post_trigger` too, measured from the send, with a `user_perceived_note` saying so. The time from the release to the send is the previous answer's
+    remaining time, not this turn's latency, so it is excluded (`held_sent.waited_ms` has it), and the release is not an anchor because the utterance may have ended by
+    `auto_silence`. `timer_wait_ms` is null. The held utterance's own speech events fall in the previous turn's response window and change none of that turn's stages.
+    `completion.mjs` reads neither `send_trigger` nor the held events, so a turn ended by `aborted` or a failure is followed by its held turn with each classified on
+    its own window and server row.
+
+Every turn is tagged with `send_trigger` and `manual`/`auto_silence`/`held` turns are reported as separate
 blocks (`by_trigger` in `join-latency.mjs`'s output), not pooled into one aggregate, since the two
 paths have structurally different end-of-speech semantics above and pooling them would blur that.
 

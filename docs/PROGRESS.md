@@ -571,9 +571,35 @@ a `send_skipped`, a refused send and a throwing `stop()` all close that phase; t
 empty utterance fail). `mic_press_ignored` keeps `reason: "rearm"` and gains `phase` (`finishing` or `after_send`) and `since_release_ms`; `since_send_ms` is `null`
 while finishing, including when an earlier utterance was sent (that send is not this utterance's). See ARCHITECTURE ("Mic press right after listening ends").
 
-Tests (`mic-cancel.test.mjs`, fake `Date.now`, a 600 ms real slow `stop()`): a press during `stop()`, one at the send (0 ms), 399 and 400 ms after the send (with
+Tests (`mic-cancel.test.mjs`, fake `Date.now`, a slow `stop()` held at a gate the test opens; a first version used a 600 ms real delay and failed once in a full parallel run, a race, so it was replaced): a press during `stop()`, one at the send (0 ms), 399 and 400 ms after the send (with
 the release 300 ms earlier, so `since_release_ms` and `since_send_ms` differ), an empty utterance then an immediate press, the `auto_silence` path, a prior send on
 record, and a `stop()` that throws. The old `stopWindow` test pinned the bug (a second utterance starting during `stop()`) and was replaced. Mutation checks: 15
 mutants. 13 were caught on the first run; one survived because no test had an earlier send on record while finishing (`since_send_ms` non-null), now covered and
 caught. One survivor is equivalent at this commit: dropping `!listening` from the guard, because a send can no longer happen while listening is true, so neither
 `finishing` nor `afterSend` can be true then. It is kept as a guard and pinned when a send can land mid-utterance (a held message, next entry).
+
+## Hold and send (2026-10-05)
+
+An utterance that finished while a reply was in flight used to be dropped (`send_blocked`, "Still answering, try again"). It is now held and sent when the turn ends.
+Read from the code first: the only place a `message` frame is sent is `sendTranscript()`, behind `ReplyState.trySend()`; the one other `socket.send` is the auto-deny
+`approval_response`, which is not a message. So no path sends while the in-flight flag is set, and the new `sendHeld()` runs only from the end of the frame handler, after the
+ending frame (`done`, `aborted` or a turn-failure `error`) cleared the flag and after that frame's own handling. Running it before the handling was a mutant, and the test that
+it is after is `done_received` coming before `held_sent`.
+
+What was built (see ARCHITECTURE, "One turn at a time: hold and send"): one held message at most, a later utterance appended with a space; `send_held { chars }` (the length
+of the whole held message so far), `held_sent { chars, waited_ms, end }` just before `ws_message_sent` with `send_trigger: "held"`, `held_dropped { reason: "closed", chars }` with the
+hint "Message not sent, the connection closed" until the next connect. `send_blocked` is gone from the code (old event files can still contain it).
+
+Decisions the spec did not make, so they are listed here: (1) `chars` on `send_held` is the whole held message so far, so the last `send_held` equals `held_sent.chars`; `waited_ms`
+counts from the first hold. (2) If the turn ends while the user has the mic open again, the held message is still sent at turn end (asked, answer: send, and mute the new answer
+with `ReplyState.mute()`), so nothing is read out over the open mic and what they say next is held for that answer. (3) A hold, like a skip, closes the Phase 1 re-arm window:
+the user can press at once and the utterance is appended. (4) The utterance's own trigger is not kept on a held send. (5) `join-latency.mjs` gets a `held` bucket in `by_trigger`
+(a held turn used to fall into `unknown`) and measures a held turn from its send, like `auto_silence`, with a note; the release to send time is the previous answer's remaining
+time and is not this turn's latency. `completion.mjs` needed no code change: it reads no `send_trigger`, and each turn keeps its own window and server row; pinned by tests
+(an aborted turn followed by its held turn, a failed turn without a server row, the held events inert).
+
+Tests: `held-send.test.mjs` (new, on a shared `page-harness.mjs` whose stub gateway records every message frame the page sends, so the tests assert the wire and not only the log):
+hold and send with the reply style and the speech cancel, append, frames that do not end the turn, aborted and failed ends, a closed socket (and no resurfacing on the next
+connection), an empty utterance, and the turn ending while listening. Join-latency and completion got the held cases. Mutation checks: 21 mutants on `main.ts` and 6 on
+`join-latency.mjs`, all caught. The Phase 1 equivalent survivor (`!listening` dropped from the guard) is now caught by the release 0 ms after a held send. Not done: the old
+`mic-cancel.test.mjs` still has its own copy of the stub gateway instead of using `page-harness.mjs`.
