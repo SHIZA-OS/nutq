@@ -30,7 +30,7 @@ const FAKE_TRANSCRIBER = `export class Transcriber {
   attachStream() {}
   async start() {}
   // A transcript is committed on stop only when the test asks, so a stop sends a message (a reply in flight).
-  async stop() { if (window.__stopDelay) await new Promise((r) => setTimeout(r, window.__stopDelay)); if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
+  async stop() { if (window.__stopDelay) await new Promise((r) => setTimeout(r, window.__stopDelay)); if (window.__stopThrow) throw new Error("stop failed"); if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
 }`;
 
 async function openPage(query) {
@@ -86,6 +86,9 @@ async function openPage(query) {
   };
   return { page, send, state, fire, mic, turn, advance };
 }
+
+// Waits for a text in the log panel; a timeout is swallowed so that a scenario that fails shows up as its own failing test.
+const waitLog = (page, text) => page.waitForFunction((t) => document.getElementById("log").textContent.includes(t), text, { timeout: 4000 }).catch(() => {});
 
 const cancelled = (events) => events.filter((e) => e.event === "tts_cancelled").map((e) => e.reason);
 const muted = (events) => events.filter((e) => e.event === "tts_muted").map(({ reason, point, chars }) => [reason, point, chars]);
@@ -262,18 +265,88 @@ before(async () => {
   client.destroy();
   await p.page.close();
 
-  // A press that lands while the previous utterance is still being finished (stop() running) starts a second utterance, and
-  // the send then happens with the microphone listening again. The window must not stop the user from ending that one.
+  // The re-arm window starts at the release, not at the send: stop() runs the final transcription between them (up to about
+  // 500 ms live), and a press in that gap used to start a second utterance and send with listening true again. Here stop() takes
+  // 600 ms real time; the fake clock moves only when the test says, so the phases and the times are exact.
   p = await openPage("tts_stream=1");
-  await p.page.evaluate(() => { window.__commitOnStop = true; window.__stopDelay = 400; });
+  await p.page.evaluate(() => { window.__commitOnStop = true; window.__stopDelay = 600; });
   await p.page.click("#mic-btn"); // start listening
-  await p.page.click("#mic-btn"); // release: stop() takes 400 ms (real) to finish
-  await p.page.click("#mic-btn"); // pressed again while it finishes: a new utterance starts (no send yet, so nothing to ignore)
-  await p.page.waitForFunction(() => document.getElementById("log").textContent.includes("ws_message_sent"), null, { timeout: 15000 });
-  await p.advance(10);
-  await p.page.click("#mic-btn"); // 10 ms after the send, while listening: this is the release, not a double tap
-  r.stopWindow = await p.state();
-  r.stopWindow.text = await p.page.textContent("#mic-btn");
+  r.finishing = { beforeRelease: await p.state() };
+  await p.page.click("#mic-btn"); // release: stop() runs for 600 ms
+  await p.advance(100);
+  await p.page.click("#mic-btn"); // during stop(): ignored, phase finishing, 100 ms after the release, no send yet
+  r.finishing.during = await p.state();
+  r.finishing.duringText = await p.page.textContent("#mic-btn");
+  await p.advance(200);
+  await waitLog(p.page, "ws_message_sent");
+  await p.page.click("#mic-btn"); // at the send (fake clock unmoved): ignored, phase after_send, 0 ms after the send, 300 after the release
+  r.finishing.atSend = await p.state();
+  r.finishing.atSendText = await p.page.textContent("#mic-btn");
+  await p.advance(399);
+  await p.page.click("#mic-btn");
+  r.finishing.at399 = await p.state();
+  await p.advance(1);
+  await p.page.click("#mic-btn"); // 400 ms after the send: the window is over, this listens as today
+  r.finishing.at400 = await p.state();
+  r.finishing.at400Text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // An empty utterance ends with send_skipped, and the window closes there: a press right after is not ignored (it would be
+  // if the window ran to MIC_REARM_MS after the release). A press during stop() before the skip still is.
+  p = await openPage("tts_stream=1");
+  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.page.click("#mic-btn"); // start listening
+  await p.page.click("#mic-btn"); // release: nothing committed, stop() runs for 600 ms
+  await p.page.click("#mic-btn"); // during stop(): ignored
+  r.emptyThenPress = { during: await p.state() };
+  await waitLog(p.page, "send_skipped");
+  await p.page.click("#mic-btn"); // at the skip, fake clock unmoved: listens at once
+  r.emptyThenPress.after = await p.state();
+  r.emptyThenPress.text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // With an earlier send on record, the finishing phase still reports since_send_ms null: the earlier send is not this utterance's.
+  p = await openPage("tts_stream=1");
+  await p.turn(); // a send, then 5000 ms of fake time
+  await p.send({ type: "done", full_response: "ok", tokens_used: 1 });
+  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.page.click("#mic-btn");
+  await p.page.click("#mic-btn"); // release: stop() runs for 600 ms
+  await p.page.click("#mic-btn"); // during stop(), 5000 ms after the earlier send
+  r.priorSend = await p.state();
+  await p.page.waitForFunction(() => (document.getElementById("log").textContent.match(/ws_message_sent/g) ?? []).length >= 2, null, { timeout: 4000 }).catch(() => {});
+  client.destroy();
+  await p.page.close();
+
+  // A stop() that throws sends nothing, and must not leave the window shut for good.
+  p = await openPage("tts_stream=1");
+  await p.page.evaluate(() => { window.__stopThrow = true; });
+  await p.page.click("#mic-btn"); // start listening
+  await p.page.click("#mic-btn"); // release: stop() throws
+  await p.page.waitForTimeout(150);
+  await p.page.click("#mic-btn"); // not ignored: nothing is being finished and nothing was sent
+  r.stopThrows = await p.state();
+  r.stopThrows.text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // The auto_silence trigger ends listening too, so a press during its stop() is ignored the same way.
+  p = await openPage("tts_stream=1&silence=800");
+  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.mic(); // start listening
+  await p.page.evaluate(() => {
+    window.__tcb.onTranscriptionCommitted("hello there");
+    window.__tcb.onSpeechStart(4);
+    window.__tcb.onSpeechEnd();
+  });
+  await waitLog(p.page, "auto-sending");
+  await p.page.click("#mic-btn"); // during the auto_silence stop()
+  r.autoFinishing = { during: await p.state() };
+  await waitLog(p.page, "ws_message_sent");
+  r.autoFinishing.after = await p.state();
+  r.autoFinishing.text = await p.page.textContent("#mic-btn");
   client.destroy();
   await p.page.close();
 
@@ -397,11 +470,13 @@ test("flag on: a tool call in a muted turn drops nothing and reports nothing; th
   assert.deepEqual(muted(r.onToolMuted.events).map((m) => m[1]), ["chunk", "done"]); // muting still took effect on the chunk and at done
 });
 
-const ignored = (events) => events.filter((e) => e.event === "mic_press_ignored").map(({ reason, since_send_ms }) => ({ reason, since_send_ms }));
+const ignored = (events) =>
+  events.filter((e) => e.event === "mic_press_ignored").map(({ reason, phase, since_release_ms, since_send_ms }) => ({ reason, phase, since_release_ms, since_send_ms }));
+const aft0 = (since) => ({ reason: "rearm", phase: "after_send", since_release_ms: since, since_send_ms: since }); // release and send at the same fake instant
 const presses = (events) => events.filter((e) => e.event === "mic_button_press").length;
 
 test("a press 118 ms after a send is ignored: no listening, no mute, no cancel, and the reply goes on", () => {
-  assert.deepEqual(ignored(r.quick118.events), [{ reason: "rearm", since_send_ms: 118 }]);
+  assert.deepEqual(ignored(r.quick118.events), [aft0(118)]);
   assert.equal(presses(r.quick118.events), presses(r.quick118.before.events));
   assert.equal(r.quick118.cancels, r.quick118.before.cancels);
   assert.deepEqual(cancelled(r.quick118.events), []);
@@ -412,7 +487,7 @@ test("a press 118 ms after a send is ignored: no listening, no mute, no cancel, 
 });
 
 test("the window is MIC_REARM_MS (400): 399 ms after the send is ignored, 400 ms behaves as today (listens, mutes, cancels)", () => {
-  assert.deepEqual(ignored(r.quick399.events), [{ reason: "rearm", since_send_ms: 118 }, { reason: "rearm", since_send_ms: 399 }]);
+  assert.deepEqual(ignored(r.quick399.events), [aft0(118), aft0(399)]);
   assert.equal(presses(r.quick399.events), presses(r.quick118.events));
   assert.equal(ignored(r.quick400.events).length, 2); // nothing new ignored
   assert.equal(presses(r.quick400.events), presses(r.quick399.events) + 1);
@@ -426,7 +501,7 @@ test("a press at the end of the window cancels what is spoken and mutes the rest
 });
 
 test("a send by auto_silence opens the same window", () => {
-  assert.deepEqual(ignored(r.autoQuick.events), [{ reason: "rearm", since_send_ms: 100 }]);
+  assert.deepEqual(ignored(r.autoQuick.events), [aft0(100)]);
   assert.equal(presses(r.autoQuick.events), 1); // only the press that started the utterance
   assert.equal(r.autoQuick.text, "Start listening");
 });
@@ -446,8 +521,67 @@ test("the window only guards starting to listen: a stop press shortly after a st
   assert.equal(r.quick400.releaseText, "Start listening");
 });
 
+const sent = (events) => events.filter((e) => e.event === "ws_message_sent").length;
+const fin = (since_release_ms) => ({ reason: "rearm", phase: "finishing", since_release_ms, since_send_ms: null });
+const aft = (since_release_ms, since_send_ms) => ({ reason: "rearm", phase: "after_send", since_release_ms, since_send_ms });
+
+test("a press during stop() is ignored, phase finishing: no second utterance, since_send_ms null before the send", () => {
+  const f = r.finishing;
+  assert.deepEqual(ignored(f.during.events), [fin(100)]);
+  assert.equal(presses(f.during.events), 1);
+  assert.equal(f.during.cancels, f.beforeRelease.cancels); // the ignored press cancelled nothing
+  assert.equal(f.duringText, "Start listening");
+  assert.deepEqual(muted(f.during.events), []);
+});
+
+test("the message is then sent exactly once, with listening false: a press at the send is ignored, phase after_send, 0 ms after the send", () => {
+  const f = r.finishing;
+  assert.equal(sent(f.atSend.events), 1);
+  assert.deepEqual(ignored(f.atSend.events), [fin(100), aft(300, 0)]);
+  assert.equal(f.atSendText, "Start listening");
+  assert.equal(presses(f.atSend.events), 1);
+});
+
+test("the window ends MIC_REARM_MS after the send, not after the release: 399 ms ignored, 400 ms listens", () => {
+  const f = r.finishing;
+  assert.deepEqual(ignored(f.at399.events).at(-1), aft(699, 399));
+  assert.equal(ignored(f.at399.events).length, 3);
+  assert.equal(presses(f.at399.events), 1);
+  assert.equal(ignored(f.at400.events).length, 3); // nothing new ignored
+  assert.equal(presses(f.at400.events), 2);
+  assert.equal(f.at400Text, "Stop listening");
+  assert.equal(sent(f.at400.events), 1);
+});
+
+test("an empty utterance closes the window at the skip: a press during stop() is ignored, the press right after the skip listens", () => {
+  const e = r.emptyThenPress;
+  assert.deepEqual(ignored(e.during.events), [fin(0)]);
+  assert.deepEqual(e.after.events.filter((x) => x.event === "send_skipped").map((x) => x.reason), ["empty_transcript"]);
+  assert.deepEqual(ignored(e.after.events), [fin(0)]); // nothing new
+  assert.equal(presses(e.after.events), 2);
+  assert.equal(e.text, "Stop listening");
+});
+
+test("while finishing, since_send_ms is null even when an earlier utterance was sent", () => {
+  assert.deepEqual(ignored(r.priorSend.events), [fin(0)]);
+});
+
+test("a stop() that throws closes the window: the next press listens", () => {
+  assert.deepEqual(ignored(r.stopThrows.events), []);
+  assert.equal(presses(r.stopThrows.events), 2);
+  assert.equal(r.stopThrows.text, "Stop listening");
+});
+
+test("the auto_silence trigger opens the finishing phase too: a press during its stop() is ignored, and one message goes out", () => {
+  const a = r.autoFinishing;
+  assert.deepEqual(ignored(a.during.events), [fin(0)]);
+  assert.equal(sent(a.after.events), 1);
+  assert.equal(a.after.events.find((x) => x.event === "ws_message_sent").send_trigger, "auto_silence");
+  assert.equal(presses(a.after.events), 1);
+  assert.equal(a.text, "Start listening");
+});
+
 test("a press while listening is a release even inside the window: the window guards only the start of listening", () => {
-  assert.deepEqual(ignored(r.stopWindow.events), []);
-  assert.equal(r.stopWindow.events.filter((e) => e.event === "mic_button_release").length, 2);
-  assert.equal(r.stopWindow.text, "Start listening");
+  assert.deepEqual(r.quick400.release.events.filter((e) => e.event === "mic_button_release").length, 2);
+  assert.equal(r.quick400.releaseText, "Start listening");
 });

@@ -584,8 +584,14 @@ const reply = replyPrefix(urlParams.get("reply"));
 
 type SendTrigger = "manual" | "auto_silence";
 
-// When the last message went out (any trigger), for the mic re-arm window; null before the first send.
-let lastSendAt: number | null = null;
+// The mic re-arm window (MIC_REARM_MS in src/turn-state.ts). A press that would start listening is ignored from the moment
+// listening ends (a manual release or the auto_silence trigger) until MIC_REARM_MS after the send. Between the two,
+// finishListening() is in stop(), the final transcription, and a press there would start a second utterance and send with
+// listening true again. `finishing` is that stretch: it is closed by whatever ends finishListening() (a send, a send_skipped,
+// a blocked or refused send, a throw), so a turn that sends nothing leaves no window and the user can retry at once.
+let finishing = false;
+let releasedAt: number | null = null; // when listening last ended
+let lastSendAt: number | null = null; // when the last message went out (any trigger); null before the first send
 
 function sendTranscript(text: string, trigger: SendTrigger) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
@@ -842,20 +848,26 @@ function scheduleSilenceTimer() {
 async function finishListening(trigger: SendTrigger) {
   if (!listening) return;
   listening = false;
+  finishing = true;
+  releasedAt = Date.now();
   clearSilenceTimer();
   micBtn.textContent = "Start listening";
-  await transcriber!.stop();
-  // Logged even when empty: a total miss counts as data.
-  if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
-  if (transcriptToSend(sessionTranscript) === null) {
-    // Nothing was heard (empty or only whitespace): nothing goes to the gateway, and the UI is idle again.
-    log(`Empty transcript (${trigger}), nothing sent`);
-    logEvent("send_skipped", { reason: "empty_transcript", trigger });
-    liveTranscriptEl.textContent = "";
-  } else if (!isNoSend) {
-    sendTranscript(sessionTranscript, trigger);
+  try {
+    await transcriber!.stop();
+    // Logged even when empty: a total miss counts as data.
+    if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
+    if (transcriptToSend(sessionTranscript) === null) {
+      // Nothing was heard (empty or only whitespace): nothing goes to the gateway, and the UI is idle again.
+      log(`Empty transcript (${trigger}), nothing sent`);
+      logEvent("send_skipped", { reason: "empty_transcript", trigger });
+      liveTranscriptEl.textContent = "";
+    } else if (!isNoSend) {
+      sendTranscript(sessionTranscript, trigger);
+    }
+    sessionTranscript = "";
+  } finally {
+    finishing = false; // after a send the window continues from lastSendAt; after a skip there is none
   }
-  sessionTranscript = "";
 }
 
 function initTranscriber() {
@@ -991,9 +1003,17 @@ async function startMicrophone(t: Transcriber) {
 
 micBtn.addEventListener("click", async () => {
   if (modelState !== "ready") return;
-  if (!listening && lastSendAt !== null && Date.now() - lastSendAt < MIC_REARM_MS) {
-    // A double tap right after a send: not the user taking the floor. No listening, no mute, no cancel.
-    logEvent("mic_press_ignored", { reason: "rearm", since_send_ms: Date.now() - lastSendAt });
+  const now = Date.now();
+  const afterSend = lastSendAt !== null && now - lastSendAt < MIC_REARM_MS;
+  if (!listening && (finishing || afterSend)) {
+    // Not the user taking the floor: a double tap, or a press while the last utterance is still being finished. No
+    // listening, no mute, no cancel. since_send_ms is null while finishing: this utterance has not been sent yet.
+    logEvent("mic_press_ignored", {
+      reason: "rearm",
+      phase: finishing ? "finishing" : "after_send",
+      since_release_ms: releasedAt === null ? null : now - releasedAt,
+      since_send_ms: finishing || lastSendAt === null ? null : now - lastSendAt,
+    });
     return;
   }
   if (!listening) {
