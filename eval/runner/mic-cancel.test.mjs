@@ -25,12 +25,12 @@ const frame = (obj) => {
 };
 
 const FAKE_TRANSCRIBER = `export class Transcriber {
-  constructor(model, callbacks) { this.callbacks = callbacks; }
+  constructor(model, callbacks) { this.callbacks = callbacks; window.__tcb = callbacks; }
   async load() {}
   attachStream() {}
   async start() {}
   // A transcript is committed on stop only when the test asks, so a stop sends a message (a reply in flight).
-  async stop() { if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
+  async stop() { if (window.__stopDelay) await new Promise((r) => setTimeout(r, window.__stopDelay)); if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
 }`;
 
 async function openPage(query) {
@@ -39,6 +39,9 @@ async function openPage(query) {
   await page.addInitScript(() => {
     window.__sp = { utterances: [], cancels: 0 };
     window.__commitOnStop = false;
+    // A fake clock: the page's Date.now only moves when the test says so.
+    window.__now = 1000000;
+    Date.now = () => window.__now;
     window.speechSynthesis.speak = (u) => window.__sp.utterances.push(u);
     window.speechSynthesis.cancel = () => window.__sp.cancels++;
     navigator.mediaDevices.getUserMedia = async () => ({ getAudioTracks: () => [{ getSettings: () => ({}) }] });
@@ -72,13 +75,16 @@ async function openPage(query) {
     await page.click("#mic-btn");
     await page.waitForTimeout(150);
   };
+  const advance = (ms) => page.evaluate((ms) => (window.__now += ms), ms);
   // A turn: tap to start listening, tap to stop; the stop commits a transcript, so a message is sent and a reply is in flight.
-  const turn = async () => {
+  // By default the clock then moves on past the re-arm window, so the next tap is a deliberate one; `quick` leaves it at the send.
+  const turn = async ({ quick = false } = {}) => {
     await page.evaluate(() => (window.__commitOnStop = true));
     await mic();
     await mic();
+    if (!quick) await advance(5000);
   };
-  return { page, send, state, fire, mic, turn };
+  return { page, send, state, fire, mic, turn, advance };
 }
 
 const cancelled = (events) => events.filter((e) => e.event === "tts_cancelled").map((e) => e.reason);
@@ -209,6 +215,80 @@ before(async () => {
   client.destroy();
   await p.page.close();
 
+  // A press right after a send is a double tap, not the user taking the floor: it is ignored. The send is at the fake
+  // clock's 1000000; the press is 118 ms later (what a live run showed), then 399 ms (still inside) and 400 ms (outside).
+  p = await openPage("tts_stream=1");
+  await p.turn({ quick: true });
+  await p.send({ type: "chunk", content: "A long enough sentence is here. " });
+  await p.fire(0, "start");
+  const beforeQuick = await p.state();
+  await p.advance(118);
+  await p.mic();
+  r.quick118 = await p.state();
+  r.quick118.before = beforeQuick;
+  r.quick118.text = await p.page.textContent("#mic-btn");
+  await p.send({ type: "chunk", content: "Another long sentence follows here. " });
+  await p.fire(0, "end");
+  r.quick118.later = await p.state();
+  await p.advance(281); // 399 ms since the send
+  await p.mic();
+  r.quick399 = await p.state();
+  await p.advance(1); // 400 ms: the window is over
+  await p.mic();
+  r.quick400 = await p.state();
+  r.quick400.text = await p.page.textContent("#mic-btn");
+  await p.send({ type: "chunk", content: "A third long sentence for the muted rest. " });
+  r.quick400.after = await p.state();
+  await p.advance(10); // 410 ms since the send: the user stops listening again at once; that is a release, never ignored
+  await p.mic();
+  r.quick400.release = await p.state();
+  r.quick400.releaseText = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // The auto-silence send is a send too.
+  p = await openPage("tts_stream=1&silence=800");
+  await p.mic(); // start listening
+  await p.page.evaluate(() => {
+    window.__tcb.onTranscriptionCommitted("hello there");
+    window.__tcb.onSpeechStart(4);
+    window.__tcb.onSpeechEnd();
+  });
+  await p.page.waitForFunction(() => document.getElementById("log").textContent.includes('"send_trigger":"auto_silence"'), null, { timeout: 15000 });
+  await p.advance(100);
+  await p.mic();
+  r.autoQuick = await p.state();
+  r.autoQuick.text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // A press that lands while the previous utterance is still being finished (stop() running) starts a second utterance, and
+  // the send then happens with the microphone listening again. The window must not stop the user from ending that one.
+  p = await openPage("tts_stream=1");
+  await p.page.evaluate(() => { window.__commitOnStop = true; window.__stopDelay = 400; });
+  await p.page.click("#mic-btn"); // start listening
+  await p.page.click("#mic-btn"); // release: stop() takes 400 ms (real) to finish
+  await p.page.click("#mic-btn"); // pressed again while it finishes: a new utterance starts (no send yet, so nothing to ignore)
+  await p.page.waitForFunction(() => document.getElementById("log").textContent.includes("ws_message_sent"), null, { timeout: 15000 });
+  await p.advance(10);
+  await p.page.click("#mic-btn"); // 10 ms after the send, while listening: this is the release, not a double tap
+  r.stopWindow = await p.state();
+  r.stopWindow.text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
+  // No send at all: a press is never ignored, not as the first press and not after an empty utterance that sent nothing.
+  p = await openPage("tts_stream=1");
+  await p.mic();
+  r.noSendFirst = await p.state();
+  r.noSendFirst.text = await p.page.textContent("#mic-btn");
+  await p.mic(); // release: nothing was heard, so send_skipped and no send
+  await p.mic(); // pressed again at once
+  r.noSendAgain = await p.state();
+  r.noSendAgain.text = await p.page.textContent("#mic-btn");
+  client.destroy();
+  await p.page.close();
+
   // A tool call in a muted turn: nothing is dropped or reported, the turn stays muted, and nothing after it is spoken.
   p = await openPage("tts_stream=1");
   await p.turn();
@@ -315,4 +395,59 @@ test("flag on: a tool call in a muted turn drops nothing and reports nothing; th
   assert.equal(r.onToolMuted.spoken.length, 1); // only the sentence from before the tap
   assert.deepEqual(names(r.onToolMuted.eventsAfterTap, "tts_dropped", "tts_start", "tts_requested"), []);
   assert.deepEqual(muted(r.onToolMuted.events).map((m) => m[1]), ["chunk", "done"]); // muting still took effect on the chunk and at done
+});
+
+const ignored = (events) => events.filter((e) => e.event === "mic_press_ignored").map(({ reason, since_send_ms }) => ({ reason, since_send_ms }));
+const presses = (events) => events.filter((e) => e.event === "mic_button_press").length;
+
+test("a press 118 ms after a send is ignored: no listening, no mute, no cancel, and the reply goes on", () => {
+  assert.deepEqual(ignored(r.quick118.events), [{ reason: "rearm", since_send_ms: 118 }]);
+  assert.equal(presses(r.quick118.events), presses(r.quick118.before.events));
+  assert.equal(r.quick118.cancels, r.quick118.before.cancels);
+  assert.deepEqual(cancelled(r.quick118.events), []);
+  assert.deepEqual(muted(r.quick118.events), []);
+  assert.equal(r.quick118.text, "Start listening");
+  assert.equal(r.quick118.later.spoken.length, 2); // the next chunk was queued and, once the first ended, spoken
+  assert.deepEqual(muted(r.quick118.later.events), []);
+});
+
+test("the window is MIC_REARM_MS (400): 399 ms after the send is ignored, 400 ms behaves as today (listens, mutes, cancels)", () => {
+  assert.deepEqual(ignored(r.quick399.events), [{ reason: "rearm", since_send_ms: 118 }, { reason: "rearm", since_send_ms: 399 }]);
+  assert.equal(presses(r.quick399.events), presses(r.quick118.events));
+  assert.equal(ignored(r.quick400.events).length, 2); // nothing new ignored
+  assert.equal(presses(r.quick400.events), presses(r.quick399.events) + 1);
+  assert.equal(r.quick400.text, "Stop listening");
+});
+
+test("a press at the end of the window cancels what is spoken and mutes the rest of the reply, exactly as before", () => {
+  assert.deepEqual(cancelled(r.quick400.after.events), ["mic_press"]);
+  assert.deepEqual(muted(r.quick400.after.events).map((m) => m[1]), ["chunk"]); // the chunk after the press is shown, not spoken
+  assert.equal(r.quick400.after.spoken.length, 2); // nothing new was handed to the browser
+});
+
+test("a send by auto_silence opens the same window", () => {
+  assert.deepEqual(ignored(r.autoQuick.events), [{ reason: "rearm", since_send_ms: 100 }]);
+  assert.equal(presses(r.autoQuick.events), 1); // only the press that started the utterance
+  assert.equal(r.autoQuick.text, "Start listening");
+});
+
+test("with no send, a press is never ignored: the first press, and a press right after an utterance that sent nothing", () => {
+  assert.deepEqual(ignored(r.noSendFirst.events), []);
+  assert.equal(r.noSendFirst.text, "Stop listening");
+  assert.deepEqual(r.noSendAgain.events.filter((e) => e.event === "send_skipped").map((e) => e.reason), ["empty_transcript"]);
+  assert.deepEqual(ignored(r.noSendAgain.events), []);
+  assert.equal(presses(r.noSendAgain.events), 2);
+  assert.equal(r.noSendAgain.text, "Stop listening");
+});
+
+test("the window only guards starting to listen: a stop press shortly after a start is a release and is never ignored", () => {
+  assert.equal(r.quick400.release.events.filter((e) => e.event === "mic_button_release").length, 2); // the turn's own and this one
+  assert.equal(ignored(r.quick400.release.events).length, 2);
+  assert.equal(r.quick400.releaseText, "Start listening");
+});
+
+test("a press while listening is a release even inside the window: the window guards only the start of listening", () => {
+  assert.deepEqual(ignored(r.stopWindow.events), []);
+  assert.equal(r.stopWindow.events.filter((e) => e.event === "mic_button_release").length, 2);
+  assert.equal(r.stopWindow.text, "Start listening");
 });

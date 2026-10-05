@@ -2,7 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
-import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
+import { MIC_REARM_MS, REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { browserEngine } from "./tts-engine";
 import { SentenceSplitter } from "./sentence-splitter";
@@ -68,6 +68,7 @@ function setStatus(el: HTMLSpanElement, text: string, kind: "idle" | "ok" | "err
 type EvalEvent =
   | "mic_button_press"
   | "mic_button_release"
+  | "mic_press_ignored"
   | "session_start"
   | "speech_start"
   | "pre_roll"
@@ -583,6 +584,9 @@ const reply = replyPrefix(urlParams.get("reply"));
 
 type SendTrigger = "manual" | "auto_silence";
 
+// When the last message went out (any trigger), for the mic re-arm window; null before the first send.
+let lastSendAt: number | null = null;
+
 function sendTranscript(text: string, trigger: SendTrigger) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     log("Cannot send: not connected");
@@ -603,6 +607,7 @@ function sendTranscript(text: string, trigger: SendTrigger) {
   receivedFirstChunkThisTurn = false;
   const frame = { type: "message", content: reply.prefix + text };
   socket.send(JSON.stringify(frame));
+  lastSendAt = Date.now();
   logEvent("ws_message_sent", { send_trigger: trigger, reply_style: reply.style });
   log(`Sent (${trigger}): ${text}`);
 }
@@ -986,6 +991,11 @@ async function startMicrophone(t: Transcriber) {
 
 micBtn.addEventListener("click", async () => {
   if (modelState !== "ready") return;
+  if (!listening && lastSendAt !== null && Date.now() - lastSendAt < MIC_REARM_MS) {
+    // A double tap right after a send: not the user taking the floor. No listening, no mute, no cancel.
+    logEvent("mic_press_ignored", { reason: "rearm", since_send_ms: Date.now() - lastSendAt });
+    return;
+  }
   if (!listening) {
     micBtn.textContent = "Stop listening";
     listening = true;

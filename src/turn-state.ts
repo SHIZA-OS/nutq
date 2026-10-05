@@ -15,6 +15,12 @@ const TURN_FAILURE_CODES = new Set(["PROVIDER_ERROR", "AUTH_ERROR", "AGENT_ERROR
 // let through as steering, which is what the guard exists to avoid, so it is a ceiling and not a typical wait.
 export const REPLY_TIMEOUT_MS = 60000;
 
+// A mic press this soon after a send is taken for a double tap, not for the user taking the floor, and is ignored: it
+// would start listening, mute the whole reply and send an empty utterance. A judgement, not measured: one live run
+// showed a press 118 ms after a send, and no data says how long a deliberate press takes at the earliest, so 400 ms is
+// a guess to be tuned. The window counts from when the message went out, after the final transcription has finished.
+export const MIC_REARM_MS = 400;
+
 export class ReplyState {
   private sentAt: number | null = null;
   private timeoutMs: number;
