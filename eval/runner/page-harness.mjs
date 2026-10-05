@@ -96,7 +96,7 @@ export async function startHarness() {
     h.server?.close();
   };
 
-  h.openPage = async (query) => {
+  h.openPage = async (query, { keepFirstWait = false } = {}) => {
     const page = await h.context.newPage();
     await page.route(/\/src\/vendor\/transcriber\.ts/, (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER }));
     await page.addInitScript(() => {
@@ -107,8 +107,11 @@ export async function startHarness() {
       const realClear = window.clearTimeout.bind(window);
       const long = new Map();
       let nextId = -1;
+      // The first utterance of a turn waits FIRST_UTTERANCE_WAIT_MS (700) for more units (src/speech-queue.ts). Most tests are about
+      // something else, so that wait is collapsed to 0 ms; first-wait.test.mjs sets __keepFirstWait and fires it with __fireLong().
       window.setTimeout = (fn, ms, ...a) => {
-        if (ms >= 60000) {
+        if (ms === 700 && !window.__keepFirstWait) return realSet(fn, 0, ...a);
+        if (ms >= 60000 || ms === 700) {
           const id = nextId--;
           long.set(id, () => fn(...a));
           return id;
@@ -137,6 +140,7 @@ export async function startHarness() {
       window.speechSynthesis.cancel = () => window.__sp.cancels++;
       navigator.mediaDevices.getUserMedia = async () => ({ getAudioTracks: () => [{ getSettings: () => ({}) }] });
     });
+    if (keepFirstWait) await page.addInitScript(() => (window.__keepFirstWait = true));
     await page.goto(`${h.vite.url}?${query}`);
     await page.fill("#ws-url", `ws://127.0.0.1:${h.server.address().port}/ws/chat`);
     await page.fill("#agent-alias", "stub");

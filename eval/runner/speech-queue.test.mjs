@@ -21,7 +21,7 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { SpeechQueue, MAX_UTTERANCE_CHARS } = await import("/src/speech-queue.ts");
+    const { SpeechQueue, MAX_UTTERANCE_CHARS, FIRST_UTTERANCE_WAIT_MS } = await import("/src/speech-queue.ts");
 
     const makeClock = () => {
       let now = 0;
@@ -31,7 +31,15 @@ before(async () => {
         get now() {
           return now;
         },
-        setTimeout: (fn, ms) => timers.push({ at: now + ms, seq: seq++, fn }),
+        setTimeout: (fn, ms) => {
+          const t = { at: now + ms, seq: seq++, fn };
+          timers.push(t);
+          return t;
+        },
+        clearTimeout: (t) => {
+          const i = timers.indexOf(t);
+          if (i >= 0) timers.splice(i, 1);
+        },
         tick(ms) {
           const end = now + ms;
           for (;;) {
@@ -76,13 +84,18 @@ before(async () => {
       };
       return e;
     };
-    const setup = () => {
+    // The wait for the first utterance (FIRST_UTTERANCE_WAIT_MS) is off in setup() so the older cases below keep their meaning
+    // (the first unit goes to the engine as soon as it is queued); setupWait() has it on, with the fake clock as the queue's timers.
+    const setup = (firstWaitMs = 0) => {
       const clock = makeClock();
       const engine = makeEngine(clock);
       const events = [];
-      const queue = new SpeechQueue(engine, (e) => events.push({ t: clock.now, ...e }));
+      const timers = { setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout, now: () => clock.now };
+      const queue = new SpeechQueue(engine, (e) => events.push({ t: clock.now, ...e }), { firstWaitMs, timers });
       return { clock, engine, events, queue };
     };
+    const setupWait = () => setup(FIRST_UTTERANCE_WAIT_MS);
+    const starts = (x) => x.events.filter((e) => e.type === "start").map((e) => ({ t: e.t, index: e.index, units: e.units, chars: e.chars, first: e.first, waited: e.waited ?? null }));
     const out = {};
 
     // In order, one at a time, with the engine's start info carried on the start event.
@@ -316,6 +329,140 @@ before(async () => {
     s.queue.enqueue("cccc");
     s.clock.tick(1000);
     out.nextTurnAfterDrop = s.events.slice(-3).map((e) => [e.type, e.index, e.first ?? null]);
+
+    // --- The first utterance waits up to FIRST_UTTERANCE_WAIT_MS after its first unit is ready (Version A) ---
+    out.waitMs = FIRST_UTTERANCE_WAIT_MS;
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    const w0 = [...s.engine.spoken];
+    s.clock.tick(699);
+    const w699 = [...s.engine.spoken];
+    s.clock.tick(1);
+    out.fwBasic = { w0, w699, w700: [...s.engine.spoken], starts: (s.clock.tick(100), starts(s)) };
+
+    // Units that arrive while it waits join the first utterance (in order, joined with a space), which starts at 700.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.clock.tick(300);
+    s.queue.enqueue("bbbb");
+    s.clock.tick(300);
+    s.queue.enqueue("cccc");
+    s.clock.tick(99);
+    const j699 = [...s.engine.spoken];
+    s.clock.tick(1);
+    s.clock.tick(100);
+    out.fwJoin = { j699, spoken: s.engine.spoken, starts: starts(s) };
+
+    // done (finish) before the wait is over: it speaks at once, and the timer is gone.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.clock.tick(100);
+    s.queue.enqueue("bbbb");
+    out.fwFinish = { before: [...s.engine.spoken], returned: s.queue.finish(), at: [...s.engine.spoken] };
+    s.clock.tick(5000);
+    out.fwFinish.starts = starts(s);
+    out.fwFinish.after = s.engine.spoken;
+    // A one-unit reply that finishes in the same tick waited 0 ms.
+    s = setupWait();
+    s.queue.enqueue("only one");
+    s.queue.finish();
+    out.fwSameTick = { spoken: [...s.engine.spoken], starts: (s.clock.tick(100), starts(s)) };
+
+    // The cap: a unit that does not fit ends the wait at once, and the one that does not fit is a later utterance.
+    s = setupWait();
+    s.queue.enqueue("x".repeat(1000));
+    s.clock.tick(50);
+    const cap0 = s.engine.spoken.length;
+    s.queue.enqueue("y".repeat(300));
+    out.fwCap = { cap0, atOnce: s.engine.spoken.map((t) => t.length) };
+    s.clock.tick(100000);
+    out.fwCap.all = s.engine.spoken.map((t) => t.length);
+    out.fwCap.starts = starts(s);
+    // Exactly the cap (join space counted) is full too: it speaks at once with both units.
+    s = setupWait();
+    s.queue.enqueue("a".repeat(599));
+    s.clock.tick(10);
+    s.queue.enqueue("b".repeat(600));
+    out.fwCapExact = { atOnce: s.engine.spoken.map((t) => t.length), starts: (s.clock.tick(100000), starts(s)) };
+    // One short of the cap is not full: it keeps waiting.
+    s = setupWait();
+    s.queue.enqueue("a".repeat(599));
+    s.clock.tick(10);
+    s.queue.enqueue("b".repeat(599));
+    out.fwCapShort = { atOnce: s.engine.spoken.length, at700: (s.clock.tick(690), s.engine.spoken.map((t) => t.length)) };
+
+    // drop() during the wait drops the collected units (as it does for waiting units today), the timer is gone, and the next
+    // unit starts a new wait.
+    s = setupWait();
+    ["aaaa", "bbbb"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(200);
+    out.fwDrop = { dropped: s.queue.drop(), cancels: s.engine.cancels };
+    s.clock.tick(2000);
+    out.fwDrop.quiet = { spoken: [...s.engine.spoken], starts: starts(s).length };
+    s.queue.enqueue("cccc");
+    s.clock.tick(699);
+    out.fwDrop.w699 = [...s.engine.spoken];
+    s.clock.tick(1);
+    s.clock.tick(100);
+    out.fwDrop.starts = starts(s);
+
+    // cancel() during the wait: nothing is spoken, one cancelled event, no leftover timer; the next turn gets a whole new wait.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.clock.tick(200);
+    s.queue.cancel();
+    s.clock.tick(2000);
+    out.fwCancel = { spoken: [...s.engine.spoken], events: s.events.map((e) => e.type) };
+    s.queue.enqueue("bbbb");
+    s.clock.tick(699);
+    out.fwCancel.w699 = [...s.engine.spoken];
+    s.clock.tick(1);
+    out.fwCancel.w700 = [...s.engine.spoken];
+
+    // Only the turn's first utterance waits: once audio has started, a unit queued after the queue drained plays at once, and
+    // the next turn waits again.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.clock.tick(700);
+    s.queue.enqueue("bbbb");
+    s.clock.tick(100);
+    s.queue.enqueue("cccc");
+    out.fwLater = { atOnce: [...s.engine.spoken], starts: (s.clock.tick(100), starts(s)) };
+    s.queue.finish();
+    s.clock.tick(100);
+    s.queue.enqueue("dddd");
+    out.fwLater.nextTurnAtOnce = s.engine.spoken.length;
+    s.clock.tick(700);
+    out.fwLater.nextTurnAfterWait = s.engine.spoken.length;
+
+    // A tool call (drop) after audio has started does not bring the wait back: the next unit is handed over at once.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.clock.tick(800); // spoken at 700, audible at 710, ended at 718
+    s.queue.drop();
+    s.queue.enqueue("bbbb");
+    out.fwDropAfterAudio = [...s.engine.spoken];
+
+    // A failed first utterance does not start a second wait for what came next.
+    s = setupWait();
+    s.queue.enqueue("bad one");
+    s.clock.tick(700);
+    s.queue.enqueue("good one");
+    s.clock.tick(10);
+    out.fwError = { spoken: [...s.engine.spoken], t: s.clock.now };
+
+    // The first utterance released by the cap (not by the timer) and then failed: what was left over does not wait again.
+    s = setupWait();
+    s.queue.enqueue("bad " + "x".repeat(996)); // 1000 chars, fails at 10 ms
+    s.queue.enqueue("y".repeat(300)); // does not fit: releases the first at once
+    s.clock.tick(10);
+    out.fwCapError = { spoken: s.engine.spoken.map((t) => t.length), t: s.clock.now };
+
+    // sentences, fresh and requested events do not wait: they happen at enqueue.
+    s = setupWait();
+    s.queue.enqueue("aaaa");
+    s.queue.enqueue("bbbb");
+    out.fwCounts = { sentences: s.queue.sentences, fresh: s.queue.fresh, requested: s.events.filter((e) => e.type === "requested").length };
     return out;
   });
 });
@@ -512,4 +659,82 @@ test("finish() after a drop still returns the turn's units, and the turn ends wh
 
 test("fresh counts the units queued this turn and starts again when the turn ends or is cancelled", () => {
   assert.deepEqual(r.freshTurns, [2, 0, 0]);
+});
+
+test("the first utterance waits FIRST_UTTERANCE_WAIT_MS (700) after its first unit is ready, then speaks, with waited 700 on its start", () => {
+  assert.equal(r.waitMs, 700);
+  assert.deepEqual(r.fwBasic.w0, []);
+  assert.deepEqual(r.fwBasic.w699, []);
+  assert.deepEqual(r.fwBasic.w700, ["aaaa"]);
+  assert.deepEqual(r.fwBasic.starts, [{ t: 710, index: 0, units: 1, chars: 4, first: true, waited: 700 }]);
+});
+
+test("units that arrive during the wait are collected into the first utterance, in order, joined with a space", () => {
+  assert.deepEqual(r.fwJoin.j699, []);
+  assert.deepEqual(r.fwJoin.spoken, ["aaaa bbbb cccc"]);
+  assert.deepEqual(r.fwJoin.starts, [{ t: 710, index: 0, units: 3, chars: 14, first: true, waited: 700 }]);
+});
+
+test("done (finish) during the wait speaks at once, with the waited time, and the timer does not speak again", () => {
+  assert.deepEqual(r.fwFinish.before, []);
+  assert.equal(r.fwFinish.returned, 2);
+  assert.deepEqual(r.fwFinish.at, ["aaaa bbbb"]);
+  assert.deepEqual(r.fwFinish.starts, [{ t: 110, index: 0, units: 2, chars: 9, first: true, waited: 100 }]);
+  assert.deepEqual(r.fwFinish.after, ["aaaa bbbb"]);
+  assert.deepEqual(r.fwSameTick.spoken, ["only one"]);
+  assert.equal(r.fwSameTick.starts[0].waited, 0);
+});
+
+test("a unit that does not fit under MAX_UTTERANCE_CHARS ends the wait at once and is a later utterance", () => {
+  assert.equal(r.fwCap.cap0, 0); // 50 ms in, still waiting
+  assert.deepEqual(r.fwCap.atOnce, [1000]);
+  assert.deepEqual(r.fwCap.all, [1000, 300]);
+  assert.deepEqual(r.fwCap.starts.map((x) => [x.units, x.waited]), [[1, 50], [1, null]]);
+});
+
+test("exactly the cap (join space counted) is full and speaks at once with both units; one short of it keeps waiting", () => {
+  assert.deepEqual(r.fwCapExact.atOnce, [1200]);
+  assert.deepEqual(r.fwCapExact.starts[0], { t: 20, index: 0, units: 2, chars: 1200, first: true, waited: 10 });
+  assert.equal(r.fwCapShort.atOnce, 0);
+  assert.deepEqual(r.fwCapShort.at700, [1199]);
+});
+
+test("drop() during the wait drops the collected units and the timer; the next unit starts a new 700 ms wait", () => {
+  assert.deepEqual(r.fwDrop.dropped, { units: 2, chars: 8 });
+  assert.equal(r.fwDrop.cancels, 0); // nothing was with the engine
+  assert.deepEqual(r.fwDrop.quiet, { spoken: [], starts: 0 });
+  assert.deepEqual(r.fwDrop.w699, []);
+  assert.deepEqual(r.fwDrop.starts.map((x) => [x.index, x.waited]), [[2, 700]]);
+});
+
+test("cancel() during the wait speaks nothing, reports one cancelled, and the next turn gets a whole new wait", () => {
+  assert.deepEqual(r.fwCancel.spoken, []);
+  assert.deepEqual(r.fwCancel.events, ["requested", "cancelled"]);
+  assert.deepEqual(r.fwCancel.w699, []);
+  assert.deepEqual(r.fwCancel.w700, ["bbbb"]);
+});
+
+test("only the turn's first utterance waits: later units are not delayed, and the next turn waits again", () => {
+  assert.deepEqual(r.fwLater.atOnce, ["aaaa", "bbbb", "cccc"]);
+  assert.deepEqual(r.fwLater.starts.map((x) => x.waited), [700, null, null]);
+  assert.equal(r.fwLater.nextTurnAtOnce, 3);
+  assert.equal(r.fwLater.nextTurnAfterWait, 4);
+});
+
+test("a failed first utterance does not start a second wait for what came next", () => {
+  assert.deepEqual(r.fwError.spoken, ["bad one", "good one"]);
+  assert.equal(r.fwError.t, 710);
+});
+
+test("sentences, fresh and requested events count at enqueue, not after the wait", () => {
+  assert.deepEqual(r.fwCounts, { sentences: 2, fresh: 2, requested: 2 });
+});
+
+test("a tool call after audio has started does not bring the wait back", () => {
+  assert.deepEqual(r.fwDropAfterAudio, ["aaaa", "bbbb"]);
+});
+
+test("a first utterance released by the cap that then fails does not make the next unit wait", () => {
+  assert.deepEqual(r.fwCapError.spoken, [1000, 300]);
+  assert.equal(r.fwCapError.t, 10);
 });

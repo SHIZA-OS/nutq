@@ -38,6 +38,10 @@ async function openPage(query) {
   await page.route(/\/src\/vendor\/transcriber\.ts/, (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER }));
   await page.addInitScript(() => {
     window.__sp = { utterances: [], cancels: 0 };
+    // The first utterance of a turn waits FIRST_UTTERANCE_WAIT_MS (700) for more units (src/speech-queue.ts). These tests are about
+    // what is spoken, not about that wait (speech-queue.test.mjs and first-wait.test.mjs are), so the wait is collapsed to 0 ms.
+    const realSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (fn, ms, ...a) => realSetTimeout(fn, ms === 700 ? 0 : ms, ...a);
     window.__commitOnStop = false;
     // A slow stop() without a real-time delay (which races under load): after __gateStop(), stop() waits until the test calls __openStop().
     window.__gateStop = () => { window.__stopWait = new Promise((r) => (window.__openStop = r)); };

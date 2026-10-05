@@ -32,6 +32,10 @@ async function openPage(query) {
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(e.message));
   await page.addInitScript(() => {
+    // The first utterance of a turn waits FIRST_UTTERANCE_WAIT_MS (700) for more units (src/speech-queue.ts). These tests are about
+    // what is spoken, not about that wait (speech-queue.test.mjs and first-wait.test.mjs are), so the wait is collapsed to 0 ms.
+    const realSetTimeout = window.setTimeout.bind(window);
+    window.setTimeout = (fn, ms, ...a) => realSetTimeout(fn, ms === 700 ? 0 : ms, ...a);
     window.__sp = { utterances: [], cancels: 0 };
     window.speechSynthesis.speak = (u) => window.__sp.utterances.push(u);
     window.speechSynthesis.cancel = () => window.__sp.cancels++;
@@ -223,11 +227,14 @@ before(async () => {
   client.destroy();
   await codeOff.page.close();
 
-  // Units that wait while the first plays reach the browser as one utterance; speech_text stays per unit.
+  // Units that wait while the first plays reach the browser as one utterance; speech_text stays per unit. The first sentence is
+  // its own chunk here, so its wait (collapsed to 0 ms in this file) is over before the next two arrive; what the first
+  // utterance collects during its wait is in first-wait.test.mjs.
   const co = await openPage("&tts_stream=1");
-  await co.send({ type: "chunk", content: "First sentence is long enough. Second sentence is long too. Third sentence is also long. " });
+  await co.send({ type: "chunk", content: "First sentence is long enough. " });
   r.coFirst = await co.state(); // only the first is with the browser so far
   await co.fire(0, "start");
+  await co.send({ type: "chunk", content: "Second sentence is long too. Third sentence is also long. " });
   await co.fire(0, "end");
   await co.fire(1, "start");
   await co.fire(1, "end");
@@ -246,7 +253,8 @@ before(async () => {
   // One tool call, nothing audible yet: both units and the unfinished text are dropped, and the post-tool text is spoken
   // clean (the dropped unfinished text is not glued to it).
   const t1 = await openPage("&tts_stream=1");
-  await t1.send({ type: "chunk", content: `${S1} ${S2} ${PART}` });
+  await t1.send({ type: "chunk", content: `${S1} ` }); // its own chunk: handed to the browser before the next unit arrives
+  await t1.send({ type: "chunk", content: `${S2} ${PART}` });
   r.t1Before = await t1.state();
   await t1.send(tool);
   r.t1Dropped = await t1.state();
@@ -260,8 +268,9 @@ before(async () => {
 
   // The audible utterance is not cancelled and plays to its end; what waits behind it is dropped; a second tool call drops again.
   const t2 = await openPage("&tts_stream=1");
-  await t2.send({ type: "chunk", content: `${S1} ${S2} Third sentence goes right here now. ` });
+  await t2.send({ type: "chunk", content: `${S1} ` });
   await t2.fire(0, "start");
+  await t2.send({ type: "chunk", content: `${S2} Third sentence goes right here now. ` });
   await t2.send(tool);
   r.t2AfterFirst = await t2.state();
   await t2.fire(0, "end");
@@ -288,7 +297,8 @@ before(async () => {
 
   // Everything before the tool call dropped and nothing after it: the done fallback speaks full_response once.
   const t4 = await openPage("&tts_stream=1");
-  await t4.send({ type: "chunk", content: `${S1} ${S2} ` });
+  await t4.send({ type: "chunk", content: `${S1} ` });
+  await t4.send({ type: "chunk", content: `${S2} ` });
   await t4.send(tool);
   await t4.send({ type: "done", full_response: "Here is the final answer.", tokens_used: 1 });
   r.t4 = await t4.state();
