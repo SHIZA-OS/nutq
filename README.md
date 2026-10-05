@@ -25,12 +25,18 @@ demo's pairing token and the downloaded speech model cache between runs, apart f
    Pairing below.
 2. Start the dev server: `npm run dev` (it serves http://localhost:5173).
 3. Run `scripts/demo-chrome-linux.sh`. It takes an optional URL if the server is elsewhere, and the Chrome binary
-   comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds `endpoint=semantic` to the URL, so a turn is sent
-   after a wait that depends on what you said (1000 ms after a finished sentence, 2200 ms when the text has no
-   final punctuation, 2500 ms after an unfinished one such as "and"; see ARCHITECTURE, End of turn). The wait counts
-   from the speech end the voice detector reports, which comes 768 ms after you stop, so the median measured wait
-   after you stop is 1768 ms. The public default
-   is a fixed 5000 ms. Do not add `?silence=<ms>` to the demo URL: it overrides semantic mode with a fixed wait.
+   comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds three settings to the URL, each only if the URL
+   does not already set it:
+   - `reply=voice`: the agent is asked for a thorough answer written as speech. Any markdown that still comes through is
+     not read out.
+   - `tts_stream=1`: the reply is spoken sentence by sentence as it arrives.
+   - `endpoint=semantic`: a turn is sent after a wait that depends on what you said (1000 ms after a finished sentence,
+     2200 ms when the text has no final punctuation, 2500 ms after an unfinished one such as "and"; see ARCHITECTURE,
+     End of turn). The wait counts from the speech end the voice detector reports, which comes 768 ms after you stop,
+     so the median measured wait after you stop is 1768 ms. Do not add `?silence=<ms>` to the demo URL: it overrides
+     semantic mode with a fixed wait.
+
+   The public defaults are `reply=short`, no streaming and a fixed 5000 ms wait.
 4. Pair (only the first time on that profile), then Connect.
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.

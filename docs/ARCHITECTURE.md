@@ -174,6 +174,25 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   is spoken once, trimmed, through the same queue); the queue
   is cancelled on aborted, a turn-failure error, a closed socket, the reply timeout and a new send. Only `chunk`
   frames are spoken, never `thinking`, `tool_call` or `plan`.
+- `?reply=short|voice` (any mode, default `short`): which prefix goes in front of every message sent to the agent
+  (`src/speech-text.ts`). `short` is the original, "1-2 short, complete sentences", kept byte for byte (a test pins it) so earlier eval
+  runs can be repeated. `voice` asks for a thorough, complete answer written as speech: no markdown, short sentences, no URLs,
+  and the structure carried by spoken signposts ("There are three things. First, ..."). Anything but exactly `voice` is `short`.
+  `ws_message_sent` records `reply_style`. `scripts/demo-chrome-linux.sh` sets `reply=voice` and `tts_stream=1`; the code
+  defaults are `short` and off.
+
+**Speech text.** Whatever the prefix, the agent may still send markdown, so every text handed to the voice goes through
+`speakable()` (`src/speech-text.ts`, pure): fenced code blocks are not read, inline code, bold and italic lose their markers,
+a link keeps its label, bare URLs and emoji are dropped, heading, bullet and number markers go, a table row becomes
+comma-separated words, and `. , ? ! : ;` are kept because they shape the pauses. Each line gets its own full stop unless it
+already ends in punctuation, so list items are separate sentences. It is applied on all paths: `speak()` (flag off), each
+streamed unit and the tail (`queueSpeech` in `main.ts`), and the `full_response` fallback. The transcript card keeps the original text
+(`textContent`, no markdown rendering, so reply text is never parsed as HTML). With streaming, the splitter closes a unit at a
+newline as well as at `. ? !`, so unpunctuated list items are separate; short lines are still merged but keep their line break.
+Markers cut across chunks never reach the cleaner half-formed, because only closed units are cleaned; a code fence that spans
+several units is carried by the caller (`speechInCode`). A unit that cleans to nothing is not queued. Not handled: symbols such as
+`->`, nested emphasis across lines, and a reply hard-wrapped inside a sentence (it would be spoken as two utterances; the replies
+probed so far were not wrapped).
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
 
@@ -193,6 +212,8 @@ Events added for WER measurement:
 - `tts_start` `{ voice, local_service, voice_source, engine }`: the reply started to be spoken (with `?tts_stream=1`, its first sentence). `voice_source` is `param`
   (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
   guess because Chrome does not say which voice it picked; both are null if no voices were available.
+- `speech_text` `{ raw_chars, spoken_chars }`: one per text handed to the voice (the whole reply with the flag off, each streamed
+  unit, the `full_response` fallback), before and after `speakable()`; 0 spoken means the unit was dropped. No text is logged.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
   logged before any send. `trigger` is `manual` or `auto_silence`. It is logged even when
   the text is empty, so a total miss counts as data.

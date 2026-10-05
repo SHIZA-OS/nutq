@@ -449,3 +449,29 @@ Limitation: the 12 cuts are dominated by one recording. mp-10 is cut in 8 of 8 p
 text reads as done and the 1000 ms wait ends the turn), mp-12 in 3 of 8 and mp-09 in 1 of 8; without mp-10 the cuts are 4. The sweep had 12 pause
 recordings by one speaker, and its measured pauses were 1.6 to 3.0 s, so this is a result for those takes, not a general cut rate. These waits have
 not been tried live with the microphone in a demo.
+
+## Thorough replies, spoken as text only (2026-10-05)
+
+The prefix on every message used to ask for 1 to 2 short sentences. `?reply=voice` now asks for a thorough answer written as speech; `?reply=short`
+is the default and the original prefix, byte for byte (pinned by a test). The demo script sets `reply=voice` and `tts_stream=1`; the code defaults are
+unchanged. Whatever the agent sends, `speakable()` (`src/speech-text.ts`) cleans it before every TTS path (flag off, streamed units and tail, the
+`full_response` fallback), and the splitter now also closes a unit at a newline. The transcript card keeps the original text. New eval data:
+`reply_style` on `ws_message_sent`, and a `speech_text { raw_chars, spoken_chars }` event. Details are in ARCHITECTURE (`?reply=`, Speech text).
+
+Probe before the build (`docker exec zeroclaw zeroclaw agent -a default -m ...`, 3 questions that invite structure, each with no prefix and with the
+voice prefix; replies were not committed). Without a prefix every reply was markdown: bold (2 to 26 per reply), headings (3 to 6), bullets, numbered
+lists, fenced code blocks and inline code (q1 only), and em dashes (seen in q3). With the voice prefix none of 3 replies had bold, headings, bullets, numbers, code, tables,
+URLs or emoji; the replies were prose paragraphs, each one a single line of 190 to 410 characters with blank lines between, so they were not
+hard-wrapped. One of the 3 still contained em dashes. Length and wall-clock time of the CLI call (this includes `docker exec` start-up and is not
+the `/ws/chat` path, and a CLI call gives no chunks):
+
+| question | no prefix | voice prefix |
+|---|---|---|
+| set up a Python project | 195 words, 5.8 s | 272 words, 5.1 s |
+| PostgreSQL vs MongoDB | 350 words, 8.3 s | 300 words, 6.2 s |
+| pre-deployment checks | 322 words, 5.7 s | 242 words, 4.6 s |
+
+Six samples, the longest 8.3 s, so the 60 s reply timeout (unchanged) was not close here; longer answers than about 350 words were not tried. In one
+no-prefix reply the agent asked to run a shell command (`pwd`) and waited for approval; Nutq auto-denies approvals. Not tested: the mic-tap mute with
+markdown (the mute check comes before any text handling), the `sendTranscript` line that picks the prefix (the page cannot send without a microphone;
+the prefix function is tested), and how the voice sounds. The late-`done` behavior after a reply timeout (a late `done` still speaks) is unchanged.
