@@ -475,3 +475,8 @@ Six samples, the longest 8.3 s, so the 60 s reply timeout (unchanged) was not cl
 no-prefix reply the agent asked to run a shell command (`pwd`) and waited for approval; Nutq auto-denies approvals. Not tested: the mic-tap mute with
 markdown (the mute check comes before any text handling), the `sendTranscript` line that picks the prefix (the page cannot send without a microphone;
 the prefix function is tested), and how the voice sounds. The late-`done` behavior after a reply timeout (a late `done` still speaks) is unchanged.
+
+Follow-up on dashes (2026-10-05). One of the three voice-prefix replies in the probe still had em dashes, so `speakable()` now turns an em or en dash into
+a comma pause (no doubled punctuation, a dash at either end of a line dropped), except between two numbers, where it is a range and is read as "to"
+("10 to 20"); a dash with a number on one side only gets the comma. Hyphenated words are untouched. The voice prefix now also lists "dashes" among the
+things to avoid; `?reply=short` is unchanged, byte for byte. How a dash and a range sound has not been checked by ear.

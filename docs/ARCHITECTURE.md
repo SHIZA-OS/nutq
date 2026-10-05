@@ -176,7 +176,7 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   frames are spoken, never `thinking`, `tool_call` or `plan`.
 - `?reply=short|voice` (any mode, default `short`): which prefix goes in front of every message sent to the agent
   (`src/speech-text.ts`). `short` is the original, "1-2 short, complete sentences", kept byte for byte (a test pins it) so earlier eval
-  runs can be repeated. `voice` asks for a thorough, complete answer written as speech: no markdown, short sentences, no URLs,
+  runs can be repeated. `voice` asks for a thorough, complete answer written as speech: no markdown or dashes, short sentences, no URLs,
   and the structure carried by spoken signposts ("There are three things. First, ..."). Anything but exactly `voice` is `short`.
   `ws_message_sent` records `reply_style`. `scripts/demo-chrome-linux.sh` sets `reply=voice` and `tts_stream=1`; the code
   defaults are `short` and off.
@@ -184,7 +184,9 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
 **Speech text.** Whatever the prefix, the agent may still send markdown, so every text handed to the voice goes through
 `speakable()` (`src/speech-text.ts`, pure): fenced code blocks are not read, inline code, bold and italic lose their markers,
 a link keeps its label, bare URLs and emoji are dropped, heading, bullet and number markers go, a table row becomes
-comma-separated words, and `. , ? ! : ;` are kept because they shape the pauses. Each line gets its own full stop unless it
+comma-separated words, and `. , ? ! : ;` are kept because they shape the pauses. An em or en dash, spaced or not, becomes a comma
+pause (", ") without doubling punctuation that is already next to it, and a dash at the start or end of a line is dropped;
+a dash between two numbers is a range and is read as "to" ("10 to 20", "5 to 7"). A dash with a number on one side only (a price range with a dollar sign on both sides, say) gets the comma. A hyphen is never touched, so hyphenated words stay whole. Each line gets its own full stop unless it
 already ends in punctuation, so list items are separate sentences. It is applied on all paths: `speak()` (flag off), each
 streamed unit and the tail (`queueSpeech` in `main.ts`), and the `full_response` fallback. The transcript card keeps the original text
 (`textContent`, no markdown rendering, so reply text is never parsed as HTML). With streaming, the splitter closes a unit at a
