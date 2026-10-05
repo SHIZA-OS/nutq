@@ -29,6 +29,8 @@ const frame = (obj) => {
 // far, `spoken` the texts the page asked the browser to speak, `cancels` the speechSynthesis.cancel() calls.
 async function openPage(query) {
   const page = await context.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(e.message));
   await page.addInitScript(() => {
     window.__sp = { utterances: [], cancels: 0 };
     window.speechSynthesis.speak = (u) => window.__sp.utterances.push(u);
@@ -44,10 +46,16 @@ async function openPage(query) {
     client.write(frame(obj));
     await page.waitForTimeout(150);
   };
-  const state = () =>
+  const state = async () => {
+    const st = await stateInPage();
+    st.pageErrors = [...pageErrors];
+    return st;
+  };
+  const stateInPage = () =>
     page.evaluate(() => ({
       spoken: window.__sp.utterances.map((u) => u.text),
       cancels: window.__sp.cancels,
+      pageErrors: [],
       events: [...document.getElementById("log").textContent.matchAll(/EVENT (\{.*\})/g)].map((m) => JSON.parse(m[1])),
     }));
   // Fires a callback of the i-th utterance. Returns false, and does nothing, if the page never spoke it: a behavior that
@@ -102,9 +110,8 @@ before(async () => {
   await on.send({ type: "chunk", content: "This is the first sentence. This is the sec" });
   r.onChunk1 = await on.state(); // the first sentence is closed and spoken; the second is not closed yet
   await on.send({ type: "chunk", content: "ond one! Tail here" });
-  // Frames that carry text but are not the reply: logged, never spoken.
+  // Frames that carry text but are not the reply: logged, never spoken. (A tool_call also drops speech, see below.)
   await on.send({ type: "thinking", content: "Thinking about it. Still thinking here." });
-  await on.send({ type: "tool_call", id: "1", name: "search", args: { q: "A query that is long enough. Really." } });
   await on.send({ type: "plan", entries: [{ content: "A plan step that is long enough. Second step here." }] });
   r.onChunk2 = await on.state(); // the second is closed and queued behind the first
   await on.fire(0, "start");
@@ -228,6 +235,103 @@ before(async () => {
   r.coAll = await co.state();
   client.destroy();
   await co.page.close();
+
+  // Tool calls (flag on): text streamed before a tool call is not part of the answer.
+  const S1 = "Let me check the weather for you now.";
+  const S2 = "I will look that up right away.";
+  const PART = "And then I will";
+  const POST = "The weather is sunny today.";
+  const tool = { type: "tool_call", id: "1", name: "search", args: { q: "A query that is long enough. Really." } }; // its text is never spoken
+
+  // One tool call, nothing audible yet: both units and the unfinished text are dropped, and the post-tool text is spoken
+  // clean (the dropped unfinished text is not glued to it).
+  const t1 = await openPage("&tts_stream=1");
+  await t1.send({ type: "chunk", content: `${S1} ${S2} ${PART}` });
+  r.t1Before = await t1.state();
+  await t1.send(tool);
+  r.t1Dropped = await t1.state();
+  await t1.send({ type: "chunk", content: `${POST} ` });
+  await t1.fire(1, "start");
+  await t1.fire(1, "end");
+  await t1.send({ type: "done", full_response: POST, tokens_used: 1 });
+  r.t1 = await t1.state();
+  client.destroy();
+  await t1.page.close();
+
+  // The audible utterance is not cancelled and plays to its end; what waits behind it is dropped; a second tool call drops again.
+  const t2 = await openPage("&tts_stream=1");
+  await t2.send({ type: "chunk", content: `${S1} ${S2} Third sentence goes right here now. ` });
+  await t2.fire(0, "start");
+  await t2.send(tool);
+  r.t2AfterFirst = await t2.state();
+  await t2.fire(0, "end");
+  await t2.send({ type: "chunk", content: `${POST} Second part after the call is here. and so on` });
+  await t2.fire(1, "start");
+  await t2.send(tool);
+  r.t2AfterSecond = await t2.state();
+  await t2.send({ type: "chunk", content: "Final answer after the second call. " });
+  await t2.fire(1, "end");
+  await t2.fire(2, "start");
+  await t2.fire(2, "end");
+  await t2.send({ type: "done", full_response: "Final answer after the second call.", tokens_used: 1 });
+  r.t2 = await t2.state();
+  client.destroy();
+  await t2.page.close();
+
+  // A tool call with nothing queued: nothing to drop, no event, nothing cancelled; the reply goes on as normal.
+  const t3 = await openPage("&tts_stream=1");
+  await t3.send(tool);
+  await t3.send({ type: "chunk", content: `${POST} ` });
+  r.t3 = await t3.state();
+  client.destroy();
+  await t3.page.close();
+
+  // Everything before the tool call dropped and nothing after it: the done fallback speaks full_response once.
+  const t4 = await openPage("&tts_stream=1");
+  await t4.send({ type: "chunk", content: `${S1} ${S2} ` });
+  await t4.send(tool);
+  await t4.send({ type: "done", full_response: "Here is the final answer.", tokens_used: 1 });
+  r.t4 = await t4.state();
+  client.destroy();
+  await t4.page.close();
+
+  // The audible pre-tool utterance stays (nothing to drop), nothing comes after the tool call: the fallback still speaks
+  // full_response, because the final answer is not in the chunks.
+  const t5 = await openPage("&tts_stream=1");
+  await t5.send({ type: "chunk", content: `${S1} ` });
+  await t5.fire(0, "start");
+  await t5.send(tool);
+  await t5.send({ type: "done", full_response: "Here is the final answer.", tokens_used: 1 });
+  await t5.fire(0, "end"); // the final answer waited behind the audible utterance
+  r.t5 = await t5.state();
+  client.destroy();
+  await t5.page.close();
+
+  // A code fence opened before the tool call must not swallow what comes after it.
+  const t7 = await openPage("&tts_stream=1");
+  await t7.send({ type: "chunk", content: "Let me show you the command first:\n```bash\nnpm install foo\n" });
+  await t7.send(tool);
+  await t7.send({ type: "chunk", content: `${POST} ` });
+  r.t7 = await t7.state();
+  client.destroy();
+  await t7.page.close();
+
+  // Only unfinished text before the tool call (no unit closed yet): that is dropped and reported too.
+  const t8 = await openPage("&tts_stream=1");
+  await t8.send({ type: "chunk", content: PART });
+  await t8.send(tool);
+  r.t8 = await t8.state();
+  client.destroy();
+  await t8.page.close();
+
+  // Flag off: a tool call changes nothing; the reply is spoken once at done.
+  const t6 = await openPage("");
+  await t6.send({ type: "chunk", content: `${S1} ${S2} ${PART}` });
+  await t6.send(tool);
+  await t6.send({ type: "done", full_response: POST, tokens_used: 1 });
+  r.t6 = await t6.state();
+  client.destroy();
+  await t6.page.close();
 });
 
 after(async () => {
@@ -257,7 +361,7 @@ test("flag on: a sentence is spoken as soon as it closes, and the next waits for
   assert.deepEqual(tts(r.onChunk2.events), [["tts_requested", 0], ["tts_requested", 1]]);
 });
 
-test("flag on: thinking, tool_call and plan frames are never spoken", () => {
+test("flag on: thinking and plan frames are never spoken", () => {
   const all = r.onDone.spoken.join(" ");
   assert.doesNotMatch(all, /Thinking|query|plan step/i);
   assert.equal(r.onChunk2.events.filter((e) => e.event.startsWith("tts_")).length, 2);
@@ -397,4 +501,70 @@ test("coalescing: the first sentence is spoken alone, the ones that waited are o
 
 test("coalescing: speech_text is still one event per unit, before merging", () => {
   assert.deepEqual(speechText(r.coAll.events), [[30, 30], [28, 28], [28, 28]]);
+});
+
+// tts_dropped { reason, units, chars, partial_chars }: a tool call dropped speech that had not been heard.
+const dropped = (events) => events.filter((e) => e.event === "tts_dropped").map(({ reason, units, chars, partial_chars }) => ({ reason, units, chars, partial_chars }));
+const TS1 = "Let me check the weather for you now.";
+const TS2 = "I will look that up right away.";
+const TPOST = "The weather is sunny today.";
+
+test("tool call, flag on: the unit with the engine but not audible and the unit that waits are dropped, with the unfinished text; the event says how much", () => {
+  assert.deepEqual(r.t1Before.spoken, [TS1]); // handed to the browser, not audible yet
+  assert.equal(r.t1Dropped.cancels, 1); // the browser was told to cancel it
+  assert.deepEqual(dropped(r.t1Dropped.events), [{ reason: "tool_call", units: 2, chars: TS1.length + TS2.length, partial_chars: "And then I will".length }]);
+  assert.equal(r.t1Dropped.events.filter((e) => ["tts_start", "tts_cancelled", "tts_error"].includes(e.event)).length, 0);
+});
+
+test("tool call, flag on: what comes after is spoken as itself, the unfinished text is not glued to it, and its tts_start is the turn's first", () => {
+  assert.deepEqual(r.t1.spoken, [TS1, TPOST]);
+  assert.deepEqual(r.t1.events.filter((e) => e.event === "tts_start").length, 1);
+  assert.deepEqual(r.t1.events.filter((e) => e.event === "tts_requested").map((e) => e.index), [0, 1, 2]); // numbering goes on
+});
+
+test("tool call, flag on: the audible utterance is not cancelled and plays to its end; what waited behind it is dropped", () => {
+  assert.equal(r.t2AfterFirst.cancels, 0);
+  assert.deepEqual(dropped(r.t2AfterFirst.events), [{ reason: "tool_call", units: 2, chars: TS2.length + "Third sentence goes right here now.".length, partial_chars: 0 }]);
+  assert.equal(r.t2.events.filter((e) => e.event === "tts_cancelled").length, 0);
+  assert.equal(r.t2.events.filter((e) => e.event === "tts_end").length, 3);
+  assert.doesNotMatch(r.t2.spoken.join(" "), /query/i); // the tool_call frame's own text is never spoken
+});
+
+test("two tool calls in one turn: the drop repeats each time, and the speech that survives is the audible ones and the final answer", () => {
+  assert.deepEqual(dropped(r.t2AfterSecond.events).slice(1), [{ reason: "tool_call", units: 1, chars: "Second part after the call is here.".length, partial_chars: "and so on".length }]);
+  assert.deepEqual(r.t2.spoken, [TS1, TPOST, "Final answer after the second call."]);
+});
+
+test("tool call with nothing queued: no tts_dropped, nothing cancelled, and the reply is spoken as normal", () => {
+  assert.deepEqual(dropped(r.t3.events), []);
+  assert.equal(r.t3.cancels, 0);
+  assert.deepEqual(r.t3.spoken, [TPOST]);
+});
+
+test("done fallback after a full drop: everything before the tool call was dropped and nothing came after, so full_response is spoken once", () => {
+  assert.deepEqual(r.t4.spoken, [TS1, "Here is the final answer."]);
+  assert.equal(dropped(r.t4.events).length, 1);
+  assert.equal(r.t4.events.filter((e) => e.event === "tts_requested").length, 3);
+});
+
+test("done fallback when the pre-tool utterance was audible and so not dropped: nothing came after the tool call, so full_response is still spoken", () => {
+  assert.deepEqual(r.t5.spoken, [TS1, "Here is the final answer."]);
+  assert.deepEqual(dropped(r.t5.events), []); // nothing was dropped
+});
+
+test("tool call, flag off: unchanged. Nothing is dropped or cancelled, and the reply is spoken once from done", () => {
+  assert.deepEqual(r.t6.spoken, [TPOST]);
+  assert.deepEqual(dropped(r.t6.events), []);
+  assert.equal(r.t6.cancels, 0);
+  assert.deepEqual(r.t6.pageErrors, []); // the flag-off path does not even try to drop
+});
+
+test("tool call: a code fence open in the dropped text does not swallow the speech after the call", () => {
+  assert.equal(r.t7.spoken.at(-1), TPOST);
+  assert.equal(dropped(r.t7.events).length, 1);
+});
+
+test("tool call with only unfinished text buffered: it is dropped and reported with units 0", () => {
+  assert.deepEqual(dropped(r.t8.events), [{ reason: "tool_call", units: 0, chars: 0, partial_chars: "And then I will".length }]);
+  assert.equal(r.t8.cancels, 0);
 });

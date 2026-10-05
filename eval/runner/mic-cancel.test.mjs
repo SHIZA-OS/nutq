@@ -208,6 +208,21 @@ before(async () => {
   r.onAfterFailure = await p.state();
   client.destroy();
   await p.page.close();
+
+  // A tool call in a muted turn: nothing is dropped or reported, the turn stays muted, and nothing after it is spoken.
+  p = await openPage("tts_stream=1");
+  await p.turn();
+  await p.send({ type: "chunk", content: "A long enough sentence is here. " });
+  await p.fire(0, "start");
+  await p.mic(); // the tap: cancels what is speaking and mutes the rest of the reply
+  const beforeTool = await p.state();
+  await p.send({ type: "tool_call", id: "1", name: "search", args: {} });
+  await p.send({ type: "chunk", content: "Spoken only if the turn were not muted. " });
+  await p.send({ type: "done", full_response: "Spoken only if the turn were not muted. ", tokens_used: 1 });
+  r.onToolMuted = await p.state();
+  r.onToolMuted.eventsAfterTap = r.onToolMuted.events.slice(beforeTool.events.length);
+  client.destroy();
+  await p.page.close();
 });
 
 after(async () => {
@@ -294,4 +309,10 @@ test("flag on: stopping the listening does not cancel speech, and a later abort 
   assert.equal(r.onStop.cancels, r.onTap.cancels);
   assert.deepEqual(cancelled(r.onStop.events), ["mic_press"]);
   assert.deepEqual(cancelled(r.onAborted.events), ["mic_press", "canceled"]);
+});
+
+test("flag on: a tool call in a muted turn drops nothing and reports nothing; the turn stays muted and nothing more is spoken", () => {
+  assert.equal(r.onToolMuted.spoken.length, 1); // only the sentence from before the tap
+  assert.deepEqual(names(r.onToolMuted.eventsAfterTap, "tts_dropped", "tts_start", "tts_requested"), []);
+  assert.deepEqual(muted(r.onToolMuted.events).map((m) => m[1]), ["chunk", "done"]); // muting still took effect on the chunk and at done
 });

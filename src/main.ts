@@ -89,6 +89,7 @@ type EvalEvent =
   | "tts_start"
   | "tts_sentence_start"
   | "speech_text"
+  | "tts_dropped"
   | "tts_text_mismatch"
   | "tts_muted"
   | "tts_skipped"
@@ -531,6 +532,7 @@ function connect() {
       }
       case "tool_call":
         log(`Tool call: ${parsed.name ?? "?"} (id=${parsed.id}) args=${JSON.stringify(parsed.args)}`);
+        dropUnheardSpeech("tool_call");
         break;
       case "tool_result":
         log(`Tool result: ${parsed.name ?? "?"} (id=${parsed.id}) output=${JSON.stringify(parsed.output)}`);
@@ -699,6 +701,20 @@ function queueSpeech(raw: string) {
   if (cleaned.text !== "") speechQueue?.enqueue(cleaned.text);
 }
 
+// Flag on, a tool call frame: the text the agent streamed before it is not part of the answer (full_response holds only the
+// last iteration), so what has not been heard yet is dropped: the unfinished text in the splitter, the queued units, and the
+// utterance with the engine if its audio has not started. What is audible plays to its end, and chunks after the call are
+// spoken as usual. A muted turn has nothing queued or buffered (the tap emptied both and later chunks are not queued), so
+// this does nothing there and cannot unmute. The event is only for a drop that dropped something.
+function dropUnheardSpeech(reason: string) {
+  if (!speechQueue) return;
+  const partial = splitter.pendingChars;
+  splitter.reset();
+  speechInCode = false;
+  const dropped = speechQueue.drop();
+  if (dropped.units > 0 || partial > 0) logEvent("tts_dropped", { reason, units: dropped.units, chars: dropped.chars, partial_chars: partial });
+}
+
 function speak(text: string) {
   const cleaned = speakable(text).text;
   logSpeechText(text, cleaned);
@@ -732,14 +748,15 @@ function skipMutedSpeech() {
 // Flag on, at done: queue what is left of the reply and end the turn. The speech comes from the chunks; if the two
 // differ that is reported (tts_text_mismatch) and nothing is spoken again. The one exception is a turn in which no
 // sentence was queued at all (no chunk frames came): then full_response is spoken once, through the same queue,
-// so the reply is not silent.
+// so the reply is not silent. "At all" means since the last tool call: the text before it is not in full_response, so
+// when nothing was queued after it (or all of it was dropped) full_response is the answer and is spoken.
 function finishStreamedSpeech(fullResponse: unknown) {
   if (!speechQueue) return;
   const chunked = streamedChunks;
   streamedChunks = "";
   for (const tail of splitter.flush()) queueSpeech(tail);
   speechInCode = false;
-  if (speechQueue.sentences === 0 && typeof fullResponse === "string") {
+  if (speechQueue.fresh === 0 && typeof fullResponse === "string") {
     const spoken = speakable(fullResponse).text;
     logSpeechText(fullResponse, spoken);
     if (spoken !== "") speechQueue.enqueue(spoken);
