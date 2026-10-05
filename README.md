@@ -26,8 +26,10 @@ demo's pairing token and the downloaded speech model cache between runs, apart f
 2. Start the dev server: `npm run dev` (it serves http://localhost:5173).
 3. Run `scripts/demo-chrome-linux.sh`. It takes an optional URL if the server is elsewhere, and the Chrome binary
    comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds `endpoint=semantic` to the URL, so a turn is sent
-   after a wait that depends on what you said (about 1 s after a finished sentence, 2.2 s when the text has no
-   final punctuation, 2.5 s after an unfinished one such as "and"; see ARCHITECTURE, End of turn). The public default
+   after a wait that depends on what you said (1000 ms after a finished sentence, 2200 ms when the text has no
+   final punctuation, 2500 ms after an unfinished one such as "and"; see ARCHITECTURE, End of turn). The wait counts
+   from the speech end the voice detector reports, which comes 768 ms after you stop, so the median measured wait
+   after you stop is 1768 ms. The public default
    is a fixed 5000 ms. Do not add `?silence=<ms>` to the demo URL: it overrides semantic mode with a fixed wait.
 4. Pair (only the first time on that profile), then Connect.
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
