@@ -15,7 +15,7 @@ export const frame = (obj) => {
 };
 
 // Reads the text frames a browser sends (always masked; payloads here are under 64 KiB). Returns the parsed JSON of each.
-function readFrames(state, chunk) {
+export function readFrames(state, chunk) {
   state.buf = Buffer.concat([state.buf, chunk]);
   const out = [];
   for (;;) {

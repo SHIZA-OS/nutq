@@ -46,7 +46,6 @@ const liveTranscriptEl = $<HTMLDivElement>("live-transcript");
 const committedTranscriptEl = $<HTMLDivElement>("committed-transcript");
 const replyBoxEl = $<HTMLDivElement>("reply-box");
 const logEl = $<HTMLPreElement>("log");
-const evalDownloadBtn = $<HTMLButtonElement>("eval-download-btn");
 
 function log(msg: string) {
   const line = `[${new Date().toISOString().slice(11, 19)}] ${msg}`;
@@ -112,7 +111,9 @@ type EvalEventRecord = { event: EvalEvent; timestamp_ms: number; [extra: string]
 // exported as real JSONL. Only filled when ?eval=1 is set, otherwise it
 // would grow unbounded for the lifetime of every ordinary session.
 const urlParams = new URLSearchParams(window.location.search);
-const isEvalMode = urlParams.get("eval") === "1";
+// Eval mode and everything gated on it (the eval-only params below, the events, the export button) exist only outside
+// production builds: import.meta.env.PROD is a build-time constant, so `vite build` drops that code and its strings.
+const isEvalMode = !import.meta.env.PROD && urlParams.get("eval") === "1";
 // Eval-only: enables the mic button without a gateway and skips the send, so
 // WER runs never touch ZeroClaw. Does nothing unless eval=1 is also set.
 const isNoSend = isEvalMode && urlParams.get("nosend") === "1";
@@ -127,6 +128,7 @@ const sttModelValid = sttModel.includes("tiny") || sttModel.includes("base");
 const evalEvents: EvalEventRecord[] = [];
 
 function logEvent(event: EvalEvent, extra?: Record<string, unknown>) {
+  if (import.meta.env.PROD) return; // empty in a production build, so the minifier drops every call and its event name
   const record: EvalEventRecord = { event, timestamp_ms: Date.now(), ...extra };
   if (isEvalMode) evalEvents.push(record);
   log(`EVENT ${JSON.stringify(record)}`);
@@ -144,7 +146,8 @@ window.addEventListener("unhandledrejection", (ev) => {
 
 // Export button: hidden by default, only shown for eval harness runs
 // (?eval=1) so ordinary users never see internal instrumentation UI.
-if (isEvalMode) {
+const evalDownloadBtn = isEvalMode ? $<HTMLButtonElement>("eval-download-btn") : null;
+if (evalDownloadBtn) {
   evalDownloadBtn.hidden = false;
 }
 
@@ -181,17 +184,19 @@ if (!sttModelValid) {
   logEvent("stt_model", { model: sttModel });
 }
 
-evalDownloadBtn.addEventListener("click", () => {
-  const jsonl = evalEvents.map((r) => JSON.stringify(r)).join("\n") + "\n";
-  const blob = new Blob([jsonl], { type: "application/x-ndjson" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `nutq-events-${Date.now()}.jsonl`;
-  a.click();
-  URL.revokeObjectURL(url);
-  log(`Downloaded ${evalEvents.length} events as JSONL`);
-});
+if (evalDownloadBtn) {
+  evalDownloadBtn.addEventListener("click", () => {
+    const jsonl = evalEvents.map((r) => JSON.stringify(r)).join("\n") + "\n";
+    const blob = new Blob([jsonl], { type: "application/x-ndjson" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `nutq-events-${Date.now()}.jsonl`;
+    a.click();
+    URL.revokeObjectURL(url);
+    log(`Downloaded ${evalEvents.length} events as JSONL`);
+  });
+}
 
 let socket: WebSocket | null = null;
 let replyBuffer = "";
@@ -706,6 +711,7 @@ const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynth
 // is tts_error. `cancelledBy` is the reason reported when the code is "canceled": that is what the browser reports
 // for our own cancel(), so the reason we gave it (see cancelSpeech) goes with it.
 function logTtsError(code: string | undefined, cancelledBy = "canceled") {
+  if (import.meta.env.PROD) return;
   const e = ttsErrorEvent(code);
   logEvent(e.event, e.event === "tts_cancelled" && code === "canceled" ? { reason: cancelledBy } : e.fields);
 }
