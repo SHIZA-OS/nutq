@@ -15,7 +15,7 @@ let r;
 before(async () => {
   vite = await startVite();
   context = await chromium.launchPersistentContext(makeTempDir("nutq-inflight-"), {
-    executablePath: "/usr/bin/google-chrome",
+    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
     headless: true,
     args: ["--no-first-run", "--no-default-browser-check"],
   });

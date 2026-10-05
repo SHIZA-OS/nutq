@@ -1,0 +1,175 @@
+{
+  "run": {
+    "model": "model/base",
+    "label": "t",
+    "date": "2026-10-06",
+    "audio_dir": "recordings directory (not committed)",
+    "attempted": [],
+    "missing_audio": [
+      "fws-01",
+      "fws-02",
+      "fws-03",
+      "fws-04",
+      "fws-05",
+      "fst-01",
+      "fst-02",
+      "fst-03",
+      "fst-04",
+      "fst-05",
+      "pw-01",
+      "pw-02",
+      "pw-03",
+      "pw-04",
+      "aq-01",
+      "aq-02",
+      "aq-03",
+      "aq-04",
+      "aq-05",
+      "aq-06",
+      "num-01",
+      "num-02",
+      "num-03",
+      "cas-01",
+      "cas-02",
+      "cas-03",
+      "sh-01",
+      "sh-02",
+      "sh-03",
+      "sh-04",
+      "sil-01",
+      "bn-01",
+      "bn-02",
+      "bn-03",
+      "bn-04",
+      "bn-05",
+      "bn-06",
+      "no-01",
+      "no-02",
+      "no-03",
+      "no-04",
+      "nts-01",
+      "mp-01",
+      "mp-02",
+      "mp-03",
+      "mp-04",
+      "mp-05",
+      "mp-06",
+      "mp-07",
+      "mp-08",
+      "mp-09",
+      "mp-10",
+      "mp-11",
+      "mp-12",
+      "te-01",
+      "te-02",
+      "ls-01"
+    ],
+    "errors": []
+  },
+  "meta": {
+    "n_cases": 0,
+    "n_scored": 0,
+    "n_silence": 0,
+    "n_no_transcript": 0
+  },
+  "overall_excluding_silence": {
+    "n_cases": 0,
+    "n_scored": 0,
+    "n_no_transcript": 0,
+    "ref_words": 0,
+    "S": 0,
+    "D": 0,
+    "I": 0,
+    "wer": null,
+    "n_has_digits": 0,
+    "n_commit_mismatch": 0,
+    "first_word_ok": 0,
+    "first_word_ok_rate": null,
+    "num_norm": {
+      "ref_words": 0,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": null,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null
+    }
+  },
+  "case_sets": {
+    "v1": {
+      "n_cases": 0,
+      "n_scored": 0,
+      "n_no_transcript": 0,
+      "ref_words": 0,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": null,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "ref_words": 0,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": null,
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    },
+    "all": {
+      "n_cases": 0,
+      "n_scored": 0,
+      "n_no_transcript": 0,
+      "ref_words": 0,
+      "S": 0,
+      "D": 0,
+      "I": 0,
+      "wer": null,
+      "n_has_digits": 0,
+      "n_commit_mismatch": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "ref_words": 0,
+        "S": 0,
+        "D": 0,
+        "I": 0,
+        "wer": null,
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    }
+  },
+  "by_category": {},
+  "by_condition": {},
+  "first_word": {
+    "first_word_soft": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    },
+    "first_word_strong": {
+      "n_scored": 0,
+      "first_word_ok": 0,
+      "first_word_ok_rate": null,
+      "num_norm": {
+        "first_word_ok": 0,
+        "first_word_ok_rate": null
+      }
+    }
+  },
+  "silence": {
+    "expected_words": 0,
+    "cases": []
+  },
+  "no_transcript": [],
+  "commit_mismatch": [],
+  "cases": []
+}

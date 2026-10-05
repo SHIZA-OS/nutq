@@ -6,7 +6,7 @@
 //
 // Usage:
 //   node eval/runner/run-model-only.mjs --label <name> [--model model/base]
-//     [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id]
+//     [--audio-dir <dir> (or EVAL_AUDIO_DIR)] [--cases id,id]
 //     [--trim-from-trigger <frames> --triggers <file>]
 //
 // --trim-from-trigger starts each WAV at (its VAD trigger frame + <frames>) instead of at
@@ -26,20 +26,19 @@
 // is not the model on a tightly segmented utterance.
 
 import { chromium } from "playwright-core";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection, burstSection, caseSetSection } from "./wer.mjs";
-import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
+import { REPO, audioDirFrom, makeTempDir, startVite } from "./vite-server.mjs";
 
-const CHROME = "/usr/bin/google-chrome";
+const CHROME = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 const FRAME = 512; // samples, 32 ms at 16 kHz
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, trim: null, triggers: null };
+  const args = { model: "model/base", audioDir: null, cases: null, label: null, trim: null, triggers: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
-    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
+    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i];
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--label") args.label = argv[++i];
     else if (argv[i] === "--trim-from-trigger") args.trim = Number(argv[++i]);
@@ -47,6 +46,7 @@ function parseArgs(argv) {
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (!args.label) throw new Error("--label is required");
+  args.audioDir = audioDirFrom(args.audioDir);
   if (args.trim !== null && !Number.isInteger(args.trim)) throw new Error("--trim-from-trigger takes a whole number of frames");
   if ((args.trim === null) !== (args.triggers === null)) throw new Error("--trim-from-trigger and --triggers go together");
   return args;
@@ -120,7 +120,7 @@ async function main() {
   mkdirSync(rawDir, { recursive: true });
   const userDataDir = makeTempDir("nutq-modelonly-");
 
-  const run = { model: args.model, label: args.label, date, audio_dir: args.audioDir.replace(homedir(), "~"), attempted: [], missing_audio: [], errors: [] };
+  const run = { model: args.model, label: args.label, date, audio_dir: "recordings directory (not committed)", attempted: [], missing_audio: [], errors: [] };
   let triggers = null;
   if (args.trim !== null) {
     const t = JSON.parse(readFileSync(args.triggers, "utf8"));

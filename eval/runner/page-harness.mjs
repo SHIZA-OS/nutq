@@ -83,7 +83,7 @@ export async function startHarness() {
   await new Promise((res) => h.server.once("listening", res));
   h.vite = await startVite();
   h.context = await chromium.launchPersistentContext(makeTempDir("nutq-harness-"), {
-    executablePath: "/usr/bin/google-chrome",
+    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
     headless: true,
     args: ["--no-first-run", "--no-default-browser-check"],
   });

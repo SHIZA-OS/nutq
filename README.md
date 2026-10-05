@@ -183,7 +183,8 @@ URL: the defaults above are the settings it uses.
 ## Tests
 
 `npm test` runs the suite (`node --test eval/runner/*.test.mjs`); it drives real headless Chrome pages and expects Google
-Chrome at `/usr/bin/google-chrome`. Tests that need the project's recorded test audio skip themselves when it is absent.
+Chrome (the `CHROME_BIN` environment variable, else `/usr/bin/google-chrome`). Tests that need the project's recorded test audio
+skip themselves unless `EVAL_AUDIO_DIR` points at it.
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation

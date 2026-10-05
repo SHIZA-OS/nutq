@@ -4,7 +4,7 @@
 //
 // Usage:
 //   node eval/runner/replay-commits.mjs [--cases id,id] [--pre-roll 4] [--model model/base]
-//     [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--frames 95-120]
+//     [--audio-dir <dir> (or EVAL_AUDIO_DIR)] [--frames 95-120]
 //     [--wer <label> [--phases 8]] [--policy fixed:<ms>|semantic|semantic:d,u,o,floor,ceil] [--latency-scale 1]
 //     [--gate <results dir>] [--streams <file.jsonl>]
 // --frames A-B also prints the Silero probability and the pause EMA of each input frame A..B.
@@ -59,20 +59,20 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFileSync, existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
 import { parseJsonl, scoreRun, loadFlags } from "./wer.mjs";
-import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
+import { REPO, audioDirFrom, makeTempDir, startVite } from "./vite-server.mjs";
 import { analyzeTurn, compareGate, parsePolicy, summarize } from "./endpoint-metrics.mjs";
 
-const CHROME = "/usr/bin/google-chrome";
+const CHROME = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 const FRAME = 512; // samples
 const VAD_OPTIONS = { positiveSpeechThreshold: 0.65, minSpeechFrames: 12 }; // keep in step with src/main.ts
 const FRAME_MS = 32; // 512 samples at 16 kHz
 const GRACE_FRAMES = Math.floor(10000 / FRAME_MS); // run-wer.mjs stops manually this long after the WAV ends
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, preRoll: 4, frames: null, wer: null, phases: 8, policy: undefined, latencyScale: 1, gate: null, streams: null }; // 4 = PRE_ROLL_FRAMES in src/main.ts
+  const args = { model: "model/base", audioDir: null, cases: null, preRoll: 4, frames: null, wer: null, phases: 8, policy: undefined, latencyScale: 1, gate: null, streams: null }; // 4 = PRE_ROLL_FRAMES in src/main.ts
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
-    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
+    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i];
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--frames") args.frames = argv[++i].split("-").map(Number);
     else if (argv[i] === "--pre-roll") args.preRoll = Number(argv[++i]);
@@ -84,6 +84,7 @@ function parseArgs(argv) {
     else if (argv[i] === "--streams") args.streams = argv[++i].replace(/^~(?=\/)/, homedir());
     else throw new Error(`unknown argument ${argv[i]}`);
   }
+  args.audioDir = audioDirFrom(args.audioDir);
   if (!Number.isInteger(args.preRoll) || args.preRoll < 0) throw new Error("--pre-roll takes a whole number of frames");
   args.policySpec = parsePolicy(args.policy);
   if (!(args.latencyScale > 0)) throw new Error("--latency-scale takes a number above 0");

@@ -3,7 +3,7 @@
     "model": "model/base",
     "label": "stop-guard-gate-r2",
     "date": "2026-10-03",
-    "audio_dir": "~/Shiza/nutq-eval-audio/cases",
+    "audio_dir": "recordings directory (not committed)",
     "attempted": [
       "fws-01",
       "fws-02",

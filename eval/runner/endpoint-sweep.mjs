@@ -28,14 +28,13 @@
 // The simulated text is the commits fired before the end; the flush stop() does is not modelled (see endpoint-sim.mjs).
 
 import { chromium } from "playwright-core";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { analyzeTurn, quantile } from "./endpoint-metrics.mjs";
 import { measureTake, takeFlags, wavStats } from "./endpoint-check.mjs";
-import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
+import { REPO, audioDirFrom, makeTempDir, startVite } from "./vite-server.mjs";
 
-const CHROME = "/usr/bin/google-chrome";
+const CHROME = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 const FIXED = [0, 150, 300, 600, 1000, 1200, 1500, 2200, 3000, 5000];
 const DONE = [0, 150, 300, 600, 1000];
 const UNKNOWN = [600, 1000, 1500, 2200, 3000];
@@ -48,7 +47,7 @@ const CEILING = 8000; // MAX_SILENCE_MS
 const BUDGETS = [0, 8, 12, 20, 40];
 
 function parseArgs(argv) {
-  const a = { streams: null, out: null, checkOnly: false, tier2: false, scales: [0.5, 1, 2], recordings: null, noise: null, audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases") };
+  const a = { streams: null, out: null, checkOnly: false, tier2: false, scales: [0.5, 1, 2], recordings: null, noise: null, audioDir: null };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--streams") a.streams = argv[++i];
     else if (argv[i] === "--out") a.out = argv[++i];
@@ -57,10 +56,11 @@ function parseArgs(argv) {
     else if (argv[i] === "--scales") a.scales = argv[++i].split(",").map(Number);
     else if (argv[i] === "--recordings") a.recordings = argv[++i];
     else if (argv[i] === "--noise") a.noise = argv[++i];
-    else if (argv[i] === "--audio-dir") a.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
+    else if (argv[i] === "--audio-dir") a.audioDir = argv[++i];
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (!a.streams) throw new Error("--streams is required");
+  if (a.recordings) a.audioDir = audioDirFrom(a.audioDir); // only --recordings reads the audio
   a.out ??= join(REPO, "eval/results", `${new Date().toLocaleDateString("sv")}-endpoint-sweep`);
   return a;
 }

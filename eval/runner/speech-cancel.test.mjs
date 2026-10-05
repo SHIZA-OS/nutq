@@ -37,7 +37,7 @@ before(async () => {
   await new Promise((res) => server.once("listening", res));
   vite = await startVite();
   context = await chromium.launchPersistentContext(makeTempDir("nutq-speechcancel-"), {
-    executablePath: "/usr/bin/google-chrome",
+    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
     headless: true,
     args: ["--no-first-run", "--no-default-browser-check"],
   });

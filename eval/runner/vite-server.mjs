@@ -6,7 +6,7 @@
 
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { mkdtempSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,13 @@ process.on("exit", () => {
 });
 for (const sig of ["SIGINT", "SIGTERM"]) {
   process.on(sig, () => process.exit(sig === "SIGINT" ? 130 : 143));
+}
+
+// Where the recorded test audio is (<case id>.wav files, not in the repository): --audio-dir, else EVAL_AUDIO_DIR, else an error.
+export function audioDirFrom(flag, env = process.env) {
+  const dir = flag || env.EVAL_AUDIO_DIR;
+  if (!dir) throw new Error("no audio directory: pass --audio-dir <dir> or set EVAL_AUDIO_DIR (the directory holding <case id>.wav files)");
+  return dir.replace(/^~(?=\/)/, homedir());
 }
 
 // A temp dir (for example a Chrome profile) that is removed on exit.

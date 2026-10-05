@@ -2,8 +2,8 @@
 // and the built dist runs when served statically from the gateway's own origin: pair, connect, send. The gateway here is a stub that
 // serves dist, answers POST /pair, and speaks the /ws/chat frames the page needs.
 //
-// Sending needs speech: Chrome's fake microphone plays one recorded case (EVAL_AUDIO_DIR, default ~/Shiza/nutq-eval-audio/cases,
-// the same recordings run-wer.mjs uses). Without that file the send test is skipped; everything else runs.
+// Sending needs speech: Chrome's fake microphone plays one recorded case (EVAL_AUDIO_DIR, the same recordings run-wer.mjs
+// uses). Without that file the send test is skipped; everything else runs.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -17,8 +17,8 @@ import { chromium } from "playwright-core";
 import { REPO, makeTempDir } from "./vite-server.mjs";
 import { frame, readFrames } from "./page-harness.mjs";
 
-const AUDIO_DIR = (process.env.EVAL_AUDIO_DIR ?? join(homedir(), "Shiza/nutq-eval-audio/cases")).replace(/^~(?=\/)/, homedir());
-const WAV = join(AUDIO_DIR, "aq-01.wav"); // "What is the capital of Australia?"
+const AUDIO_DIR = (process.env.EVAL_AUDIO_DIR || "").replace(/^~(?=\/)/, homedir());
+const WAV = AUDIO_DIR ? join(AUDIO_DIR, "aq-01.wav") : ""; // "What is the capital of Australia?"
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".wasm": "application/wasm", ".svg": "image/svg+xml", ".woff2": "font/woff2" };
 const TOKEN = "stub-token";
 
@@ -32,7 +32,7 @@ const EVAL_ONLY = ["nosend", "rawmic", "eval-download-btn", "nutq-events", "EVEN
 const dist = makeTempDir("nutq-dist-");
 let server, browser, port;
 const gw = { received: [], pairCodes: [], wsTokens: [] };
-const r = {};
+const r = { requests: [] };
 
 function textFiles(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -74,15 +74,16 @@ before(async () => {
   await new Promise((res) => server.listen(0, "127.0.0.1", res));
   port = server.address().port;
 
-  const hasWav = existsSync(WAV);
+  const hasWav = !!WAV && existsSync(WAV);
   browser = await chromium.launchPersistentContext(makeTempDir("nutq-prod-"), {
-    executablePath: "/usr/bin/google-chrome",
+    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
     headless: true,
     args: ["--no-first-run", "--no-default-browser-check", ...(hasWav ? ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", `--use-file-for-fake-audio-capture=${WAV}%noloop`] : [])],
   });
 
   // ?eval=1 and the eval-only params, before anything is connected: they must be inert.
   const p0 = await browser.newPage();
+  p0.on("request", (req) => r.requests.push(req.url()));
   await p0.goto(`http://127.0.0.1:${port}/?eval=1&nosend=1&rawmic=1&model=nonsense`);
   await p0.waitForTimeout(1500);
   r.inert = await p0.evaluate(() => ({
@@ -96,6 +97,7 @@ before(async () => {
   // pair, connect, send on the same origin, no eval params.
   const page = await browser.newPage();
   r.errors = [];
+  page.on("request", (req) => r.requests.push(req.url()));
   page.on("pageerror", (e) => r.errors.push(String(e)));
   await page.goto(`http://127.0.0.1:${port}/`);
   await page.fill("#ws-url", `ws://127.0.0.1:${port}/ws/chat`);
@@ -151,9 +153,20 @@ test("dist connects with the paired token and loads the speech model", () => {
   assert.deepEqual(r.errors, []);
 });
 
-test("dist sends a spoken message and shows the reply", { skip: !existsSync(WAV) && `no recording at ${WAV}` }, () => {
+test("dist sends a spoken message and shows the reply", { skip: !(WAV && existsSync(WAV)) && "EVAL_AUDIO_DIR is not set or has no aq-01.wav" }, () => {
   const sent = gw.received.filter((m) => m.type === "message");
   assert.equal(sent.length, 1);
   assert.match(sent[0].content, /capital of Australia/i);
   assert.match(r.reply, /stub answer/);
+});
+
+// The ONNX Runtime JavaScript in the bundle (onnxruntime-web 1.27.0) names a wasm file of its own, so the bundler emits it into dist/assets, but
+// the page loads the 1.22.0 wasm from vendor/ (src/vendor/model.ts sets wasmPaths) and never asks for that one. It is 26 MB of dead weight.
+test("the page never requests a wasm from dist/assets", () => {
+  assert.ok(r.requests.some((u) => u.includes("/vendor/onnxruntime-web-1.22.0/") && u.endsWith(".wasm")), "the vendor wasm was requested (so the log covers the model load)");
+  assert.deepEqual(r.requests.filter((u) => /\/assets\/.*\.wasm$/.test(u)), []);
+});
+
+test("dist/assets holds no wasm", () => {
+  assert.deepEqual(readdirSync(join(dist, "assets")).filter((f) => f.endsWith(".wasm")), []);
 });

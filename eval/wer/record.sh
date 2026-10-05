@@ -1,27 +1,31 @@
 #!/usr/bin/env bash
 # Records the WER case set (eval/wer/cases.jsonl) one case at a time.
-# Audio goes outside the repo, to ~/Shiza/nutq-eval-audio/cases/<id>.wav.
+# Audio goes outside the repo, to <dir>/<id>.wav, where <dir> is --out or $EVAL_AUDIO_DIR (the directory the eval scripts read).
 # Each recording is 8 seconds unless the case sets "seconds" (a whole number), for cases with a long pause in them.
 # A case with "pause_s" has a pause in the middle of the sentence (marked [PAUSE] in its "prompt"); the screen then
 # says how long, and to count it silently.
-# Usage: eval/wer/record.sh [--only <id>] [--dry-run]
+# Usage: eval/wer/record.sh [--out <dir>] [--only <id>] [--dry-run]
+#   --out <dir>  where the WAVs go (default: $EVAL_AUDIO_DIR; one of the two is required)
 #   --only <id>  re-record a single case even if its WAV exists
 #   --dry-run    print each case and the arecord command, record nothing
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cases="$here/cases.jsonl"
-outdir="$HOME/Shiza/nutq-eval-audio/cases"
+outdir="${EVAL_AUDIO_DIR:-}"
 only=""
 dry=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --out) outdir="${2:?--out needs a directory}"; shift 2 ;;
     --only) only="${2:?--only needs a case id}"; shift 2 ;;
     --dry-run) dry=1; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+[ -n "$outdir" ] || { echo "No output directory: pass --out <dir> or set EVAL_AUDIO_DIR" >&2; exit 2; }
 
 mapfile -t lines < <(jq -c . "$cases")
 total=${#lines[@]}

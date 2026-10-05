@@ -3,7 +3,7 @@
 // Prints a table and summary; writes a file only with --json.
 //
 // Usage:
-//   node eval/runner/vad-onset.mjs [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id] [--json triggers.json]
+//   node eval/runner/vad-onset.mjs [--audio-dir <dir> (or EVAL_AUDIO_DIR)] [--cases id,id] [--json triggers.json]
 //
 // --json writes { frame_samples, positive_threshold, triggers: { <id>: <frame index of the first
 // frame >= 0.65, or null> } }, which run-model-only.mjs --trim-from-trigger reads.
@@ -29,13 +29,12 @@
 // with a loud non-speech burst, so their energy onset is the burst and is not comparable.
 
 import { chromium } from "playwright-core";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, loadFlags } from "./wer.mjs";
-import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
+import { REPO, audioDirFrom, makeTempDir, startVite } from "./vite-server.mjs";
 
-const CHROME = "/usr/bin/google-chrome";
+const CHROME = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 const FRAME = 512; // samples
 const FRAME_MS = 32;
 const WIN = 320; // 20 ms at 16 kHz
@@ -46,13 +45,14 @@ const NUTQ_MIN_SPEECH_FRAMES = 12;
 const MODEL = "model/base"; // key only; the STT model is stubbed
 
 function parseArgs(argv) {
-  const args = { audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, json: null };
+  const args = { audioDir: null, cases: null, json: null };
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
+    if (argv[i] === "--audio-dir") args.audioDir = argv[++i];
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--json") args.json = argv[++i];
     else throw new Error(`unknown argument ${argv[i]}`);
   }
+  args.audioDir = audioDirFrom(args.audioDir);
   return args;
 }
 

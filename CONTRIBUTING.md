@@ -2,8 +2,12 @@
 
 ## Setup
 
-You need Node.js `^20.19.0` or `>=22.12.0` and npm, plus Google Chrome at `/usr/bin/google-chrome` for the tests (the
-path is set in `eval/runner/page-harness.mjs` and the other drivers).
+You need Node.js `^20.19.0` or `>=22.12.0` and npm, plus Google Chrome for the tests. The tests and eval drivers launch the
+binary named by the `CHROME_BIN` environment variable, and `/usr/bin/google-chrome` when it is not set:
+
+```
+CHROME_BIN=/path/to/chrome npm test
+```
 
 ```
 git clone https://github.com/SHIZA-OS/nutq.git
@@ -20,9 +24,10 @@ npm run dev        # http://localhost:5173, with eval mode available (?eval=1)
 - Most page tests drive real headless Chrome against the dev server and a stub gateway (`eval/runner/page-harness.mjs`).
   A few load the real speech model, which is served from `public/vendor/`.
 - Some tests and eval drivers (`prod-build.test.mjs`, `smoke-evals.test.mjs`, `run-wer.mjs`, `replay-commits.mjs`) need the
-  project's recorded test audio, which is not in the repository. They read it from `EVAL_AUDIO_DIR` (tests) or `--audio-dir`
-  (drivers); the tests skip themselves when it is missing. `eval/wer/record.sh` records the case set listed in
-  `eval/wer/cases.jsonl`.
+  project's recorded test audio (one `<case id>.wav` per case), which is not in the repository and has no default location.
+  Give the directory with the `EVAL_AUDIO_DIR` environment variable or the drivers' `--audio-dir` flag (the flag wins). The
+  tests skip themselves when it is not set; a driver stops at once and says so. `eval/wer/record.sh --out <dir>` (or
+  `EVAL_AUDIO_DIR`) records the case set listed in `eval/wer/cases.jsonl`.
 
 ## How changes are made here
 

@@ -1,6 +1,6 @@
 // One-case smoke test of the two eval drivers against the Vite dev server (where eval mode is on): run-wer.mjs and replay-commits.mjs on
-// one recorded case. A production-build change must leave them working. They need the recordings (EVAL_AUDIO_DIR, default
-// ~/Shiza/nutq-eval-audio/cases); without them both tests are skipped. run-wer.mjs writes eval/results/<date>-wer-<label>/; the test removes it.
+// one recorded case. A production-build change must leave them working. They need the recordings (EVAL_AUDIO_DIR); without them both tests are
+// skipped. run-wer.mjs writes eval/results/<date>-wer-<label>/; the test removes it.
 
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -10,8 +10,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { REPO } from "./vite-server.mjs";
 
-const AUDIO_DIR = (process.env.EVAL_AUDIO_DIR ?? join(homedir(), "Shiza/nutq-eval-audio/cases")).replace(/^~(?=\/)/, homedir());
-const skip = !existsSync(join(AUDIO_DIR, "aq-01.wav")) && `no recordings in ${AUDIO_DIR}`;
+const AUDIO_DIR = (process.env.EVAL_AUDIO_DIR || "").replace(/^~(?=\/)/, homedir());
+const skip = !(AUDIO_DIR && existsSync(join(AUDIO_DIR, "aq-01.wav"))) && "EVAL_AUDIO_DIR is not set or has no aq-01.wav";
 const LABEL = "smoke-test";
 const resultsDirs = () => readdirSync(join(REPO, "eval/results")).filter((d) => d.endsWith(`-wer-${LABEL}`));
 const before = new Set(resultsDirs()); // never remove a directory that was already there

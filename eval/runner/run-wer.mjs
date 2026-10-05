@@ -4,7 +4,7 @@
 //
 // Usage:
 //   node eval/runner/run-wer.mjs --label <name> [--model model/base]
-//     [--audio-dir ~/Shiza/nutq-eval-audio/cases] [--cases id,id]
+//     [--audio-dir <dir> (or EVAL_AUDIO_DIR)] [--cases id,id]
 //
 // For each case: a fresh Chrome (same --user-data-dir under /tmp for the whole
 // run, so the model cache is warm after the first case) with Chrome's fake mic
@@ -17,28 +17,28 @@
 // then wer.mjs scoring writes summary.json and README.md next to it.
 
 import { chromium } from "playwright-core";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { parseJsonl, scoreRun, loadEventsDir, loadFlags, numNormSection, burstSection, caseSetSection } from "./wer.mjs";
-import { REPO, makeTempDir, startVite } from "./vite-server.mjs";
+import { REPO, audioDirFrom, makeTempDir, startVite } from "./vite-server.mjs";
 
-const CHROME = "/usr/bin/google-chrome";
+const CHROME = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 const LOAD_TIMEOUT_MS = 240_000; // cold model download measured at 27 to 38 s; generous margin
 const GRACE_MS = 1_500; // let a late stt_committed land before downloading events
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, rawmic: false, silence: "5000" }; // 5000: the fixed wait every baseline ran with; the page default is now the semantic wait, so it is set explicitly
+  const args = { model: "model/base", audioDir: null, cases: null, label: null, rawmic: false, silence: "5000" }; // 5000: the fixed wait every baseline ran with; the page default is now the semantic wait, so it is set explicitly
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
     else if (argv[i] === "--rawmic") args.rawmic = true;
     else if (argv[i] === "--silence") args.silence = argv[++i];
-    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i].replace(/^~(?=\/)/, homedir());
+    else if (argv[i] === "--audio-dir") args.audioDir = argv[++i];
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",");
     else if (argv[i] === "--label") args.label = argv[++i];
     else throw new Error(`unknown argument ${argv[i]}`);
   }
   if (!args.label) throw new Error("--label is required");
+  args.audioDir = audioDirFrom(args.audioDir);
   return args;
 }
 
@@ -153,7 +153,7 @@ async function main() {
   mkdirSync(rawDir, { recursive: true });
   const userDataDir = makeTempDir("nutq-wer-");
 
-  const run = { model: args.model, label: args.label, date, audio_dir: args.audioDir.replace(homedir(), "~"), attempted: [], missing_audio: [], errors: [], ended: {} };
+  const run = { model: args.model, label: args.label, date, audio_dir: "recordings directory (not committed)", attempted: [], missing_audio: [], errors: [], ended: {} };
   const vite = await startVite();
   const stopVite = () => vite.child.kill();
 
