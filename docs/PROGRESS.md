@@ -480,3 +480,44 @@ Follow-up on dashes (2026-10-05). One of the three voice-prefix replies in the p
 a comma pause (no doubled punctuation, a dash at either end of a line dropped), except between two numbers, where it is a range and is read as "to"
 ("10 to 20"); a dash with a number on one side only gets the comma. Hyphenated words are untouched. The voice prefix now also lists "dashes" among the
 things to avoid; `?reply=short` is unchanged, byte for byte. How a dash and a range sound has not been checked by ear.
+
+## Streamed speech: gap between sentences, and coalescing (2026-10-05)
+
+With `?tts_stream=1` there was an audible pause between sentences (you measured about 740 to 890 ms live). Each sentence was its own
+`speechSynthesis` utterance, handed to the browser only after the previous one's `onend`. Before building, an experiment on a throwaway page
+(outside the repo; headed Chrome 154, a dedicated profile, the browser default voice with `lang` en-US as the app does, a network voice
+that the page cannot name: the voice flagged default was "Google Deutsch", de-DE, which is not what en-US gets) measured `onend` to the next
+`onstart` for 7 short sentences, two rounds each, 12 gaps per mode:
+
+| mode | mean | median | min to max | sd |
+|---|---|---|---|---|
+| one after another (as the app did) | 892 ms | 850 ms | 723 to 1105 | 127 |
+| all queued ahead in the browser | 841 ms | 841 ms | 730 to 963 | 62 |
+
+Queueing ahead did not help (the 50 ms difference of the means is inside the noise), so Chrome does not prepare the next utterance early. The delay
+from `speak()` to the first `onstart` was 1964, 1005, 820 and 975 ms in the four rounds (the first one cold).
+
+One long utterance each, listened to by one person, one run per length:
+
+| chars | sentences | audio duration | `onend` | heard |
+|---|---|---|---|---|
+| 301 | 5 | 18.3 s | fired | all of it |
+| 553 | 9 | 33.6 s | fired | stopped early |
+| 1193 | 19 | 73.6 s | fired | all of it |
+| 2409 | 38 | 151.0 s | fired | all of it |
+
+So there is no sign of a hard length limit up to 2409 characters, and the one failure (553) does not follow from length; with one run per length
+the cause is unknown (a random drop-out of the voice is a guess, not shown). `onend` fired after the full expected duration even when the audio
+stopped early, so a cut-off cannot be detected from `tts_end`, and `onboundary` never fired, so progress inside an utterance cannot be seen.
+The repeat runs were skipped.
+
+What was built: the speech queue speaks the first unit of a turn alone and merges the units that have arrived into each later utterance, up to
+`MAX_UTTERANCE_CHARS = 1200` (about 73 s of speech), at unit boundaries; a longer unit is spoken alone. 1200 is a judgement from the table above:
+inside the range that played fully, half the exposure of 2400 if a voice drops out inside a batch, and about one 0.85 s gap per 73 s of speech.
+The expected effect is that a reply of N sentences has about 1 plus the number of later batches gaps instead of N-1. That is arithmetic on the
+measured gap, not a measurement of the new behavior: it has not been listened to with the change in. A drop-out inside a merged utterance now loses
+more speech than one inside a single sentence, and `tts_end` will not show it; `tts_sentence_start { units, chars }` is there so a complaint can be
+matched to a batch size. Mutation checks on the queue: 10 mutants (never merge, ignore the limit, off by one on the limit, join spaces not counted,
+no join space, wrong index, wrong units, wrong chars, waiting kept on cancel, finish counting utterances), all caught. Two mutants of an early
+version survived because the "first alone" guard was redundant (the first unit is alone because the queue pumps as soon as it is queued), so the
+guard was deleted.

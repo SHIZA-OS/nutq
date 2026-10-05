@@ -169,7 +169,7 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   demo. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
 - `?tts_stream=1` (any mode, default off): speak the reply sentence by sentence as its chunks arrive instead of
   once at `done`. Chunk deltas go through `src/sentence-splitter.ts`, closed sentences are queued in
-  `src/speech-queue.ts` and spoken one at a time by the engine in `src/tts-engine.ts` (the browser's Web Speech, the
+  `src/speech-queue.ts` and spoken, one utterance at a time (see "Coalescing" below), by the engine in `src/tts-engine.ts` (the browser's Web Speech, the
   only engine), and the tail is flushed at `done`. The speech comes from the chunks, not `full_response` (unless no sentence was queued by `done`, when `full_response`
   is spoken once, trimmed, through the same queue); the queue
   is cancelled on aborted, a turn-failure error, a closed socket, the reply timeout and a new send. Only `chunk`
@@ -180,6 +180,17 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   and the structure carried by spoken signposts ("There are three things. First, ..."). Anything but exactly `voice` is `short`.
   `ws_message_sent` records `reply_style`. `scripts/demo-chrome-linux.sh` sets `reply=voice` and `tts_stream=1`; the code
   defaults are `short` and off.
+
+**Coalescing (`?tts_stream=1`).** Each utterance pays the voice's start delay again, about 0.85 s between two utterances with the browser's
+default voice (see the experiment in PROGRESS). So `SpeechQueue` speaks the first unit of a turn alone, which keeps the time to first
+audio, and every later utterance is all the units that have arrived by the time the previous one ends, in order, joined with a space,
+broken at unit boundaries and capped at `MAX_UTTERANCE_CHARS` (1200, join spaces included). A unit longer than the cap is spoken alone,
+not split. `tts_requested` stays per unit and `speech_text` stays per unit (logged before merging); `tts_end`, `tts_cancelled` and
+`tts_error` are per utterance; `tts_sentence_start { index, units, chars }` is per utterance, with `index` the first unit's. A cancel
+(mic tap, abort, close, timeout, new send) stops the utterance in progress whole and drops what waits, as before. An engine error
+loses every unit of that utterance. The `full_response` fallback is one unit, so it plays alone and is not split. Queueing the next
+utterance ahead in the browser was measured and did not shorten the gap, so it is not done. The 1200 is a judgement, not a measured
+threshold (see PROGRESS).
 
 **Speech text.** Whatever the prefix, the agent may still send markdown, so every text handed to the voice goes through
 `speakable()` (`src/speech-text.ts`, pure): fenced code blocks are not read, inline code, bold and italic lose their markers,

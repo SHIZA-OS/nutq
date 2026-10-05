@@ -69,8 +69,9 @@ plan):**
   button starting to listen while speech was playing, for the browser's `canceled` report and for a streamed queue alike) and `tts_error` `{message}`
   (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`.
 - Sentence streaming (`?tts_stream=1`, default off): `tts_requested` `{index}` (a sentence was queued for speech;
-  `index` counts from 0 within the turn), `tts_sentence_start` `{index}` (that sentence became audible, the engine's
-  `onstart`) and `tts_text_mismatch` `{chunks_chars, full_response_chars}` (at `done`, `full_response` differed from
+  `index` counts from 0 within the turn), `tts_sentence_start` `{index, units, chars}` (an utterance became audible, the engine's
+  `onstart`; since the speech queue merges the units that waited behind the first into one utterance, `index` is its first unit, `units`
+  how many units it holds and `chars` its length) and `tts_text_mismatch` `{chunks_chars, full_response_chars}` (at `done`, `full_response` differed from
   the joined chunks; the chunks were spoken and nothing was spoken again). `tts_start` keeps its meaning, the first
   audible audio of the turn, and is emitted once per turn, so with the flag on it comes together with
   `tts_sentence_start` for the first sentence that really starts; it gains an `engine` field (`browser`) with the flag
