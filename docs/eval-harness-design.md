@@ -66,8 +66,10 @@ plan):**
   held message so far, since a later utterance is appended with a space and logs it again), `held_sent` `{chars, waited_ms, end}` (the turn ended
   with `end` = `done`, `aborted` or `error`, and the held message of `chars` characters is sent next as an ordinary message with `send_trigger: "held"`;
   `waited_ms` is from the first hold to the send; logged just before that turn's `ws_message_sent`), `held_dropped` `{reason, chars}` (a held message was
-  not sent; `reason` is `closed` when the socket closed). `send_blocked` `{reason: "reply_in_flight"}` no longer exists: it was the old drop of such an
-  utterance, and older event files can still contain it. `turn_timeout` `{ms}` (the in-flight flag was cleared after `ms` with no ending frame),
+  not sent; `reason` is `closed` when the socket closed, `timeout` when the reply timeout dropped the connection). `send_blocked` `{reason: "reply_in_flight"}` no longer exists: it was the old drop of such an
+  utterance, and older event files can still contain it. `turn_timeout` `{ms}` (no ending frame came in `ms`: the socket is closed, speech cancelled, a held message dropped (`held_dropped` with `reason: "timeout"`) and
+  the page connects once more by itself; a `session_start` follows if that works, `ws_error` or `ws_closed` if not; the closing of the old socket is not reported as `ws_closed`,
+  so it cannot land in the next turn's window),
   `tts_skipped` `{reason}` (an empty or whitespace-only reply, or no speech synthesis), `tts_end` (the utterance's
   `onend`), `tts_cancelled` `{reason}` (`onerror` with `canceled` or `interrupted`; `reason` is `mic_press` when the cancel was the mic
   button starting to listen while speech was playing, for the browser's `canceled` report and for a streamed queue alike) and `tts_error` `{message}`

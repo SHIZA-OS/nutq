@@ -191,6 +191,20 @@ An utterance that finishes while a reply is in flight (the user tapped the mic d
 
 The utterance's own trigger (`manual` or `auto_silence`) is not kept on a held send; `send_trigger` is `held`.
 
+**Reply timeout.** If no frame ends the turn within `REPLY_TIMEOUT_MS` (60 s), the page gives up on the connection, not only on the flag. A late `done` after a bare
+flag reset could clear the next turn's flag (there is no turn id), and ZeroClaw may still be running the old turn, so any new message on the same connection
+would be steering. On the timeout (`replyTimedOut()` in `src/main.ts`): `turn_timeout { ms }` is logged as before, speech is cancelled, a held message is dropped
+(`held_dropped { reason: "timeout", chars }` and the hint "Message not sent, the answer timed out", which stays until the next mic press), the socket is closed
+(ZeroClaw then takes its cancel path) and `connect()` is called once. `connect()` is a plain function: it reads the gateway URL, agent alias and token from the same
+form fields (the token field already holds the stored pairing token) and the speech model load is reused, so the reconnect needs nothing else. The status reads
+"Answer timed out, reconnected" once the new socket opens; if it does not open, the status is the ordinary "disconnected", with no second attempt. A later manual
+Connect is a plain connect. Until the new socket opens the mic is disabled, as for any closed connection.
+
+Every socket handler (`onopen`, `onmessage`, `onerror`, `onclose`) first checks that its socket is still the current one and returns if not. The old socket is
+let go of before the new one is made, and its close (and anything it still delivers) arrives later; without the check that close would reset the new
+connection's status, in-flight flag and speech. The new connection starts a new session, so an events file that spans a timeout has two `session_start`
+session ids, and `join-latency.mjs` then needs `--session` to pick one.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL).

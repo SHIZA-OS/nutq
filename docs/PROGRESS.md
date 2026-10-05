@@ -603,3 +603,29 @@ hold and send with the reply style and the speech cancel, append, frames that do
 connection), an empty utterance, and the turn ending while listening. Join-latency and completion got the held cases. Mutation checks: 21 mutants on `main.ts` and 6 on
 `join-latency.mjs`, all caught. The Phase 1 equivalent survivor (`!listening` dropped from the guard) is now caught by the release 0 ms after a held send. Not done: the old
 `mic-cancel.test.mjs` still has its own copy of the stub gateway instead of using `page-harness.mjs`.
+
+## Reply timeout closes the socket (2026-10-05)
+
+A bare reset of the in-flight flag after `REPLY_TIMEOUT_MS` was unsafe twice over: with no turn id a late `done` from the old turn could clear the next turn's flag, and ZeroClaw may
+still be running the old turn, so a new message on the same connection would be steering. Now the timeout closes the socket (ZeroClaw then takes its cancel path), cancels speech, drops
+a held message (`held_dropped { reason: "timeout" }`, hint "Message not sent, the answer timed out") and keeps `turn_timeout { ms }`, then connects once more.
+
+Checked before building, as asked: Connect is a plain function. `connect()` reads the gateway URL, agent alias and token from the form fields (the token field holds the stored pairing
+token), reuses the speech model load and makes a `WebSocket`, so an automatic reconnect is one call and needed no more than that. The one thing it did need: the four socket handlers used the
+global `socket` and `replyState` without checking which socket they belonged to, so the late close of a socket that had been let go of would have reset the new connection. Each handler now
+returns if its socket is no longer the current one. The status reads "Answer timed out, reconnected" once the new socket opens; if it does not open, the ordinary "disconnected" with no second
+attempt, and a later manual Connect is a plain connect (the wording is taken per `connect()` call, even one that fails early).
+
+Tests (`reply-timeout.test.mjs`, on `page-harness.mjs`, which gained a fake 60 s timer the test fires, upgrade recording, refused and delayed upgrades, close-frame detection and a record of
+every `WebSocket` made): the timer exists exactly while a reply is in flight; the full timeout with a held message (event, close frame on the old socket, drop, hint); speech cancelled;
+reconnect with the same agent and token; the connecting window (mic disabled); a new message on the new connection; late traffic: a `done`, a chunk and the close from the old socket via the server, and
+`onmessage`, `onerror`, `onopen` and `onclose` of the old socket called by hand because Chrome drops what an old socket would deliver after `close()`; the new turn still ending by its own `done`;
+a reconnect that cannot start (invalid URL); a failed reconnect (one attempt, disconnected); a later manual Connect. Mutation checks: 21 mutants. 16 were caught on the first run. Five survived: the three
+stale-handler guards for `onopen`, `onmessage` and `onerror` (Chrome never delivers them, so only a hand call reaches them), `socket = null` before the reconnect (only matters when `connect()` cannot
+start), and the approval reply using the global `socket`. The first four are now caught by the hand-called handlers and the invalid-URL test. The last is equivalent: a stale socket returns at the guard first, so
+`sock` and `socket` are the same object whenever it runs.
+
+Not done or open: the old socket's close is not reported as `ws_closed`, deliberately, because `completion.mjs` reads `ws_closed` as a failure signal and a late one would land in the next turn's window.
+A turn that timed out is therefore seen in the eval only through `turn_timeout` and the server row. An events file spanning a timeout has two `session_start` session ids, so `join-latency.mjs` needs `--session`.
+If the user is mid-utterance when the timeout fires, the button is disabled until the new socket opens (as for any closed connection), and an utterance finished before that is "Cannot send: not connected".
+
