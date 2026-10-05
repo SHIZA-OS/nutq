@@ -352,3 +352,23 @@ test("a reply that is only code is not spoken; it is tts_skipped as empty on bot
   assert.deepEqual(r.mdCodeOnlyOff.spoken, []);
   assert.deepEqual(r.mdCodeOnlyOff.events.filter((e) => e.event === "tts_skipped").map((e) => e.reason), ["empty"]);
 });
+
+// speech_text { raw_chars, spoken_chars }: per unit handed to the voice, before and after cleaning; no text is logged.
+const speechText = (events) => events.filter((e) => e.event === "speech_text").map((e) => [e.raw_chars, e.spoken_chars]);
+
+test("speech_text, flag off: one event for the reply with its length before and after cleaning, and no text", () => {
+  const md = "**Bold** start here today.\n- item one is an item\n- item two\n";
+  assert.deepEqual(speechText(r.mdOff.events), [[md.length, "Bold start here today. item one is an item. item two.".length]]);
+  assert.deepEqual(Object.keys(r.mdOff.events.find((e) => e.event === "speech_text")), ["event", "timestamp_ms", "raw_chars", "spoken_chars"]);
+});
+
+test("speech_text, flag on: one event per unit, including units that clean to nothing", () => {
+  assert.deepEqual(speechText(r.mdOn.events), [[26, 22], [21, 20], [22, 17], [31, 12]]);
+  assert.ok(speechText(r.mdCodeOnly.events).length > 0 && speechText(r.mdCodeOnly.events).every(([, spoken]) => spoken === 0));
+  assert.deepEqual(speechText(r.mdCodeOnlyOff.events), [["```\ncode\n```".length, 0]]);
+});
+
+test("speech_text, fallback: the full_response is reported as one more unit", () => {
+  const events = speechText(r.mdFallback.events);
+  assert.deepEqual(events.at(-1), ["# Title\n- one\n- two".length, "Title. one. two.".length]);
+});

@@ -88,6 +88,7 @@ type EvalEvent =
   | "tts_requested"
   | "tts_start"
   | "tts_sentence_start"
+  | "speech_text"
   | "tts_text_mismatch"
   | "tts_muted"
   | "tts_skipped"
@@ -685,14 +686,23 @@ function cancelSpeech(reason = "canceled") {
 // What the voice gets from a streamed unit: speakable() of it, or nothing when nothing is left (a code block, a rule).
 // A unit can start inside a code block that an earlier unit opened, so that state is carried until the turn ends or is cancelled.
 let speechInCode = false;
+
+// speech_text: the length of a text before and after cleaning, for the eval (the text itself is not logged).
+function logSpeechText(raw: string, spoken: string) {
+  logEvent("speech_text", { raw_chars: raw.length, spoken_chars: spoken.length });
+}
+
 function queueSpeech(raw: string) {
   const cleaned = speakable(raw, speechInCode);
   speechInCode = cleaned.inCode;
+  logSpeechText(raw, cleaned.text);
   if (cleaned.text !== "") speechQueue?.enqueue(cleaned.text);
 }
 
 function speak(text: string) {
-  const spoken = speakable(text).text || null;
+  const cleaned = speakable(text).text;
+  logSpeechText(text, cleaned);
+  const spoken = cleaned || null;
   if (spoken === null) {
     // An empty or whitespace-only reply is not spoken; say so instead of returning silently.
     logEvent("tts_skipped", { reason: "empty" });
@@ -731,6 +741,7 @@ function finishStreamedSpeech(fullResponse: unknown) {
   speechInCode = false;
   if (speechQueue.sentences === 0 && typeof fullResponse === "string") {
     const spoken = speakable(fullResponse).text;
+    logSpeechText(fullResponse, spoken);
     if (spoken !== "") speechQueue.enqueue(spoken);
   }
   if (speechQueue.finish() === 0) logEvent("tts_skipped", { reason: "empty" });
