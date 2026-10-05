@@ -148,16 +148,23 @@ manual stop ends the turn at once with reason `manual`; once ended, a turn stays
 `ws_message_sent`. The offline replay (`replay-commits.mjs`) drives the same module with time taken from frame
 positions.
 
-## Mic press right after a send
+## Mic press right after listening ends
 
-A press that would start listening within `MIC_REARM_MS` (`src/turn-state.ts`, 400 ms) of the last send, manual or `auto_silence`, is ignored:
-no listening, no mute, no speech cancel, and `mic_press_ignored { reason: "rearm", since_send_ms }` is logged. Without this, a double tap
-after a send started a new utterance, muted the whole reply (`tts_muted`) and sent nothing (`send_skipped`), so the user lost the answer. The
-window counts from when the message went out (`lastSendAt` is set right after the socket send), so an utterance that sent nothing does not open
-it, and a press at `since_send_ms >= 400` behaves as before (listens, mutes the reply, cancels speech). Only a press that would start
-listening is guarded: a press while listening is the release and is never ignored. The button does not look disabled during the window,
-because a disabled button swallows the click and the event could not be logged. 400 ms is a judgement, not measured. The window does not cover
-the time between the release and the send (the final transcription, `stop()`): a press there starts a second utterance.
+A press that would start listening is ignored from the moment listening ends (a manual release or the `auto_silence` trigger) until
+`MIC_REARM_MS` (`src/turn-state.ts`, 400 ms) after the send: no listening, no mute, no speech cancel, and
+`mic_press_ignored { reason: "rearm", phase, since_release_ms, since_send_ms }` is logged. The window has two phases:
+
+- `finishing`: from the end of listening until `finishListening()` is done. `stop()` runs the final transcription in this gap (up to about
+  500 ms live); a press there used to start a second utterance and the message was sent with listening true again. `since_send_ms` is `null`
+  here, because this utterance has not been sent.
+- `after_send`: from the send until `MIC_REARM_MS` later. Without it a double tap after a send started a new utterance, muted the whole reply
+  (`tts_muted`) and sent nothing (`send_skipped`), so the user lost the answer. Both fields are set.
+
+If the turn ends without a send (`send_skipped`, a refused send, or a `stop()` that throws) the window closes at that point, so the user can retry
+at once; it never runs to `MIC_REARM_MS` after a release that sent nothing. A press after the window behaves as before (listens, mutes the reply,
+cancels speech). Only a press that would start listening is guarded: a press while listening is the release and is never ignored. The button does
+not look disabled during the window, because a disabled button swallows the click and the event could not be logged. 400 ms is a judgement, not
+measured.
 
 ## Eval mode: WER replay
 

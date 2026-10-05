@@ -560,4 +560,20 @@ is inside the window, so the `turn()` helper now advances the fake clock 5000 ms
 in practice because `Date.now()` is an epoch time and never under 400, so it was left as is.
 
 Finding, not fixed: the window starts at the send, but the final transcription (`stop()`) runs between the release and the send. A press in that gap starts a second utterance
-(shown with a slow fake `stop()`: a message is then sent while listening is true again). The live evidence was a press after the send, so this is a different window.
+(shown with a slow fake `stop()`: a message is then sent while listening is true again). The live evidence was a press after the send, so this is a different window. Fixed in the entry below.
+
+## Re-arm window from the release (2026-10-05)
+
+The finding above is fixed. A press that would start listening is now ignored from the moment listening ends (a manual release or the `auto_silence` trigger)
+until `MIC_REARM_MS` after the send. In code: `finishListening()` sets `finishing` and `releasedAt` before `stop()` and clears `finishing` in a `finally`, so a send,
+a `send_skipped`, a refused send and a throwing `stop()` all close that phase; the `after_send` phase is the old check on `lastSendAt`. If the turn ends with
+`send_skipped` the window closes at the skip, so the user can retry at once (a window that ran to 400 ms after the release would have made a retry after an
+empty utterance fail). `mic_press_ignored` keeps `reason: "rearm"` and gains `phase` (`finishing` or `after_send`) and `since_release_ms`; `since_send_ms` is `null`
+while finishing, including when an earlier utterance was sent (that send is not this utterance's). See ARCHITECTURE ("Mic press right after listening ends").
+
+Tests (`mic-cancel.test.mjs`, fake `Date.now`, a 600 ms real slow `stop()`): a press during `stop()`, one at the send (0 ms), 399 and 400 ms after the send (with
+the release 300 ms earlier, so `since_release_ms` and `since_send_ms` differ), an empty utterance then an immediate press, the `auto_silence` path, a prior send on
+record, and a `stop()` that throws. The old `stopWindow` test pinned the bug (a second utterance starting during `stop()`) and was replaced. Mutation checks: 15
+mutants. 13 were caught on the first run; one survived because no test had an earlier send on record while finishing (`since_send_ms` non-null), now covered and
+caught. One survivor is equivalent at this commit: dropping `!listening` from the guard, because a send can no longer happen while listening is true, so neither
+`finishing` nor `afterSend` can be true then. It is kept as a guard and pinned when a send can land mid-utterance (a held message, next entry).
