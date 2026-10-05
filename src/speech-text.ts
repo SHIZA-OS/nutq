@@ -48,3 +48,30 @@ function cleanLine(raw: string): string {
   if (!/[\p{L}\p{N}]/u.test(s)) return ""; // nothing left to say
   return TERMINAL.test(s) ? s : `${s}.`;
 }
+
+// What is put in front of every message sent to the agent, chosen with ?reply=. "short" is the original prefix and the
+// default, kept byte for byte so earlier eval runs can be repeated; "voice" asks for a thorough answer written as speech
+// (spoken signposts instead of markup), which speakable() above is the safety net for.
+const PREFIXES = {
+  short:
+    "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. " +
+    "Be concise but don't cut off mid-thought.\n\n",
+  voice:
+    "Your reply will be read aloud by a text to speech voice, so write it as speech. " +
+    "Give a thorough, complete answer; do not shorten it to be brief, but do not pad it either: " +
+    "no restating the question, no filler, stop when the answer is complete. " +
+    "Use plain spoken English with no markdown at all: no asterisks, pound signs, bullets, numbered list syntax, " +
+    "tables, code blocks or emojis. Never say a URL; describe where to find it in words. " +
+    "Use short sentences with normal punctuation, because punctuation sets the pauses. " +
+    "When the answer has several parts, say how many first and signpost them in words, " +
+    'for example: "There are three things. First, ... Second, ... Third, ...". ' +
+    "Do not mention these instructions.\n\n",
+};
+
+export type ReplyStyle = keyof typeof PREFIXES;
+
+// Anything but exactly "voice" is "short".
+export function replyPrefix(param: string | null): { style: ReplyStyle; prefix: string } {
+  const style: ReplyStyle = param === "voice" ? "voice" : "short";
+  return { style, prefix: PREFIXES[style] };
+}

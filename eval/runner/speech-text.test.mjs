@@ -61,6 +61,8 @@ before(async () => {
     // Cleaning twice gives the same text as cleaning once.
     const sample = "# Title\n- **One** item with `code` and [a link](http://x.y)\n| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\nEnd 🎉";
     out.idempotent = [speakable(sample).text, speakable(speakable(sample).text).text];
+    const { replyPrefix } = await import("/src/speech-text.ts");
+    out.prefix = { none: replyPrefix(null), empty: replyPrefix(""), short: replyPrefix("short"), voice: replyPrefix("voice"), upper: replyPrefix("VOICE"), other: replyPrefix("loud") };
     return out;
   }, CASES);
 });
@@ -82,4 +84,22 @@ test("speakable: a code fence can span streamed units; the caller carries inCode
 
 test("speakable: cleaning cleaned text again changes nothing", () => {
   assert.equal(r.idempotent[0], r.idempotent[1]);
+});
+
+// The prefix the eval runs before ?reply= existed were sent with. Pinned byte for byte so those runs stay reproducible.
+const OLD_PREFIX = "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. Be concise but don't cut off mid-thought.\n\n";
+
+test("replyPrefix: short is the default and is byte-identical to the original prefix", () => {
+  for (const k of ["none", "empty", "short", "upper", "other"]) assert.deepEqual(r.prefix[k], { style: "short", prefix: OLD_PREFIX }, k);
+});
+
+test("replyPrefix: ?reply=voice asks for a thorough spoken answer with spoken signposts, no padding, no markup", () => {
+  const { style, prefix } = r.prefix.voice;
+  assert.equal(style, "voice");
+  assert.ok(prefix.endsWith("\n\n"));
+  assert.match(prefix, /do not shorten it to be brief, but do not pad it either: no restating the question, no filler, stop when the answer is complete\./);
+  assert.match(prefix, /no markdown at all/);
+  assert.match(prefix, /Never say a URL/);
+  assert.match(prefix, /First, \.\.\. Second, \.\.\. Third, \.\.\./);
+  assert.ok(!prefix.includes("\u2014"), "no em dash");
 });

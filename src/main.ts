@@ -6,7 +6,7 @@ import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { browserEngine } from "./tts-engine";
 import { SentenceSplitter } from "./sentence-splitter";
-import { speakable } from "./speech-text";
+import { replyPrefix, speakable } from "./speech-text";
 import { SpeechQueue, type SpeechEvent } from "./speech-queue";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
@@ -575,9 +575,8 @@ function connect() {
   };
 }
 
-const RESPONSE_STYLE_PREFIX =
-  "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. " +
-  "Be concise but don't cut off mid-thought.\n\n";
+// ?reply=voice asks for a thorough answer written as speech; anything else is the original short prefix (src/speech-text.ts).
+const reply = replyPrefix(urlParams.get("reply"));
 
 type SendTrigger = "manual" | "auto_silence";
 
@@ -599,9 +598,9 @@ function sendTranscript(text: string, trigger: SendTrigger) {
   replyBuffer = "";
   replyBoxEl.textContent = "";
   receivedFirstChunkThisTurn = false;
-  const frame = { type: "message", content: RESPONSE_STYLE_PREFIX + text };
+  const frame = { type: "message", content: reply.prefix + text };
   socket.send(JSON.stringify(frame));
-  logEvent("ws_message_sent", { send_trigger: trigger });
+  logEvent("ws_message_sent", { send_trigger: trigger, reply_style: reply.style });
   log(`Sent (${trigger}): ${text}`);
 }
 
