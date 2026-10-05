@@ -246,6 +246,76 @@ before(async () => {
     s.queue.cancel();
     s.clock.tick(1000);
     out.cancelBatch = { events: s.events.map((e) => [e.t, e.type, e.index ?? null]), spoken: s.engine.spoken, cancels: s.engine.cancels };
+
+    // drop(): what has not become audible is dropped, silently; what is audible plays on. `fresh` counts the units queued
+    // since the last drop() (or the turn start), `sentences` all the turn's units.
+    s = setup();
+    ["aaaa", "bbbb", "cccc"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(12); // aaaa is audible
+    out.dropWaiting = { dropped: s.queue.drop(), cancels: s.engine.cancels, sentences: s.queue.sentences, fresh: s.queue.fresh };
+    s.clock.tick(1000);
+    out.dropWaiting.events = s.events.filter((e) => e.type !== "requested").map((e) => [e.t, e.type, e.index]);
+    out.dropWaiting.spoken = s.engine.spoken;
+
+    // An utterance handed to the engine that is not audible yet is dropped too (the engine is told to cancel it), and
+    // its late callbacks are ignored. Numbering goes on, and the next audible one is still the turn's first.
+    s = setup();
+    ["aaaa", "bbbb"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(5);
+    out.dropInaudible = { dropped: s.queue.drop(), cancels: s.engine.cancels };
+    s.clock.tick(1000);
+    out.dropInaudible.quiet = s.events.filter((e) => e.type !== "requested").length;
+    s.queue.enqueue("cccc");
+    s.clock.tick(1000);
+    out.dropInaudible.after = s.events.filter((e) => e.type !== "requested").map((e) => [e.type, e.index, e.first ?? null]);
+    out.dropInaudible.requestedIndexes = s.events.filter((e) => e.type === "requested").map((e) => e.index);
+
+    // A merged utterance that is not audible yet counts all its units; chars is the units' own text, no join spaces.
+    s = setup();
+    ["aaaa", "bbbb", "cccc"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(20); // aaaa ended at 18; "bbbb cccc" was handed then and becomes audible at 28
+    out.dropMergedInaudible = { dropped: s.queue.drop(), cancels: s.engine.cancels };
+
+    // An audible merged utterance is left alone; only what waits behind it is dropped.
+    s = setup();
+    ["aaaa", "bbbb", "cccc"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(30);
+    s.queue.enqueue("dddd");
+    out.dropBehindMerged = { dropped: s.queue.drop(), cancels: s.engine.cancels };
+    s.clock.tick(1000);
+    out.dropBehindMerged.spoken = s.engine.spoken;
+
+    // Nothing to drop: zeros, no cancel, no event. `fresh` still restarts.
+    s = setup();
+    out.dropEmpty = [s.queue.drop(), s.engine.cancels, s.events.length];
+    s.queue.enqueue("aaaa");
+    s.clock.tick(12);
+    out.dropOnlyAudible = { dropped: s.queue.drop(), cancels: s.engine.cancels, fresh: s.queue.fresh, sentences: s.queue.sentences };
+    s.queue.enqueue("bbbb");
+    out.dropOnlyAudible.freshAfter = s.queue.fresh;
+
+    // `fresh` starts again with the next turn (a stale count would suppress the done fallback there), and on cancel.
+    s = setup();
+    s.queue.enqueue("aaaa");
+    s.queue.enqueue("bbbb");
+    const freshDuring = s.queue.fresh;
+    s.queue.finish();
+    s.clock.tick(1000);
+    const freshAfterTurn = s.queue.fresh;
+    s.queue.enqueue("cccc");
+    s.queue.cancel();
+    out.freshTurns = [freshDuring, freshAfterTurn, s.queue.fresh];
+
+    // finish() after a drop still returns the turn's units, and the turn ends once what is audible has played.
+    s = setup();
+    ["aaaa", "bbbb"].forEach((t) => s.queue.enqueue(t));
+    s.clock.tick(12);
+    s.queue.drop();
+    out.finishAfterDrop = s.queue.finish();
+    s.clock.tick(1000);
+    s.queue.enqueue("cccc");
+    s.clock.tick(1000);
+    out.nextTurnAfterDrop = s.events.slice(-3).map((e) => [e.type, e.index, e.first ?? null]);
     return out;
   });
 });
@@ -401,4 +471,45 @@ test("coalescing: cancel() during a merged utterance reports one cancelled and i
   ]);
   assert.deepEqual(r.cancelBatch.spoken, ["aaaa", "bbbb cccc dddd"]);
   assert.equal(r.cancelBatch.cancels, 1);
+});
+
+test("drop(): the units that wait are dropped, the audible utterance is not cancelled and plays to its end, and nothing is reported", () => {
+  assert.deepEqual(r.dropWaiting.dropped, { units: 2, chars: 8 });
+  assert.equal(r.dropWaiting.cancels, 0);
+  assert.deepEqual([r.dropWaiting.sentences, r.dropWaiting.fresh], [3, 0]); // all three were queued; none since the drop
+  assert.deepEqual(r.dropWaiting.events, [[10, "start", 0], [18, "end", 0]]);
+  assert.deepEqual(r.dropWaiting.spoken, ["aaaa"]);
+});
+
+test("drop(): an utterance handed to the engine but not audible yet is dropped too, its late callbacks are ignored, and the next audible one is still the turn's first", () => {
+  assert.deepEqual(r.dropInaudible.dropped, { units: 2, chars: 8 });
+  assert.equal(r.dropInaudible.cancels, 1);
+  assert.equal(r.dropInaudible.quiet, 0);
+  assert.deepEqual(r.dropInaudible.after, [["start", 2, true], ["end", 2, null]]);
+  assert.deepEqual(r.dropInaudible.requestedIndexes, [0, 1, 2]);
+});
+
+test("drop(): a merged utterance that is not audible yet counts all its units, with the units' own characters", () => {
+  assert.deepEqual(r.dropMergedInaudible.dropped, { units: 2, chars: 8 });
+  assert.equal(r.dropMergedInaudible.cancels, 1);
+});
+
+test("drop(): an audible merged utterance is left alone; only what waits behind it is dropped", () => {
+  assert.deepEqual(r.dropBehindMerged.dropped, { units: 1, chars: 4 });
+  assert.equal(r.dropBehindMerged.cancels, 0);
+  assert.deepEqual(r.dropBehindMerged.spoken, ["aaaa", "bbbb cccc"]);
+});
+
+test("drop() with nothing to drop returns zeros and does nothing; fresh restarts all the same", () => {
+  assert.deepEqual(r.dropEmpty, [{ units: 0, chars: 0 }, 0, 0]);
+  assert.deepEqual(r.dropOnlyAudible, { dropped: { units: 0, chars: 0 }, cancels: 0, fresh: 0, sentences: 1, freshAfter: 1 });
+});
+
+test("finish() after a drop still returns the turn's units, and the turn ends when the audible utterance has played", () => {
+  assert.equal(r.finishAfterDrop, 2);
+  assert.deepEqual(r.nextTurnAfterDrop, [["requested", 0, null], ["start", 0, true], ["end", 0, null]]);
+});
+
+test("fresh counts the units queued this turn and starts again when the turn ends or is cancelled", () => {
+  assert.deepEqual(r.freshTurns, [2, 0, 0]);
 });

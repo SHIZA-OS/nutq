@@ -62,6 +62,11 @@ export class SentenceSplitter {
     return text ? [text] : [];
   }
 
+  // How many characters the splitter holds that have not come out: the unfinished sentence and the short ones held.
+  get pendingChars(): number {
+    return this.buffer.length + this.held.length;
+  }
+
   // Drop everything buffered (a cancelled turn).
   reset(): void {
     this.buffer = "";

@@ -63,6 +63,16 @@ before(async () => {
     const listWhole = all(run([listText]));
     out.newlineChunking = { whole: listWhole, same: [1, 2, 3, 5, 7, 11].map((n) => JSON.stringify(all(run(chunked(listText, n)))) === JSON.stringify(listWhole)) };
 
+    // pendingChars: the text the splitter holds that has not come out (an unfinished sentence and short closed ones).
+    const pend = new SentenceSplitter();
+    out.pending = [pend.pendingChars];
+    pend.push("Partial text with no end");
+    out.pending.push(pend.pendingChars);
+    pend.push(" yet. Hi. ok");
+    out.pending.push(pend.pendingChars); // "Hi." is held (3) and "ok" is unfinished (2)
+    pend.reset();
+    out.pending.push(pend.pendingChars);
+
     // Flush clears the state, and so does reset().
     const s = new SentenceSplitter();
     s.push("Partial text with no end");
@@ -188,4 +198,8 @@ test("with newlines in the text, however the deltas are cut, the units are the s
     "Last paragraph has no end",
   ]);
   assert.deepEqual(r.newlineChunking.same, [true, true, true, true, true, true]);
+});
+
+test("pendingChars is the length of the unfinished text plus the short sentences held, and 0 after reset", () => {
+  assert.deepEqual(r.pending, [0, 24, 5, 0]);
 });

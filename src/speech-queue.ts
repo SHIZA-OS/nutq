@@ -44,6 +44,8 @@ export class SpeechQueue {
   private generation = 0;
   private requested = 0; // sentences queued this turn, so the next index
   private started = false; // this turn's first audible audio has been reported
+  private fresh_ = 0; // units queued since the last drop() or the start of the turn
+  private now: { units: number; chars: number; audible: boolean } | null = null; // the utterance with the engine
   private finished = false; // finish() was called: no more sentences are coming this turn
 
   constructor(engine: TtsEngine, emit: (e: SpeechEvent) => void) {
@@ -56,9 +58,16 @@ export class SpeechQueue {
     return this.requested;
   }
 
+  // How many units were queued since the last drop() (or the turn began): what the done fallback asks, because the
+  // text before a tool call is not in full_response, so units dropped or heard before it do not count as the answer.
+  get fresh(): number {
+    return this.fresh_;
+  }
+
   // Queue a sentence; it plays after the ones before it.
   enqueue(text: string): void {
     const index = this.requested++;
+    this.fresh_++;
     this.waiting.push({ index, text });
     this.emit({ type: "requested", index });
     this.pump();
@@ -79,9 +88,31 @@ export class SpeechQueue {
     this.generation++;
     this.waiting = [];
     this.playing = false;
+    this.now = null;
     this.endTurn();
     this.engine.cancel();
     if (active) this.emit({ type: "cancelled" });
+  }
+
+  // Drop what has not become audible: every unit that waits, and the utterance with the engine if its audio has not
+  // started (the engine is told to cancel it, its late callbacks are ignored, nothing is reported). An audible utterance
+  // plays to its end. Returns what was dropped; `chars` is the units' own text, without the join spaces. Numbering and
+  // the turn go on, and `fresh` restarts whether or not anything was dropped.
+  drop(): { units: number; chars: number } {
+    let units = this.waiting.length;
+    let chars = this.waiting.reduce((n, u) => n + u.text.length, 0);
+    this.waiting = [];
+    if (this.playing && this.now && !this.now.audible) {
+      units += this.now.units;
+      chars += this.now.chars;
+      this.generation++;
+      this.playing = false;
+      this.now = null;
+      this.engine.cancel();
+    }
+    this.fresh_ = 0;
+    this.settle();
+    return { units, chars };
   }
 
   private pump(): void {
@@ -95,6 +126,8 @@ export class SpeechQueue {
       batch.push(this.waiting.shift()!);
     }
     const next = { index: first.index, text: batch.map((u) => u.text).join(" ") };
+    const now = { units: batch.length, chars: batch.reduce((n, u) => n + u.text.length, 0), audible: false };
+    this.now = now;
     const generation = this.generation;
     const current = () => generation === this.generation;
     this.playing = true;
@@ -102,6 +135,7 @@ export class SpeechQueue {
       next.text,
       (info) => {
         if (!current()) return;
+        now.audible = true;
         this.emit({ type: "start", index: next.index, units: batch.length, chars: next.text.length, first: !this.started, info });
         this.started = true;
       },
@@ -112,6 +146,7 @@ export class SpeechQueue {
 
   private advance(e: SpeechEvent): void {
     this.playing = false;
+    this.now = null;
     this.emit(e);
     this.pump();
     this.settle();
@@ -123,6 +158,7 @@ export class SpeechQueue {
 
   private endTurn(): void {
     this.requested = 0;
+    this.fresh_ = 0;
     this.started = false;
     this.finished = false;
   }
