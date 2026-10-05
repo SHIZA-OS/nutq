@@ -60,14 +60,12 @@ notices are listed here because the minified bundle carries none.
 
 | Package | Version | License | Notes |
 |---|---|---|---|
-| `onnxruntime-web` | 1.27.0 (top level) | MIT, Copyright (c) Microsoft Corporation | Pulled in through `@moonshine-ai/moonshine-js`. Its JavaScript is bundled; the wasm it loads at runtime is the 1.22.0 build above, because `src/vendor/model.ts` sets `ort.env.wasm.wasmPaths` to `Settings.BASE_ASSET_PATH.ONNX_RUNTIME` |
-| `onnxruntime-common` | 1.21.0 | MIT | Dependency of `onnxruntime-web` |
-| `@ricky0123/vad-web` | 0.0.24 | ISC, Copyright (c) 2022-present ricky0123 | Listed under `devDependencies` although it is bundled; it bundles its own `onnxruntime-web` 1.14.0 |
-| `llama-tokenizer-js` | 1.2.2 | MIT, Copyright 2023 belladore.ai | Used by `src/vendor/model.ts` to decode tokens |
+| `onnxruntime-web` | 1.27.0 (top level) | MIT, Copyright (c) Microsoft Corporation | A direct dependency (pinned). Its JavaScript is bundled; the wasm it loads at runtime is the 1.22.0 build above, because `src/vendor/model.ts` sets `ort.env.wasm.wasmPaths` to `Settings.BASE_ASSET_PATH.ONNX_RUNTIME` |
+| `onnxruntime-common` | 1.21.0 | MIT | Dependency of `onnxruntime-web` (installed by npm, not listed in `package.json`) |
+| `@ricky0123/vad-web` | 0.0.24 | ISC, Copyright (c) 2022-present ricky0123 | A direct dependency (pinned); it brings its own `onnxruntime-web` 1.14.0 |
+| `llama-tokenizer-js` | 1.2.2 | MIT, Copyright 2023 belladore.ai | A direct dependency (pinned); used by `src/vendor/model.ts` to decode tokens |
 
-`@moonshine-ai/moonshine-js` 0.1.29 (MIT, Copyright (c) 2025 Useful Sensors, Inc.) is a runtime dependency in
-`package.json`, but no source file imports it: `src/moonshine-js.d.ts` is a type declaration only. It is installed for
-the packages above and as the upstream of the vendored files in section 4.
+`@moonshine-ai/moonshine-js` is not a dependency: no source file imports it. Its MIT-licensed source is the origin of the vendored files in section 4 (copied from version 0.1.29).
 
 ## 4. Vendored source
 
