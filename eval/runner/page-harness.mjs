@@ -96,7 +96,7 @@ export async function startHarness() {
     h.server?.close();
   };
 
-  h.openPage = async (query, { keepFirstWait = false } = {}) => {
+  h.openPage = async (query, { keepFirstWait = false, init, connectNow = true } = {}) => {
     const page = await h.context.newPage();
     await page.route(/\/src\/vendor\/transcriber\.ts/, (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER }));
     await page.addInitScript(() => {
@@ -141,6 +141,7 @@ export async function startHarness() {
       navigator.mediaDevices.getUserMedia = async () => ({ getAudioTracks: () => [{ getSettings: () => ({}) }] });
     });
     if (keepFirstWait) await page.addInitScript(() => (window.__keepFirstWait = true));
+    if (init) await page.addInitScript(init); // runs after the harness's own, so it can take away or replace what the harness set up
     await page.goto(`${h.vite.url}?${query}`);
     await page.fill("#ws-url", `ws://127.0.0.1:${h.server.address().port}/ws/chat`);
     await page.fill("#agent-alias", "stub");
@@ -150,7 +151,7 @@ export async function startHarness() {
       await page.waitForFunction(() => document.getElementById("conn-status").textContent.includes("connected"), null, { timeout: 15000 });
       await page.waitForFunction(() => !document.getElementById("mic-btn").disabled, null, { timeout: 15000 });
     };
-    await connect();
+    if (connectNow) await connect();
     const p = { page, connect, conn: h.sockets.length - 1 };
     // Frames from the stub gateway to the page, on connection `conn` (default: the newest).
     p.send = async (obj, conn = h.sockets.length - 1) => {

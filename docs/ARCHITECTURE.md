@@ -37,16 +37,29 @@ therefore loads first and opens the mic second:
   hint reads "Connect to load the speech model".
 - Eval mode (`?eval=1`): at page load, honoring `?model=`.
 
-**Load failure.** The status shows "model load failed" and the button stays disabled. The
-guard is cleared, so the next Connect retries. This needed a small local edit to the
+**Load failure.** The status shows "model load failed", the hint says the model could not be
+loaded and that a network problem or a blocked download is the usual cause, a Try again
+button appears, and the mic button stays disabled. The guard is cleared, so Try again (or the
+next Connect) retries. The vendored `Transcriber.load()` used to report any failure here as
+`PlatformUnsupported` ("this platform is not supported"), which was misleading; it now reports
+`ModelLoadFailed` (a local edit in `src/vendor/error.ts` and `transcriber.ts`). A browser
+without WebAssembly gets its own message and no retry, and no load is attempted. This needed a small local edit to the
 vendored `src/vendor/model.ts`: `MoonshineModel` cached its rejected load promise and left
 its loading flag set, so a retry could never succeed. `loadModel()` now clears both on
 failure.
 
-**Observation, not a benchmark.** On a fresh browser profile (nothing cached), the model
-load took roughly 27 to 38 s in the runs made while building this (four measurements, one
-machine, network not controlled). A warm cache was faster (about 4 to 7 s in earlier
-runs). Treat these as a sense of scale only.
+**Progress.** The loader exposes none: `ort.InferenceSession.create(url)` in
+`src/vendor/model.ts` takes a URL and has no progress callback, and the `Transcriber` reports
+only "load started" and "model loaded". So the page shows no progress bar; while loading, the
+hint says the download is about 63 MB and happens only on first use.
+
+**Observation, not a benchmark.** While the weights still came from a CDN, a fresh browser
+profile (nothing cached) took roughly 27 to 38 s to load the model (four measurements, one
+machine, network not controlled), and a warm cache was faster (about 4 to 7 s). Since the
+weights are served from the app's own origin, one measurement on a static preview on the same
+machine (localhost) gave 6.7 s on a fresh profile and 3.1 s on the second visit, with all five
+model and wasm files served from the browser cache. Whether a deployment caches them depends
+on its web server's cache headers. Treat these as a sense of scale only.
 
 ## Speech start and pre-roll
 

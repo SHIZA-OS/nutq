@@ -158,19 +158,33 @@ let modelState: "idle" | "loading" | "ready" | "failed" = sttModelValid ? "idle"
 let socketOpen = false;
 let loadPromise: Promise<void> | null = null;
 const micHint = $<HTMLParagraphElement>("mic-hint");
+const retryModelBtn = $<HTMLButtonElement>("retry-model-btn");
+const envNote = $<HTMLParagraphElement>("env-note");
+
+// What the first-time user is told when something is missing or goes wrong.
+const MODEL_LOADING = "Loading the speech model (about 63 MB). This happens only on first use; your browser keeps it for next time.";
+const MODEL_LOAD_FAILED = "The speech model could not be loaded. This is usually a network problem or a blocked download, so check the connection and any content blocker, then try again.";
+const NO_WASM = "This browser has no WebAssembly support, so the speech model cannot run. Use a current desktop browser.";
+const NO_SPEECH = "This browser has no speech synthesis, so replies are shown as text and not spoken.";
+const MIC_BLOCKED = "Microphone access is blocked. Allow the microphone for this site in your browser, then tap the button again.";
+const MIC_INSECURE = "The microphone needs a secure page: open this app over https, or on localhost.";
+const MIC_MISSING = "No microphone was found. Connect one, then tap the button again.";
+// Why the model is not usable, shown as the hint once its state is "failed"; null for the eval-only invalid model.
+let loadProblem: string | null = null;
 
 function updateMicState() {
   micBtn.disabled = !(modelState === "ready" && (socketOpen || isNoSend));
+  retryModelBtn.hidden = loadProblem !== MODEL_LOAD_FAILED; // only a failed download is worth retrying
   micHint.textContent =
     notice ??
     (held
       ? "Will send when the answer finishes"
       : modelState === "failed"
-      ? "Speech model unavailable"
+      ? (loadProblem ?? "Speech model unavailable")
       : modelState === "idle"
         ? "Connect to load the speech model"
         : modelState === "loading"
-          ? "Loading the speech model, one moment"
+          ? MODEL_LOADING
           : micBtn.disabled
             ? "Connect to start listening"
             : "Tap to start listening");
@@ -706,6 +720,10 @@ if ("speechSynthesis" in window) {
 
 // The engine that speaks (src/tts-engine.ts); none when the browser has no speechSynthesis, and speak() says so.
 const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice) : null;
+if (!ttsEngine) {
+  envNote.textContent = NO_SPEECH;
+  envNote.hidden = false;
+}
 
 // A cancelled or interrupted utterance is tts_cancelled; any other error code (for example "synthesis-failed")
 // is tts_error. `cancelledBy` is the reason reported when the code is "canceled": that is what the browser reports
@@ -948,7 +966,7 @@ function initTranscriber() {
         setStatus(micStatus, "error", "error");
       },
       onModelLoadStarted() {
-        log("Moonshine model loading started (first run fetches WASM + weights from CDN)");
+        log("Moonshine model loading started");
       },
       onModelLoaded() {
         log("Moonshine model loaded");
@@ -1021,7 +1039,16 @@ function initTranscriber() {
 // Loads the model and VAD once; later calls reuse the same load. Never opens the mic.
 function ensureModelLoaded() {
   if (loadPromise || !sttModelValid) return;
+  if (typeof WebAssembly === "undefined") {
+    modelState = "failed";
+    loadProblem = NO_WASM;
+    setStatus(micStatus, "model unavailable", "error");
+    log(NO_WASM);
+    updateMicState();
+    return;
+  }
   modelState = "loading";
+  loadProblem = null;
   setStatus(micStatus, "loading model…", "warn");
   if (!transcriber) initTranscriber(); // reused on retry
   loadPromise = transcriber!.load().then(
@@ -1031,7 +1058,8 @@ function ensureModelLoaded() {
     },
     (e) => {
       modelState = "failed";
-      loadPromise = null; // the next Connect retries; the failed state stays visible until then
+      loadPromise = null; // the next Connect, or the Try again button, retries; the failed state stays visible until then
+      loadProblem = MODEL_LOAD_FAILED;
       setStatus(micStatus, "model load failed", "error");
       log(`Model load failed: ${e}`);
       updateMicState();
@@ -1045,12 +1073,11 @@ function ensureModelLoaded() {
 // getUserMedia of its own (see src/vendor/transcriber.ts), so it's ported
 // here verbatim, same constraints, same permission-denied handling via the
 // transcriber's own onError callback.
-async function startMicrophone(t: Transcriber) {
-  const status = await navigator.permissions.query({ name: "microphone" as PermissionName });
-  if (status.state === "denied") {
-    t.callbacks.onError("Microphone permission denied");
-    return;
-  }
+async function startMicrophone(t: Transcriber): Promise<string | null> {
+  if (!navigator.mediaDevices) return MIC_INSECURE;
+  // Not every browser can query the microphone permission; then the getUserMedia below finds out.
+  const status = await navigator.permissions.query({ name: "microphone" as PermissionName }).catch(() => null);
+  if (status?.state === "denied") return MIC_BLOCKED;
   try {
     t.callbacks.onPermissionsRequested();
     const stream = await navigator.mediaDevices.getUserMedia(micConstraints(isEvalMode, isRawMic));
@@ -1061,11 +1088,18 @@ async function startMicrophone(t: Transcriber) {
     if (isEvalMode) logEvent("mic_settings", applied);
     t.attachStream(stream);
     await t.start();
+    return null;
   } catch (e) {
-    t.callbacks.onError(`Microphone permission denied: ${e}`);
     t.stop();
+    log(`Microphone could not be started: ${e}`);
+    const name = (e as { name?: string })?.name;
+    if (name === "NotAllowedError" || name === "SecurityError") return MIC_BLOCKED;
+    if (name === "NotFoundError") return MIC_MISSING;
+    return `The microphone could not be started (${name ?? e}). Check that no other app is using it, then tap the button again.`;
   }
 }
+
+retryModelBtn.addEventListener("click", ensureModelLoaded);
 
 micBtn.addEventListener("click", async () => {
   if (modelState !== "ready") return;
@@ -1092,7 +1126,14 @@ micBtn.addEventListener("click", async () => {
     replyState.mute(); // a reply still arriving is not spoken either; ends with the turn (no effect if none is in flight)
     cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
     sessionTranscript = "";
-    await startMicrophone(transcriber!);
+    const problem = await startMicrophone(transcriber!);
+    if (problem) {
+      listening = false;
+      micBtn.textContent = "Start listening";
+      notice = problem;
+      setStatus(micStatus, "microphone unavailable", "error");
+      updateMicState();
+    }
   } else {
     logEvent("mic_button_release");
     await finishListening(turn.manualStop(Date.now()).reason);
