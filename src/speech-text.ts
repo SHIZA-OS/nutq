@@ -41,6 +41,11 @@ function cleanLine(raw: string): string {
     .replace(/(?<![\p{L}\p{N}])_(.+?)_(?![\p{L}\p{N}])/gu, "$1")
     .replace(/\*+|~~/g, "") // markers left unpaired, for instance when the emphasis ran across lines
     .replace(/[\p{Extended_Pictographic}‍️⃣]/gu, "")
+    .replace(/^\s*[\u2014\u2013]\s*|\s*[\u2014\u2013]\s*$/g, "") // a dash at either end of the line
+    .replace(/\s*[\u2014\u2013]\s*/g, "\0") // em or en dash: a comma pause, unless punctuation is already there
+    .replace(/([,.;:!?])\0/g, "$1 ")
+    .replace(/\0([,.;:!?])/g, "$1")
+    .replace(/\0/g, ", ")
     .replace(/\(\s*\)/g, "")
     .replace(/\s+/g, " ")
     .replace(/ ([,.;:!?])/g, "$1")
