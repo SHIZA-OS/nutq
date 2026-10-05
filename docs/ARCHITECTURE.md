@@ -148,6 +148,17 @@ manual stop ends the turn at once with reason `manual`; once ended, a turn stays
 `ws_message_sent`. The offline replay (`replay-commits.mjs`) drives the same module with time taken from frame
 positions.
 
+## Mic press right after a send
+
+A press that would start listening within `MIC_REARM_MS` (`src/turn-state.ts`, 400 ms) of the last send, manual or `auto_silence`, is ignored:
+no listening, no mute, no speech cancel, and `mic_press_ignored { reason: "rearm", since_send_ms }` is logged. Without this, a double tap
+after a send started a new utterance, muted the whole reply (`tts_muted`) and sent nothing (`send_skipped`), so the user lost the answer. The
+window counts from when the message went out (`lastSendAt` is set right after the socket send), so an utterance that sent nothing does not open
+it, and a press at `since_send_ms >= 400` behaves as before (listens, mutes the reply, cancels speech). Only a press that would start
+listening is guarded: a press while listening is the release and is never ignored. The button does not look disabled during the window,
+because a disabled button swallows the click and the event could not be logged. 400 ms is a judgement, not measured. The window does not cover
+the time between the release and the send (the final transcription, `stop()`): a press there starts a second utterance.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL).

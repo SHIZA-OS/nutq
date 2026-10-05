@@ -82,6 +82,10 @@ plan):**
   the time to first audio; `completion.mjs` reads none of these events (both pinned in the two test files). A turn
   that reaches `done` with no sentence queued (no chunk frames came) speaks `full_response` once, trimmed, through the
   same queue (`tts_requested` `{index: 0}`, then `tts_text_mismatch`); if that is empty it is `tts_skipped`. Not confirmed live: no sentence has been spoken by a real voice with the flag on.
+- `mic_press_ignored` `{reason, since_send_ms}`: a mic press that would have started listening came less than `MIC_REARM_MS` (400 ms) after the last
+  message was sent (any trigger), so it was taken for a double tap and ignored: no `mic_button_press`, no mute (`tts_muted`), no speech cancel
+  (`tts_cancelled`). `reason` is `rearm`; `since_send_ms` is the time from the send (`ws_message_sent`) to the press, always under 400. A press that
+  stops listening is never reported here. An utterance that sent nothing (`send_skipped`) does not open the window.
 - `tts_dropped` `{reason, units, chars, partial_chars}` (`?tts_stream=1` only): a `tool_call` frame arrived and speech that had not been heard was
   dropped, because text streamed before a tool call is not part of `full_response`. `reason` is `tool_call`. `units` is how many queued units were
   dropped, including an utterance that was with the engine but not audible yet (the engine is told to cancel it, and no `tts_cancelled` is reported

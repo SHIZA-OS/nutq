@@ -542,3 +542,22 @@ Limits: chunks arrive before the `tool_call` frame, so text already audible when
 ZeroClaw tool turn, only with a stub gateway sending frames, so how often the first sentence is already audible is unknown. Mutation checks: 14 on
 the queue and splitter (one survivor, `fresh` not reset when a turn ends, covered by a new test) and 12 on the wiring (one survivor, no event for a
 drop of only unfinished text, covered by a new test); all caught after that. Not run: anything over the 57 recordings.
+
+## Ignore a mic press right after a send (2026-10-05)
+
+Evidence from one live run: a manual send at t=0 and a mic press at t=118 ms. The press started listening, muted the whole reply (`tts_muted`, 255 characters
+never heard) and the new utterance was empty (`send_skipped`); a user who double tapped lost the answer. Before this change nothing guarded a press after a send:
+the click handler took the start path, called `replyState.mute()` (which mutes when a reply is in flight) and `cancelSpeech("mic_press")`.
+
+Now a press that would start listening less than `MIC_REARM_MS` after the last send is ignored and reported as `mic_press_ignored { reason: "rearm", since_send_ms }`;
+at 400 ms or more nothing changes. See ARCHITECTURE ("Mic press right after a send"). The 400 ms is a judgement from one observed press at 118 ms, not a measured
+threshold; no data says how soon a deliberate press can come. Not done: a visual disabled state (it would swallow the click, so the event could not be logged).
+
+Tests use a fake `Date.now` in `mic-cancel.test.mjs` (the page's clock moves only when the test says): a press 118 ms after a manual send, at 399 ms and at 400 ms,
+after an `auto_silence` send, with no send at all and after an empty utterance, and a release inside the window. The existing mic tests tap about 300 ms after a send, which
+is inside the window, so the `turn()` helper now advances the fake clock 5000 ms by default. Mutation checks: 12 mutants, all caught except two. The survivors were
+"guard also applies while listening", which needed a send while listening is true (see below), now covered; and "null check dropped" (`lastSendAt ?? 0`), which is equivalent
+in practice because `Date.now()` is an epoch time and never under 400, so it was left as is.
+
+Finding, not fixed: the window starts at the send, but the final transcription (`stop()`) runs between the release and the send. A press in that gap starts a second utterance
+(shown with a slow fake `stop()`: a message is then sent while listening is true again). The live evidence was a press after the send, so this is a different window.
