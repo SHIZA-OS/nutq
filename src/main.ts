@@ -202,12 +202,12 @@ let replyTimer: ReturnType<typeof setTimeout> | null = null;
 // An utterance that finished while a reply was in flight, waiting for the turn to end (see sendTranscript and sendHeld).
 // At most one: a later utterance is appended. `at` is when the first part was held. The hint under the mic button shows it.
 let held: { text: string; at: number } | null = null;
-// A one-off line for the hint under the mic button, shown over the others until the next connect.
+// A one-off line for the hint under the mic button, shown over the others until the next connect or mic press.
 let notice: string | null = null;
 
 // Keeps one timer in step with the reply state: it exists exactly while a reply is in flight, so every normal
 // clear (a done, an abort, a turn-failure error, a closed socket) cancels it just by calling this. If it fires,
-// the turn is given up on so the user is not blocked forever.
+// the turn is given up on (replyTimedOut) so the user is not blocked forever.
 function syncReplyTimer() {
   if (replyTimer !== null) {
     clearTimeout(replyTimer);
@@ -217,14 +217,31 @@ function syncReplyTimer() {
   if (at === null) return;
   replyTimer = setTimeout(() => {
     replyTimer = null;
-    if (replyState.tick(at)) {
-      log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, giving up on it. You can speak again.`);
-      logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
-      if (speechQueue) cancelSpeech(); // flag on: a reply that never ended is not read out any further
-      updateMicState();
-    }
+    if (replyState.tick(at)) replyTimedOut();
   }, Math.max(0, at - Date.now()));
 }
+
+// No frame ended the turn in REPLY_TIMEOUT_MS. The gateway has no turn id, so a late done could clear the flag of the next turn,
+// and ZeroClaw may still be running the old turn, so any new message on this connection would be steering. So the socket is
+// closed (ZeroClaw then takes its cancel path), speech is cancelled, a held message is dropped, and the page connects once more
+// with the stored token (connect() reads the same inputs; the model load is reused). The old socket is let go of first, so
+// whatever it still delivers is ignored (see connect()). If the reconnect fails the state is the ordinary disconnected one.
+function replyTimedOut() {
+  log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, closing the connection and connecting again once.`);
+  logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
+  cancelSpeech();
+  dropHeld("timeout");
+  const old = socket;
+  socket = null;
+  socketOpen = false;
+  updateMicState(); // no connection until the new one opens
+  old?.close();
+  reconnectedAfterTimeout = true;
+  connect();
+}
+
+// Set by replyTimedOut(), taken by the next connect() so only that socket reports "Answer timed out, reconnected".
+let reconnectedAfterTimeout = false;
 
 // The reply state changed to "not in flight" (an ending frame or a close): drop the timer.
 function replyEnded() {
@@ -435,6 +452,8 @@ function redactedUrlForDisplay(url: string): string {
 }
 
 function connect() {
+  const afterTimeout = reconnectedAfterTimeout; // taken first, so a connect that fails early does not leave it for the next one
+  reconnectedAfterTimeout = false;
   let url: string;
   try {
     url = buildWsUrl();
@@ -448,17 +467,22 @@ function connect() {
   log(`Connecting to ${redactedUrlForDisplay(url)}`);
   setStatus(connStatus, "connecting…", "idle");
   receivedSessionStart = false;
-  socket = new WebSocket(url);
+  // Every handler ignores a socket that is no longer `socket`: one let go of after a timeout can still deliver a frame or its
+  // close, and they must not touch the connection that replaced it (its status, its in-flight flag, its speech).
+  const sock = new WebSocket(url);
+  socket = sock;
 
-  socket.onopen = () => {
+  sock.onopen = () => {
+    if (sock !== socket) return;
     log("WebSocket open");
-    setStatus(connStatus, "connected", "ok");
+    setStatus(connStatus, afterTimeout ? "Answer timed out, reconnected" : "connected", "ok");
     socketOpen = true;
-    notice = null;
+    if (!afterTimeout) notice = null; // after a timeout the notice (a dropped message) stays until the next mic press
     updateMicState();
   };
 
-  socket.onmessage = (ev) => {
+  sock.onmessage = (ev) => {
+    if (sock !== socket) return;
     let parsed: any;
     try {
       parsed = JSON.parse(ev.data);
@@ -524,8 +548,8 @@ function connect() {
             `(request_id=${parsed.request_id}, timeout_secs=${parsed.timeout_secs}). ` +
             `Auto-denying: Nutq never auto-approves tool calls.`,
         );
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(
+        if (sock.readyState === WebSocket.OPEN) {
+          sock.send(
             JSON.stringify({
               type: "approval_response",
               request_id: parsed.request_id,
@@ -555,13 +579,15 @@ function connect() {
     if (turnEnded) sendHeld(parsed.type);
   };
 
-  socket.onerror = () => {
+  sock.onerror = () => {
+    if (sock !== socket) return;
     log("WebSocket error");
     logEvent("ws_error");
     setStatus(connStatus, "error", "error");
   };
 
-  socket.onclose = (ev) => {
+  sock.onclose = (ev) => {
+    if (sock !== socket) return;
     log(`WebSocket closed (code=${ev.code} reason="${ev.reason}")`);
     logEvent("ws_closed", {
       code: ev.code,
@@ -576,12 +602,7 @@ function connect() {
       );
     }
     setStatus(connStatus, "disconnected", "warn");
-    if (held) {
-      log("The connection closed with a message waiting to be sent; it was not sent");
-      logEvent("held_dropped", { reason: "closed", chars: held.text.length });
-      held = null;
-      notice = "Message not sent, the connection closed";
-    }
+    dropHeld("closed");
     replyState.closed();
     replyEnded();
     cancelSpeech();
@@ -644,6 +665,16 @@ function sendHeld(end: string) {
   // The user has the mic open again: the new answer is not read out over it, as for a reply the mic was tapped during.
   if (listening) replyState.mute();
   updateMicState();
+}
+
+// The held message will not be sent: the socket closed, or the turn timed out and the connection was dropped. Said in the log, as an
+// event and in the hint under the mic button. Nothing to do when none is held.
+function dropHeld(reason: "closed" | "timeout") {
+  if (!held) return;
+  log(reason === "closed" ? "The connection closed with a message waiting to be sent; it was not sent" : "The answer timed out with a message waiting to be sent; it was not sent");
+  logEvent("held_dropped", { reason, chars: held.text.length });
+  held = null;
+  notice = reason === "closed" ? "Message not sent, the connection closed" : "Message not sent, the answer timed out";
 }
 
 // Voices load asynchronously in Chrome (getVoices() is empty until "voiceschanged"), so they are read at page
@@ -1046,6 +1077,8 @@ micBtn.addEventListener("click", async () => {
   }
   if (!listening) {
     micBtn.textContent = "Stop listening";
+    notice = null;
+    updateMicState();
     listening = true;
     turn = new TurnPolicy(endpointWait);
     logEvent("mic_button_press");

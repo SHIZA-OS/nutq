@@ -33,6 +33,7 @@ function readFrames(state, chunk) {
     const data = Buffer.from(b.subarray(off + 4, off + 4 + len)).map((x, i) => x ^ mask[i % 4]);
     state.buf = b.subarray(off + 4 + len);
     if ((b[0] & 15) === 1) out.push(JSON.parse(Buffer.from(data).toString("utf8")));
+    if ((b[0] & 15) === 8) state.closeFrame = true; // the browser started the closing handshake
   }
   return out;
 }
@@ -50,19 +51,34 @@ const FAKE_TRANSCRIBER = `export class Transcriber {
 }`;
 
 export async function startHarness() {
-  const h = { sockets: [], received: [] }; // received: { conn, msg } in arrival order, conn = index into sockets
+  // received: { conn, msg } in arrival order, conn = index into sockets. urls[conn] is the upgrade request URL; closed holds the conns whose
+  // TCP connection has closed and closeRequested those the browser sent a close frame on (the stub never answers one); upgrades counts every upgrade attempt, and while `refuse` is true an attempt gets a 403 and no conn.
+  const h = { sockets: [], received: [], urls: [], closed: new Set(), closeRequested: new Set(), upgrades: 0, refuse: false, upgradeDelay: 0 };
   h.server = http.createServer((_, res) => res.end("stub")).listen(0, "127.0.0.1");
   h.server.on("upgrade", (req, sock) => {
+    h.upgrades++;
+    if (h.refuse) {
+      sock.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      return;
+    }
     const key = req.headers["sec-websocket-key"];
     const accept = crypto.createHash("sha1").update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");
-    sock.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
     const conn = h.sockets.push(sock) - 1;
+    h.urls[conn] = req.url;
+    const accepted = () => sock.write(`HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`);
+    sock.on("close", () => h.closed.add(conn));
     const state = { buf: Buffer.alloc(0) };
     sock.on("data", (d) => {
       for (const msg of readFrames(state, d)) h.received.push({ conn, msg });
+      if (state.closeFrame) h.closeRequested.add(conn);
     });
     sock.on("error", () => {});
-    sock.write(frame({ type: "session_start", session_id: `stub${conn}`, resumed: false }));
+    const open = () => {
+      accepted();
+      sock.write(frame({ type: "session_start", session_id: `stub${conn}`, resumed: false }));
+    };
+    if (h.upgradeDelay) setTimeout(open, h.upgradeDelay);
+    else open();
   });
   await new Promise((res) => h.server.once("listening", res));
   h.vite = await startVite();
@@ -86,6 +102,35 @@ export async function startHarness() {
     await page.addInitScript(() => {
       window.__sp = { utterances: [], cancels: 0 };
       window.__commitOnStop = false;
+      // Timers of 60 s or more (the reply timeout) are kept instead of scheduled; __fireLong() runs them, __longCount() counts them.
+      const realSet = window.setTimeout.bind(window);
+      const realClear = window.clearTimeout.bind(window);
+      const long = new Map();
+      let nextId = -1;
+      window.setTimeout = (fn, ms, ...a) => {
+        if (ms >= 60000) {
+          const id = nextId--;
+          long.set(id, () => fn(...a));
+          return id;
+        }
+        return realSet(fn, ms, ...a);
+      };
+      window.clearTimeout = (id) => (long.delete(id) ? undefined : realClear(id));
+      window.__fireLong = () => {
+        const fns = [...long.values()];
+        long.clear();
+        fns.forEach((f) => f());
+        return fns.length;
+      };
+      window.__longCount = () => long.size;
+      // Every WebSocket the page makes, so a test can call an old socket's handlers as if it delivered something late.
+      window.__wsInstances = [];
+      window.WebSocket = class extends window.WebSocket {
+        constructor(...a) {
+          super(...a);
+          window.__wsInstances.push(this);
+        }
+      };
       window.__now = 1000000;
       Date.now = () => window.__now;
       window.speechSynthesis.speak = (u) => window.__sp.utterances.push(u);
@@ -105,7 +150,7 @@ export async function startHarness() {
     const p = { page, connect, conn: h.sockets.length - 1 };
     // Frames from the stub gateway to the page, on connection `conn` (default: the newest).
     p.send = async (obj, conn = h.sockets.length - 1) => {
-      h.sockets[conn].write(frame(obj));
+      h.sockets[conn]?.write(frame(obj)); // a connection that does not exist is a test failure to report, not a throw here
       await page.waitForTimeout(150);
     };
     p.state = () =>
@@ -119,7 +164,7 @@ export async function startHarness() {
         events: [...document.getElementById("log").textContent.matchAll(/EVENT (\{.*\})/g)].map((m) => JSON.parse(m[1])),
       }));
     p.mic = async () => {
-      await page.click("#mic-btn");
+      await page.click("#mic-btn", { timeout: 3000 }).catch(() => {}); // a disabled button is a state the assertions report, not a throw here
       await page.waitForTimeout(150);
     };
     p.advance = (ms) => page.evaluate((ms) => (window.__now += ms), ms);
