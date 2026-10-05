@@ -105,6 +105,7 @@ test("replyPrefix: ?reply=voice asks for a thorough spoken answer with spoken si
   assert.ok(prefix.endsWith("\n\n"));
   assert.match(prefix, /do not shorten it to be brief, but do not pad it either: no restating the question, no filler, stop when the answer is complete\./);
   assert.match(prefix, /no markdown at all/);
+  assert.match(prefix, /tables, code blocks, dashes or emojis/);
   assert.match(prefix, /Never say a URL/);
   assert.match(prefix, /First, \.\.\. Second, \.\.\. Third, \.\.\./);
   assert.ok(!prefix.includes("\u2014"), "no em dash");

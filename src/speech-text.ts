@@ -66,7 +66,7 @@ const PREFIXES = {
     "Give a thorough, complete answer; do not shorten it to be brief, but do not pad it either: " +
     "no restating the question, no filler, stop when the answer is complete. " +
     "Use plain spoken English with no markdown at all: no asterisks, pound signs, bullets, numbered list syntax, " +
-    "tables, code blocks or emojis. Never say a URL; describe where to find it in words. " +
+    "tables, code blocks, dashes or emojis. Never say a URL; describe where to find it in words. " +
     "Use short sentences with normal punctuation, because punctuation sets the pauses. " +
     "When the answer has several parts, say how many first and signpost them in words, " +
     'for example: "There are three things. First, ... Second, ... Third, ...". ' +
