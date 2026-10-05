@@ -52,6 +52,17 @@ before(async () => {
     out.run = run(["Really now, is that true?! Yes it is, truly. "]);
     out.ellipsis = run(["Well... I think so today. "]);
 
+    // A newline closes a unit too, so list items without a full stop are not one sentence.
+    out.bullets = run(["- Eggs and a dozen more\n- Milk and some bread too\n"]);
+    out.shortLines = run(["Eggs\nMilk\nBread and butter and jam\n"]);
+    out.blankLines = run(["First line is long enough here.\n\n\nSecond line is long enough too.\n"]);
+    out.blankAfterHeld = run(["Eggs\n\n\nMilk and bread and butter\n"]);
+    out.stopThenNewline = run(["Done with this step now.\nNext"]);
+    out.heldNewlineFlush = run(["Eggs\n"]);
+    const listText = "Intro line that is long enough.\n- Eggs and a dozen more\n- Milk\n- Bread and butter and jam\n\nLast paragraph has no end";
+    const listWhole = all(run([listText]));
+    out.newlineChunking = { whole: listWhole, same: [1, 2, 3, 5, 7, 11].map((n) => JSON.stringify(all(run(chunked(listText, n)))) === JSON.stringify(listWhole)) };
+
     // Flush clears the state, and so does reset().
     const s = new SentenceSplitter();
     s.push("Partial text with no end");
@@ -151,4 +162,30 @@ test("Unicode text does not crash and loses nothing: Arabic, an emoji cut betwee
   assert.equal(r.arabic.all.join(" "), r.arabic.arabicText);
   assert.equal(r.emoji.all.join(" "), r.emoji.emojiText);
   assert.equal(r.mixed.join(" "), "日本語のテキスト。 English follows the line here. Ça va très bien aujourd'hui.");
+});
+
+test("a newline closes a unit: list items without a full stop are separate", () => {
+  assert.deepEqual(r.bullets.pushes, [["- Eggs and a dozen more", "- Milk and some bread too"]]);
+  assert.deepEqual(r.stopThenNewline.pushes, [["Done with this step now."]]);
+  assert.deepEqual(r.stopThenNewline.flush, ["Next"]);
+});
+
+test("short lines are merged as before but keep their line break, so each is still its own line for the cleaner", () => {
+  assert.deepEqual(r.shortLines.pushes, [["Eggs\nMilk\nBread and butter and jam"]]);
+  assert.deepEqual(r.heldNewlineFlush, { pushes: [[]], flush: ["Eggs"] });
+});
+
+test("blank lines produce no unit", () => {
+  assert.deepEqual(r.blankLines.pushes, [["First line is long enough here.", "Second line is long enough too."]]);
+  assert.deepEqual(r.blankAfterHeld.pushes, [["Eggs\nMilk and bread and butter"]]);
+});
+
+test("with newlines in the text, however the deltas are cut, the units are the same as from one chunk", () => {
+  assert.deepEqual(r.newlineChunking.whole, [
+    "Intro line that is long enough.",
+    "- Eggs and a dozen more",
+    "- Milk\n- Bread and butter and jam",
+    "Last paragraph has no end",
+  ]);
+  assert.deepEqual(r.newlineChunking.same, [true, true, true, true, true, true]);
 });
