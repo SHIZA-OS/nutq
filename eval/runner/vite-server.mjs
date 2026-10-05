@@ -43,7 +43,7 @@ async function freePort() {
 
 export async function startVite() {
   const port = await freePort();
-  const child = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
+  const child = spawn(process.execPath, [join(REPO, "node_modules/vite/bin/vite.js"), "--config", join(REPO, "eval/runner/vite.test.config.mjs"), "--port", String(port), "--strictPort", "--host", "127.0.0.1"], {
     cwd: REPO,
     stdio: "ignore",
   });
