@@ -160,10 +160,10 @@ test("waitFor: one wait per hint, no text counts as unknown, clamped to the floo
   assert.deepEqual(r.waits, { done: 300, unknown: 1500, noText: 1500, emptyText: 1500, openClamped: 3000, doneInFlight: 1500, openInFlight: 3000, floored: 200 });
 });
 
-test("the placeholder waits are ordered and inside the clamp, and the ceiling is the existing 8000", () => {
+test("the semantic waits are the swept Conservative point (2026-10-05-endpoint-sweep), ordered and inside the clamp, with the existing 8000 ceiling", () => {
   const w = r.semanticWaits;
+  assert.deepEqual(w, { done: 1000, unknown: 2200, open: 2500, floor: 0, ceiling: 8000 });
   assert.ok(w.floor <= w.done && w.done <= w.unknown && w.unknown <= w.open && w.open <= w.ceiling);
-  assert.equal(w.ceiling, 8000);
 });
 
 test("with no text the deadline uses the unknown wait, and text that arrives after arming moves it", () => {

@@ -66,9 +66,9 @@ export function endHint(text: string, tier2 = false): EndHint {
 
 export type SemanticWaits = { done: number; unknown: number; open: number; floor: number; ceiling: number; tier2?: boolean };
 
-// PLACEHOLDER, not a result: the middle of the replay sweep grid, so that ?endpoint=semantic does something
-// before the sweep has run. Replace with the swept values. The code default stays the fixed 5000 either way.
-export const SEMANTIC_WAITS: SemanticWaits = { done: 300, unknown: 1500, open: 3500, floor: 150, ceiling: MAX_SILENCE_MS };
+// The Conservative point of the replay sweep (eval/results/2026-10-05-endpoint-sweep): semantic:1000,2200,2500,0 with the
+// tier 1 open list. The code default stays the fixed 5000 either way; this only applies under ?endpoint=semantic.
+export const SEMANTIC_WAITS: SemanticWaits = { done: 1000, unknown: 2200, open: 2500, floor: 0, ceiling: MAX_SILENCE_MS };
 
 // The wait for this text, in ms after a speech end. No text is "unknown". While a commit is in flight the text
 // is not final, so the wait is at least the "unknown" one. Clamped to [floor, ceiling].
