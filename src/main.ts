@@ -6,6 +6,7 @@ import { REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { browserEngine } from "./tts-engine";
 import { SentenceSplitter } from "./sentence-splitter";
+import { speakable } from "./speech-text";
 import { SpeechQueue, type SpeechEvent } from "./speech-queue";
 
 // Starting point only, not calibrated: stricter than vad-web's v5 defaults
@@ -486,7 +487,7 @@ function connect() {
           if (replyState.firstMutedChunk()) logEvent("tts_muted", { reason: "mic_press", point: "chunk", chars: String(parsed.content ?? "").length });
         } else if (speechQueue) {
           streamedChunks += parsed.content ?? "";
-          for (const sentence of splitter.push(parsed.content ?? "")) speechQueue.enqueue(sentence);
+          for (const sentence of splitter.push(parsed.content ?? "")) queueSpeech(sentence);
         }
         break;
       case "done": {
@@ -674,6 +675,7 @@ function logSpeechEvent(e: SpeechEvent) {
 function cancelSpeech(reason = "canceled") {
   cancelReason = reason;
   splitter.reset();
+  speechInCode = false;
   streamedChunks = "";
   if (speechQueue) {
     speechQueue.cancel(); // reports tts_cancelled itself, now
@@ -681,8 +683,17 @@ function cancelSpeech(reason = "canceled") {
   } else ttsEngine?.cancel(); // the browser reports it, later, through the utterance's error
 }
 
+// What the voice gets from a streamed unit: speakable() of it, or nothing when nothing is left (a code block, a rule).
+// A unit can start inside a code block that an earlier unit opened, so that state is carried until the turn ends or is cancelled.
+let speechInCode = false;
+function queueSpeech(raw: string) {
+  const cleaned = speakable(raw, speechInCode);
+  speechInCode = cleaned.inCode;
+  if (cleaned.text !== "") speechQueue?.enqueue(cleaned.text);
+}
+
 function speak(text: string) {
-  const spoken = speechText(text);
+  const spoken = speakable(text).text || null;
   if (spoken === null) {
     // An empty or whitespace-only reply is not spoken; say so instead of returning silently.
     logEvent("tts_skipped", { reason: "empty" });
@@ -717,10 +728,11 @@ function finishStreamedSpeech(fullResponse: unknown) {
   if (!speechQueue) return;
   const chunked = streamedChunks;
   streamedChunks = "";
-  for (const tail of splitter.flush()) speechQueue.enqueue(tail);
+  for (const tail of splitter.flush()) queueSpeech(tail);
+  speechInCode = false;
   if (speechQueue.sentences === 0 && typeof fullResponse === "string") {
-    const spoken = speechText(fullResponse);
-    if (spoken !== null) speechQueue.enqueue(spoken);
+    const spoken = speakable(fullResponse).text;
+    if (spoken !== "") speechQueue.enqueue(spoken);
   }
   if (speechQueue.finish() === 0) logEvent("tts_skipped", { reason: "empty" });
   if (typeof fullResponse === "string" && fullResponse !== chunked) {

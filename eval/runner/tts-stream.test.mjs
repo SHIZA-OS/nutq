@@ -172,6 +172,49 @@ before(async () => {
   r.onClose = await on.state();
   r.onClose.eventsAfterClose = r.onClose.events.slice(beforeClose.events.length).filter((e) => e.event.startsWith("tts_"));
   r.onClose.cancelsAdded = r.onClose.cancels - beforeClose.cancels;
+
+  // Markdown in the reply: the card keeps it, the voice gets speakable text, on every path.
+  // Plays every utterance the page has been handed, in order, and returns what was spoken.
+  const playAll = async (pg) => {
+    for (let i = 0; i < 12; i++) {
+      if (!(await pg.fire(i, "start"))) break;
+      await pg.fire(i, "end");
+      await pg.page.waitForTimeout(60);
+    }
+    return pg.state();
+  };
+  const md = "**Bold** start here today.\n- item one is an item\n- item two\n";
+  // Flag off: the whole reply, once, from the done frame.
+  const mdOff = await openPage("");
+  await mdOff.send({ type: "chunk", content: md });
+  await mdOff.send({ type: "done", full_response: md, tokens_used: 1 });
+  r.mdOff = await playAll(mdOff);
+  r.mdOff.card = await mdOff.page.evaluate(() => document.getElementById("reply-box").textContent);
+  client.destroy();
+  await mdOff.page.close();
+  // Flag on, with markers and a code fence cut across chunks.
+  const mdOn = await openPage("&tts_stream=1");
+  for (const c of ["**Bol", "d** start here today.\n- item one is a", "n item\n- item tw", "o is here\n```\ncode line he", "re\n```\nThen an end."]) await mdOn.send({ type: "chunk", content: c });
+  await mdOn.send({ type: "done", full_response: "**Bold** start here today.\n- item one is an item\n- item two is here\n```\ncode line here\n```\nThen an end.", tokens_used: 1 });
+  r.mdOn = await playAll(mdOn);
+  r.mdOn.card = await mdOn.page.evaluate(() => document.getElementById("reply-box").textContent);
+  // The full_response fallback (no chunk frames) is cleaned too.
+  await mdOn.send({ type: "done", full_response: "# Title\n- one\n- two", tokens_used: 1 });
+  r.mdFallback = await playAll(mdOn);
+  // A reply that is only code is not spoken, and is reported as empty like a blank one.
+  const evBefore = (await mdOn.state()).events.length;
+  await mdOn.send({ type: "chunk", content: "```\ncode\n```\n" });
+  await mdOn.send({ type: "done", full_response: "```\ncode\n```\n", tokens_used: 1 });
+  r.mdCodeOnly = await playAll(mdOn);
+  r.mdCodeOnly.events = r.mdCodeOnly.events.slice(evBefore);
+  client.destroy();
+  await mdOn.page.close();
+  // Flag off, only code.
+  const codeOff = await openPage("");
+  await codeOff.send({ type: "done", full_response: "```\ncode\n```", tokens_used: 1 });
+  r.mdCodeOnlyOff = await playAll(codeOff);
+  client.destroy();
+  await codeOff.page.close();
 });
 
 after(async () => {
@@ -208,7 +251,7 @@ test("flag on: thinking, tool_call and plan frames are never spoken", () => {
 });
 
 test("flag on: tts_start once for the turn, tts_sentence_start per sentence with its index, the tail spoken at done", () => {
-  assert.deepEqual(r.onDone.spoken, ["This is the first sentence.", "This is the second one!", "Tail here"]);
+  assert.deepEqual(r.onDone.spoken, ["This is the first sentence.", "This is the second one!", "Tail here."]); // the unterminated tail gets a full stop from speakable()
   assert.deepEqual(tts(r.onDone.events), [
     ["tts_requested", 0],
     ["tts_requested", 1],
@@ -286,4 +329,26 @@ test("flag on: the turn after an abort starts clean, with index 0 and a new tts_
 test("flag on: a closed socket cancels the queue", () => {
   assert.equal(r.onClose.cancelsAdded, 1);
   assert.deepEqual(r.onClose.eventsAfterClose.map((e) => [e.event, e.reason ?? null]), [["tts_cancelled", "canceled"]]);
+});
+
+test("markdown, flag off: the voice gets speakable text, the card keeps the original", () => {
+  assert.deepEqual(r.mdOff.spoken, ["Bold start here today. item one is an item. item two."]);
+  assert.equal(r.mdOff.card, "**Bold** start here today.\n- item one is an item\n- item two\n");
+});
+
+test("markdown, flag on: markers and a code fence cut across chunks are cleaned per unit, list items are separate, the card keeps the original", () => {
+  assert.deepEqual(r.mdOn.spoken.slice(0, 4), ["Bold start here today.", "item one is an item.", "item two is here.", "Then an end."]);
+  assert.equal(r.mdOn.spoken.length, 4);
+  assert.match(r.mdOn.card, /^\*\*Bold\*\* start here today\.\n- item one/);
+});
+
+test("markdown, flag on: the full_response fallback is cleaned too", () => {
+  assert.deepEqual(r.mdFallback.spoken.slice(4), ["Title. one. two."]);
+});
+
+test("a reply that is only code is not spoken; it is tts_skipped as empty on both paths", () => {
+  assert.equal(r.mdCodeOnly.spoken.length, 5);
+  assert.deepEqual(r.mdCodeOnly.events.filter((e) => e.event === "tts_skipped").map((e) => e.reason), ["empty"]);
+  assert.deepEqual(r.mdCodeOnlyOff.spoken, []);
+  assert.deepEqual(r.mdCodeOnlyOff.events.filter((e) => e.event === "tts_skipped").map((e) => e.reason), ["empty"]);
 });
