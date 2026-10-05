@@ -219,7 +219,9 @@ session ids, and `join-latency.mjs` then needs `--session` to pick one.
 
 ## Eval mode: WER replay
 
-`?eval=1` turns on eval instrumentation (a download button for the events as JSONL).
+`?eval=1` turns on eval instrumentation (a download button for the events as JSONL). It exists only in dev and in the
+runners' own server: a production build (`vite build`) strips eval mode, the event code and the button, and the
+eval-only params below do nothing there.
 Two extra parameters exist for replaying recorded audio without touching ZeroClaw:
 
 - `?eval=1&nosend=1`: enables the mic button without a gateway and skips the send, so a
@@ -234,8 +236,8 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   name that matches nothing (which is logged), the browser's default voice is used, and the utterance asks for `en-US`
   (`lang`) so the browser does not pick by the system language; which voice it then picks is not observable from the page,
   so the `voice` field of `tts_start` stays a best guess (the voice flagged default). Choosing a local voice
-  automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for the
-  demo. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
+  automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for natural-sounding
+  replies. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
 - Sentence streaming (any mode, **on by default**; `?tts_stream=0` opts out to the original flow, the whole reply spoken once at `done`; any other value, such as
   the old `?tts_stream=1`, is the default): speak the reply sentence by sentence as its chunks arrive instead of
   once at `done`. Chunk deltas go through `src/sentence-splitter.ts`, closed sentences are queued in

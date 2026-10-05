@@ -1,7 +1,6 @@
 # Nutq Evaluation Harness: Design Spec
 
-Status: design only, nothing implemented yet. Written for a Claude Code session to build against.
-Supersedes nothing; this is the first concrete design pass on the metrics framework from Handoff 5.
+Status: written as the design the harness was built against. Supersedes nothing; this is the first concrete design pass on the metrics framework.
 
 ## 1. Goal
 
@@ -10,8 +9,8 @@ intent preservation, session completion rate, cost per turn, client-side resourc
 real, runnable harness that produces a report after each eval run, so future changes (STT model size,
 system prompt, TTS strategy) can be judged against numbers instead of impressions.
 
-Explicitly not deciding here: pass/fail thresholds. Per Handoff 5, that stays a real team decision
-once baseline numbers exist. This spec produces the numbers, not the judgment calls on them.
+Explicitly not deciding here: pass/fail thresholds. Those are left until baseline numbers exist.
+This spec produces the numbers, not the judgment calls on them.
 
 ## 2. Where This Lives
 
@@ -33,7 +32,7 @@ code, not a standalone product.
 
 ## 3. Data Sources, Confirmed Available
 
-Two sources already exist per Handoff 5, neither needs new infra:
+Two sources already exist, neither needs new infra:
 
 - **Client-side**: Nutq's own log panel, now backed by real structured instrumentation (see section
   4): nine timestamped `EvalEvent` types plus `send_trigger`, kept in memory and exportable as JSONL
@@ -277,7 +276,7 @@ A future experiment, not undertaken as part of this instrumentation work: switch
 detector gate both signals, but this changes real transcription behavior and responsiveness, not
 just instrumentation, and needs its own deliberate evaluation rather than a reactive flip.
 
-Note per Handoff 5: VAD-to-STT latency doesn't apply yet, current interaction is push-to-talk only.
+Note: VAD-to-STT latency doesn't apply yet, current interaction is push-to-talk only.
 Leave that stage out of the report until continuous listening ships, don't fill it with a placeholder.
 
 ### 5.2 Word Error Rate (STT)
@@ -287,14 +286,14 @@ between Moonshine's committed transcript and the reference, normalized by refere
 naive diff.
 
 ### 5.3 Answer correctness
-LLM-as-judge, not exact string match, per Handoff 5's explicit correction of the naive approach.
+LLM-as-judge, not exact string match, since exact match is too brittle for free-form answers.
 Needs an expected-answer field per eval case plus a judge prompt. Recommend using a separate model
 call (not the same Haiku instance being tested) scoring against a rubric: correct / partially
 correct / incorrect / off-topic, with a one-line justification logged for manual spot-checking, not
 just a bare score. Which model does the judging is an open decision, flagged in section 8.
 
 ### 5.4 Intent preservation
-Distinct metric from WER, per Handoff 5. A transcript can have real word errors but the agent still
+Distinct metric from WER. A transcript can have real word errors but the agent still
 understood and acted correctly, or have near-zero WER but the agent still missed the actual intent.
 Measured as: did the answer-correctness judge's verdict match what it would have been against the
 clean reference transcript instead of the noisy STT output? Requires running each case twice, once
@@ -303,7 +302,7 @@ correctness verdicts. A mismatch where the reference passes but the STT-driven r
 intent-preservation failure attributable to STT noise, not the LLM.
 
 ### 5.5 Session completion rate
-Given the real debugging history in Handoff 5 (opaque 1006 closes, CORS blocking `/pair` silently,
+Given the debugging history of this project (opaque 1006 closes, CORS blocking `/pair` silently,
 stale containers), this metric earns its place; connection reliability has been a genuine, repeated
 problem in this project, not a hypothetical one.
 
@@ -334,7 +333,7 @@ into its per-turn records (previously read and discarded). Per turn:
   positional-matching limitation in section 8, not this flag's job.
 - **`unmatched_unknown_outcome`** / **`unmatched_no_signal`**: safety buckets for a matched row with
   neither a recognized outcome/action, or an unmatched turn with no client failure signal either.
-  Per the standing rule on unattributable trace rows (section 8), nothing is dropped silently; these
+  Per the rule on unattributable trace rows (section 8), nothing is dropped silently; these
   buckets exist so a gap surfaces as a number, not as a turn that quietly vanishes from the count.
 
 A failure signal observed *before* any turn was ever sent (connect, never send, connection drops) is
@@ -368,8 +367,8 @@ Two findings from the investigation that led to this decision, worth keeping on 
   (`https://platform.claude.com/docs/en/about-claude/pricing`, checked 2026-09-28): Claude Haiku 4.5
   is $1/MTok input, $5/MTok output, so the recorded session's three turns should have cost roughly
   $0.02 each (~$0.06 total) by that published rate, against ZeroClaw's reported $0.00 for all three.
-  This is a `zeroclaw` fork gap, not a Nutq one, and per standing instruction upstream work on the fork
-  stays parked; it's recorded here rather than worked around silently in the harness.
+  This is a `zeroclaw` fork gap, not a Nutq one, and changing the fork is out of scope for this repo;
+  it's recorded here rather than worked around silently in the harness.
 - **Token shape on the default agent: roughly 19.6k input tokens against roughly 30 output tokens per
   turn.** From the same recorded 3-turn session: turn input/output token pairs were 19,618/32,
   19,718/24, and 19,812/45. The input side is dominated by whatever system prompt and context the
@@ -382,14 +381,13 @@ Two findings from the investigation that led to this decision, worth keeping on 
 Browser-side measurement: peak memory (`performance.memory` where available, Chrome-only, flag this
 limitation in the report rather than pretend it's cross-browser), CPU load during active STT
 (approximate via wall-clock time for a fixed transcription task as a proxy, since browsers don't
-expose real CPU usage to JS), and the two external CDN fetches Moonshine makes on first run
-(`cdn.jsdelivr.net` for the ONNX runtime binary, `download.moonshine.ai` for model weights),
-timed and logged separately since they only happen once per session/cache lifetime and would
-otherwise distort a "typical turn" average if mixed in.
+expose real CPU usage to JS), and the model and wasm fetches on first run (once served from `cdn.jsdelivr.net` and `download.moonshine.ai`;
+since the assets were bundled they come from the app's own origin), timed and logged separately since they only
+happen once per session/cache lifetime and would otherwise distort a "typical turn" average if mixed in.
 
 ## 6. Eval Set Design
 
-Per Handoff 5: tagged by category, not one flat list. Recommend a JSON manifest, one entry per case:
+Cases are tagged by category, not one flat list. Recommend a JSON manifest, one entry per case:
 
 ```json
 {
@@ -402,7 +400,7 @@ Per Handoff 5: tagged by category, not one flat list. Recommend a JSON manifest,
 }
 ```
 
-Categories, matching Handoff 5's framework exactly:
+Categories:
 - `clean_factual`: straightforward questions, clean audio
 - `noisy_ambiguous`: deliberately unclear phrasing, background noise, or accented speech
 - `multiturn_context`: requires the agent to reference a prior turn correctly
@@ -426,9 +424,8 @@ hide a bad tail that matters more for perceived quality than the average does).
 
 ## 8. Open Decisions, Not Made Here
 
-- **Judge model**: which model scores answer correctness. Needs a real credential decision, and per
-  standing project rule, that routes through Syed Hussain, not a default assumed here.
-- **Pass/fail thresholds**: explicitly deferred per Handoff 5, stays a team decision once baseline
+- **Judge model**: which model scores answer correctness. Needs a decision on which model and API credential to use; none is assumed here (TBD).
+- **Pass/fail thresholds**: explicitly deferred until baseline
   numbers exist.
 - **CPU proxy method** (section 5.7): the wall-clock proxy is a reasonable stand-in given browsers
   don't expose real CPU metrics to JS, but worth a second look before treating it as authoritative.
@@ -446,8 +443,8 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
   the same turn were observed carrying two different `trace_id` values). A client-sent field like
   `client_message_id` would be silently ignored by the current server, since inbound frames are
   parsed permissively as untyped JSON with no `deny_unknown_fields` struct. Fixing this properly
-  needs a real `zeroclaw` fork change (server reads/echoes an ID), which is explicitly stalled per
-  standing instruction on upstream work.
+  needs a real `zeroclaw` fork change (server reads/echoes an ID), which is out of scope for this repo
+  (it needs a change in the ZeroClaw server).
 - **Resolution adopted, no core change required**: the harness opens one fresh WebSocket
   connection per eval case wherever possible, one turn per session. In that shape, `session_key`
   alone is a perfect per-turn join key. For the `multiturn_context` category specifically (multiple
@@ -477,7 +474,7 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
 2. Confirmed: session-level correlation works with zero protocol change (session_key derives
    directly from the session_id already sent in session_start). Per-turn correlation for
    multiturn_context cases uses send-order matching instead of a client-generated ID, since a proper
-   fix would require a zeroclaw fork change, which stays parked per standing instruction. See
+   fix would require a zeroclaw fork change, which is out of scope for this repo. See
    section 8 for the full resolution.
 3. Done: `eval/runner/parse-trace.mjs` parses `runtime-trace.jsonl` into per-session, per-turn
    records (`gateway_ws_turn`, additively extended with `provider_calls`/`provider_duration_ms`

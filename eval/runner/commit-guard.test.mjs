@@ -1,6 +1,6 @@
 // Tests the encoder-minimum guard in the real Transcriber (src/vendor/transcriber.ts) in a
 // headless Chrome page served by Vite, with the STT model stubbed so no weights are needed.
-// The real VAD and SpeechBuffer are loaded (the VAD comes from the CDN, like in
+// The real VAD and SpeechBuffer are loaded (the VAD files are served from public/vendor, like in
 // vad-onset.mjs). Every commit path must go through Transcriber.commit(), which skips
 // audio under 895 samples. The VAD's own handlers (t.vadModel.options) are called directly
 // to drive the onFrameProcessed and onSpeechEnd paths. Runs with the rest of the suite via

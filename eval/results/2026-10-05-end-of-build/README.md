@@ -1,6 +1,6 @@
 # 2026-10-05: end-of-build recordings pass
 
-Code under test: `b8f8d70daa46d439db1a0104e38bda82f9b18752` (after the re-arm window, hold-and-send, reply-timeout close, and the first-utterance wait; none of them touches the Transcriber, the VAD, the speech buffer or the turn policy). Audio: the 57 recordings in `~/Shiza/nutq-eval-audio/cases/` (never committed), replayed offline through the real Transcriber (real Silero VAD, SpeechBuffer and Moonshine model/base) at 8 frame phases, pre-roll 4 frames, the same way as every earlier phase-swept replay (`replay-commits.mjs --wer`). 456 case-phases per replay. Per-phase summaries of both replays are in `raw/` (gitignored); `summary.json` here has the numbers.
+Code under test: `b8f8d70daa46d439db1a0104e38bda82f9b18752` (after the re-arm window, hold-and-send, reply-timeout close, and the first-utterance wait; none of them touches the Transcriber, the VAD, the speech buffer or the turn policy). Audio: the 57 recordings in a local `nutq-eval-audio/cases/` directory (never committed), replayed offline through the real Transcriber (real Silero VAD, SpeechBuffer and Moonshine model/base) at 8 frame phases, pre-roll 4 frames, the same way as every earlier phase-swept replay (`replay-commits.mjs --wer`). 456 case-phases per replay. Per-phase summaries of both replays are in `raw/` (gitignored); `summary.json` here has the numbers.
 
 ## Step 1: fixed policy against f2de874 (v1 normalized)
 

@@ -63,7 +63,7 @@ demo's pairing token and the downloaded speech model cache between runs, apart f
    comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds nothing to the URL: the defaults above are
    the demo's settings.
 4. Pair (only the first time on that profile), then Connect.
-5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile loads the
+5. Ask one warm-up question first. The first Connect on a cold profile loads the
    speech model (about 63 MB of weights, 27 to 38 s measured here, when they came from a CDN; not re-measured since they are served locally), and a first question exercises the whole path.
 
 ## Pairing

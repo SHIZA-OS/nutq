@@ -1,7 +1,7 @@
 // Tests that the real Transcriber (src/vendor/transcriber.ts) runs model calls one at a time,
 // in a headless Chrome page served by Vite. The STT model is a fake that takes 60 ms per call,
 // counts concurrent calls and returns "t<tag>", where the tag is the value of the audio's first
-// sample. The real VAD and SpeechBuffer are loaded (the VAD comes from the CDN, like in
+// sample. The real VAD and SpeechBuffer are loaded (the VAD files are served from public/vendor, like in
 // vad-onset.mjs); the VAD's own handlers (t.vadModel.options) are called directly. Runs with the
 // rest of the suite via `node --test eval/runner/`.
 

@@ -12,7 +12,15 @@ including the pairing-token gotcha and a known upstream config-parsing bug.
 
 For where the project stands and how it got there, see
 [docs/PROGRESS.md](docs/PROGRESS.md). For what's next, in priority order, see
-[docs/ROADMAP.md](docs/ROADMAP.md).
+[docs/ROADMAP.md](docs/ROADMAP.md). For setup, tests and commit conventions, see
+[CONTRIBUTING.md](CONTRIBUTING.md). What the project bundles or loads from third parties is in
+[docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+
+## Commands
+
+- `npm install`, then `npm run dev` (dev server, eval mode available) or `npm run build` (type check, then the
+  production build into `dist/`).
+- `npm test` runs every `eval/runner/*.test.mjs`. `npx tsc --noEmit` must report no errors.
 
 ## House rules
 
@@ -22,9 +30,13 @@ These apply to everything written in this repo: code, comments, docs, and commit
 - **Never invent or estimate a fact.** If something isn't confirmed from the real source
   (code, config, logs), say so plainly or mark it TBD. Don't guess at numbers, dates, or
   behavior.
-- **Git identity for this repo** is `SHIZA-OS` / `opensource@shiza.ai`, pushed via the
-  `github-shiza-os` SSH alias (see the `origin` remote). Don't push under any other identity.
-- **Writing to the ZeroClaw fork's `config.toml`** must go through `docker exec -i`, never a
+- **Never commit a token, key or password**, real or example-looking. Pairing tokens in tests and docs are placeholders.
+- **Eval instrumentation is dev-only.** Eval mode, its URL params and the event code are gated on
+  `import.meta.env.PROD` in `src/main.ts`, so a production build ships none of it. Keep new eval-only code behind the
+  same flag; `eval/runner/prod-build.test.mjs` fails if an event name reaches the bundle.
+- **Anything third-party that is added or bundled gets a license check and an entry in
+  [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md)**, with its license file next to it.
+- **Writing to a ZeroClaw container's `config.toml`** must go through `docker exec -i`, never a
   plain `docker exec`. Without `-i`, the write truncates the file.
 - **`docker compose up -d` vs `--force-recreate` vs `restart`:** a plain `docker compose up -d`
   picks up compose-file changes. Changes to a mounted volume or to `config.toml` require

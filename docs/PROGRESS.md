@@ -3,9 +3,8 @@
 ## Rename: Sawt → Nutq
 
 The project was originally named Sawt and has been renamed to Nutq (نطق, "utterance"). The
-rename was necessary, not cosmetic: "Sawt" collided with the name of an existing funded
-startup. Nutq was chosen as a replacement that keeps the same conceptual thread (an Arabic
-word for the act of speaking/uttering) without the collision.
+name Sawt was dropped because it collided with the name of an existing project. Nutq keeps the
+same conceptual thread (an Arabic word for the act of speaking/uttering) without the collision.
 
 ## Phase 1: client-side pipeline
 
@@ -45,9 +44,8 @@ they're not obvious from the code alone:
   the daemon's own config reader. Worked around by setting the model via the
   `ZEROCLAW_providers__models__anthropic__default__model` environment variable instead, the
   same mechanism already known to work for `api_key`.
-- **Accidental API key exposure.** An API key was briefly echoed in plaintext output when
-  running `docker compose config` (which resolves and prints the fully-interpolated compose
-  configuration, env vars included). The key was rotated immediately once this was noticed.
+- **`docker compose config` prints secrets.** It resolves and prints the fully-interpolated compose
+  configuration, environment variables included, so its output must not be shared or pasted.
 
 ## Post-test cleanup
 
@@ -308,11 +306,11 @@ runtime 1.14.0 `ort-wasm-simd.wasm` (10.0 MB, 2.4 MB transferred) from jsDelivr;
 woff2 files, about 215 KB). Note the installed `onnxruntime-web` JS is 1.27.0 while the wasm comes from the 1.22.0
 CDN path.
 
-48 kHz: the resampler is exact at 48000 Hz and short-word detection worked 6 of 6 (`rate48-r1` to `r3`, a 48 kHz diagnostic, not comparable to the baseline); its anti-aliasing is weak above 8 kHz (a quality limit, not a bug); self-hosting the page's external assets is deferred until after the demo.
+48 kHz: the resampler is exact at 48000 Hz and short-word detection worked 6 of 6 (`rate48-r1` to `r3`, a 48 kHz diagnostic, not comparable to the baseline); its anti-aliasing is weak above 8 kHz (a quality limit, not a bug); self-hosting the page's external assets was deferred at the time (done later, see the asset bundling entry below).
 
 Demo defaults (2026-10-04): replies use the first local English voice (`voice_source` `auto_local`; `English (America) espeak-ng` on this machine), and `scripts/demo-chrome-linux.sh` starts Chrome with `--enable-speech-dispatcher` and its own profile; see the README Demo section. The auto-send delay was briefly changed to 1200 ms in the code and then reverted: the code default is 5000 ms again, the demo uses 1200 ms through `?silence=1200` in the launch script's URL, and the public default stays 5000 until endpointing work picks a better one (a pause longer than 1.2 s mid-sentence ends the turn early at 1200).
 
-Voice (supersedes the local-voice and launch-flag notes above): local espeak-ng voices started in about 60 ms but sounded too robotic for the demo, so the browser default voice is back (`?voice=<name>` and the voice list stay); better TTS (Piper or a cloud voice, plus streaming by sentence) is the post-demo fix for both quality and start delay.
+Voice (supersedes the local-voice and launch-flag notes above): local espeak-ng voices started in about 60 ms but sounded too robotic, so the browser default voice is back (`?voice=<name>` and the voice list stay); better TTS (Piper or a cloud voice, plus streaming by sentence) is the planned fix for both quality and start delay.
 
 Turn state and TTS hygiene (2026-10-04): a message is no longer sent while a reply is in flight (`src/turn-state.ts`; a mid-turn message is steering in ZeroClaw, so the utterance is dropped, not held), `speak()` trims the reply and reports skipped, ended and failed speech, and speech is cancelled when a message is sent, a turn is aborted or the socket closes; new eval events `send_blocked`, `tts_skipped`, `tts_end` and `tts_error` (see eval-harness-design.md).
 
@@ -483,7 +481,7 @@ things to avoid; `?reply=short` is unchanged, byte for byte. How a dash and a ra
 
 ## Streamed speech: gap between sentences, and coalescing (2026-10-05)
 
-With `?tts_stream=1` there was an audible pause between sentences (you measured about 740 to 890 ms live). Each sentence was its own
+With `?tts_stream=1` there was an audible pause between sentences (measured live at about 740 to 890 ms). Each sentence was its own
 `speechSynthesis` utterance, handed to the browser only after the previous one's `onend`. Before building, an experiment on a throwaway page
 (outside the repo; headed Chrome 154, a dedicated profile, the browser default voice with `lang` en-US as the app does, a network voice
 that the page cannot name: the voice flagged default was "Google Deutsch", de-DE, which is not what en-US gets) measured `onend` to the next
@@ -525,15 +523,15 @@ guard was deleted.
 ## Drop unheard speech on a tool call (2026-10-05)
 
 With `?tts_stream=1` text the agent streamed before a tool call was spoken, although it never reaches `full_response` (ZeroClaw keeps only the final
-iteration in `accumulated_display_text`, as reported by you; not checked in the ZeroClaw source here). Before this change a `tool_call` frame was only logged.
+iteration in `accumulated_display_text`, as reported to us; not checked in the ZeroClaw source here). Before this change a `tool_call` frame was only logged.
 Now it drops what has not been heard: the splitter's unfinished text, every queued unit, and the utterance with the engine if its audio has not started;
 an audible utterance plays to its end. New event `tts_dropped { reason, units, chars, partial_chars }`, only when something was dropped. Details in
 ARCHITECTURE ("Tool calls") and eval-harness-design.md.
 
 Decisions worth knowing. (1) "Not started speaking" is read as "not audible": an utterance handed to the browser whose `onstart` has not fired is dropped
 too, and the browser is told to cancel it. The first sentence of a reply sits in exactly that state for the voice's start delay (0.8 to 2 s in the
-gap experiment), which is when a tool call is likely to arrive, so leaving it would let the first pre-tool sentence through almost every time. If you
-want the literal reading (only units still in the queue), `SpeechQueue.drop()` is the one place to change. (2) The done fallback used `sentences === 0`,
+gap experiment), which is when a tool call is likely to arrive, so leaving it would let the first pre-tool sentence through almost every time. For
+the literal reading (only units still in the queue), `SpeechQueue.drop()` is the one place to change. (2) The done fallback used `sentences === 0`,
 the turn's total; after a full drop that would stay above zero and the final answer would be silent. It now uses `fresh`, the units queued since the
 last tool call, so `full_response` is spoken when nothing was queued after it, including when an audible pre-tool utterance was left to play. (3) Not
 changed: `tts_text_mismatch` compares all chunks with `full_response`, so it will now and then be reported for a tool turn (it already was).
@@ -591,7 +589,7 @@ of the whole held message so far), `held_sent { chars, waited_ms, end }` just be
 hint "Message not sent, the connection closed" until the next connect. `send_blocked` is gone from the code (old event files can still contain it).
 
 Decisions the spec did not make, so they are listed here: (1) `chars` on `send_held` is the whole held message so far, so the last `send_held` equals `held_sent.chars`; `waited_ms`
-counts from the first hold. (2) If the turn ends while the user has the mic open again, the held message is still sent at turn end (asked, answer: send, and mute the new answer
+counts from the first hold. (2) If the turn ends while the user has the mic open again, the held message is still sent at turn end (decision: send, and mute the new answer
 with `ReplyState.mute()`), so nothing is read out over the open mic and what they say next is held for that answer. (3) A hold, like a skip, closes the Phase 1 re-arm window:
 the user can press at once and the utterance is appended. (4) The utterance's own trigger is not kept on a held send. (5) `join-latency.mjs` gets a `held` bucket in `by_trigger`
 (a held turn used to fall into `unknown`) and measures a held turn from its send, like `auto_silence`, with a note; the release to send time is the previous answer's remaining
@@ -610,7 +608,7 @@ A bare reset of the in-flight flag after `REPLY_TIMEOUT_MS` was unsafe twice ove
 still be running the old turn, so a new message on the same connection would be steering. Now the timeout closes the socket (ZeroClaw then takes its cancel path), cancels speech, drops
 a held message (`held_dropped { reason: "timeout" }`, hint "Message not sent, the answer timed out") and keeps `turn_timeout { ms }`, then connects once more.
 
-Checked before building, as asked: Connect is a plain function. `connect()` reads the gateway URL, agent alias and token from the form fields (the token field holds the stored pairing
+Checked before building: Connect is a plain function. `connect()` reads the gateway URL, agent alias and token from the form fields (the token field holds the stored pairing
 token), reuses the speech model load and makes a `WebSocket`, so an automatic reconnect is one call and needed no more than that. The one thing it did need: the four socket handlers used the
 global `socket` and `replyState` without checking which socket they belonged to, so the late close of a socket that had been let go of would have reset the new connection. Each handler now
 returns if its socket is no longer the current one. The status reads "Answer timed out, reconnected" once the new socket opens; if it does not open, the ordinary "disconnected" with no second
@@ -631,7 +629,7 @@ If the user is mid-utterance when the timeout fires, the button is disabled unti
 
 ## The first utterance waits for more units (2026-10-05)
 
-Version A of the two alternatives was kept (your answer: speech resumed after the pause, so the gap after the first sentence sounded like an ending). Version B (lower
+Version A of the two alternatives was kept (speech resumed after the pause, so the gap after the first sentence sounded like an ending). Version B (lower
 `MAX_UTTERANCE_CHARS` to 250) was not built; `MAX_UTTERANCE_CHARS` stays 1200. The first utterance of a turn is no longer the first unit alone: it waits up to
 `FIRST_UTTERANCE_WAIT_MS = 700` after its first unit is ready, collecting the units that arrive (same cap, same unit boundaries), and speaks at once when `done` arrives first
 (`finish()` now pumps) or when the batch is full (a unit does not fit, or it is exactly the cap). 700 is a judgement, not measured: about the voice's start delay. It adds up to 700 ms
@@ -673,3 +671,13 @@ Tests: the ones pinned to the old defaults were changed to the new ones. Pages t
 `?silence`/`?reply=short` as opt-outs; the new `defaults.test.mjs` runs the page with no parameters, with each opt-out and with the old demo settings, and checks the sent prefix, the armed wait and the speech flow. Mutation checks: 10 mutants in
 `main.ts`, `turn-policy.ts` and `speech-text.ts`; 8 were caught at once and two survived for lack of a test (an explicit `tts_stream=1` turning streaming off; `?reply=SHORT` read as `short`), both now covered and caught.
 
+
+## Production readiness (2026-10-05 to 2026-10-06)
+
+Goal: a stranger clones the repo, follows the README and has working voice chat with their own ZeroClaw. Nothing in this work touched STT, VAD or turn-taking logic. Starting point: `2056fb4`, tsc clean, 391 of 391 tests.
+
+- **License audit** (`8a4a2dc`, `docs/THIRD_PARTY.md`): every runtime asset, bundled package and vendored file was traced to a license text. The Moonshine base weights are MIT per the upstream license file (the non-MIT models are the listed non-English ones); the weights host serves no license file next to them. The vendored `src/vendor/*.ts` copies of moonshine-js now carry the MIT notice (`src/vendor/LICENSE`). `@moonshine-ai/moonshine-js` is a dependency in `package.json` but no source file imports it.
+- **Assets bundled** (`64a27b3`): the Moonshine base weights (63 MB), ONNX Runtime 1.22.0 and 1.14.0 wasm, the Silero VAD model and worklet, and the latin (plus arabic for Amiri) font subsets are in `public/vendor/` and `public/fonts/` with their license files, so the page requests nothing from a CDN or a font host. `offline-assets.test.mjs` loads the real page and model with the old hosts blocked. The VAD worklet is fetched by the audio thread, which Playwright cannot see, so that test checks the base paths and the file separately. `.git` grew from 11 MB to 56 MB after `git gc` (pack 54.83 MiB). The `no-external-fonts` plugin in `eval/runner/vite.test.config.mjs` (see the test infrastructure note above) is now redundant; it is harmless and was left.
+- **Production build** (`81c2db1`): `import.meta.env.PROD` turns off eval mode, so `?eval=1` and the eval-only params do nothing, `logEvent` is empty (the minifier drops every call and its event name), and a build-only plugin in `vite.config.js` removes the export button from `index.html`. `prod-build.test.mjs` builds into a temp directory, greps the bundle for the event names read from `main.ts`, and serves the build from a stub gateway on one origin: automatic pairing, connect, and a spoken message sent from a fake microphone playing one recording. `smoke-evals.test.mjs` runs `run-wer.mjs` and `replay-commits.mjs` on one recording against the dev server. Both skip when the recordings are absent. `npm run build` also copies a 26 MB wasm from the installed `onnxruntime-web` 1.27.0 into `dist/assets` that the page never requests (the runtime wasm is the 1.22.0 file in `public/vendor`); not removed.
+- **First run** (`8a8f65a`): the vendored loader exposes no progress (`InferenceSession.create` takes a URL; the `Transcriber` reports only load started and loaded), so there is no bar; the hint says the download is about 63 MB and happens on first use. A failed load used to be reported by the vendored `Transcriber.load()` as "platform not supported"; it is now `ModelLoadFailed` with a message naming a network problem or blocked download and a Try again button. Messages were added for a denied or missing microphone, a page without `navigator.mediaDevices` (needs https or localhost), no speech synthesis and no WebAssembly; a failed mic start used to leave the button on "Stop listening" and now resets it, and a browser whose permission query throws now goes on to ask for the microphone. Mutation checks: ten mutants of the new code; nine caught at once, and the survivor (the permission query's `.catch`) was caught after the test was made to check that `getUserMedia` is called. Measured on a static preview on the same machine (one run each): 6.7 s to a ready mic on a fresh profile, 3.1 s on the second visit with all five model and wasm files served from the browser cache.
+- Tests went from 391 to 420 (offline assets 11, production build 6, eval driver smoke 2, first run 10).

@@ -15,8 +15,8 @@ turn (session key `gw_fad8b607-d608-4d46-bbe1-5fde17e6113c`, model `claude-haiku
 
 ## Cause (confirmed)
 
-The Anthropic API key had just been rotated and the container still held the old key. After
-updating `.env` and recreating the container, a CLI sanity check succeeded.
+The container was running with a stale provider API credential. After refreshing the credential in the
+container's environment and recreating the container, a CLI sanity check succeeded.
 
 ## How the client events file was matched
 
