@@ -215,6 +215,19 @@ before(async () => {
   r.mdCodeOnlyOff = await playAll(codeOff);
   client.destroy();
   await codeOff.page.close();
+
+  // Units that wait while the first plays reach the browser as one utterance; speech_text stays per unit.
+  const co = await openPage("&tts_stream=1");
+  await co.send({ type: "chunk", content: "First sentence is long enough. Second sentence is long too. Third sentence is also long. " });
+  r.coFirst = await co.state(); // only the first is with the browser so far
+  await co.fire(0, "start");
+  await co.fire(0, "end");
+  await co.fire(1, "start");
+  await co.fire(1, "end");
+  await co.send({ type: "done", full_response: "First sentence is long enough. Second sentence is long too. Third sentence is also long. ", tokens_used: 1 });
+  r.coAll = await co.state();
+  client.destroy();
+  await co.page.close();
 });
 
 after(async () => {
@@ -337,17 +350,17 @@ test("markdown, flag off: the voice gets speakable text, the card keeps the orig
 });
 
 test("markdown, flag on: markers and a code fence cut across chunks are cleaned per unit, list items are separate, the card keeps the original", () => {
-  assert.deepEqual(r.mdOn.spoken.slice(0, 4), ["Bold start here today.", "item one is an item.", "item two is here.", "Then an end."]);
-  assert.equal(r.mdOn.spoken.length, 4);
+  // the first unit alone, the three that waited behind it merged into one utterance
+  assert.deepEqual(r.mdOn.spoken, ["Bold start here today.", "item one is an item. item two is here. Then an end."]);
   assert.match(r.mdOn.card, /^\*\*Bold\*\* start here today\.\n- item one/);
 });
 
 test("markdown, flag on: the full_response fallback is cleaned too", () => {
-  assert.deepEqual(r.mdFallback.spoken.slice(4), ["Title. one. two."]);
+  assert.deepEqual(r.mdFallback.spoken.slice(2), ["Title. one. two."]);
 });
 
 test("a reply that is only code is not spoken; it is tts_skipped as empty on both paths", () => {
-  assert.equal(r.mdCodeOnly.spoken.length, 5);
+  assert.equal(r.mdCodeOnly.spoken.length, 3); // nothing new was spoken
   assert.deepEqual(r.mdCodeOnly.events.filter((e) => e.event === "tts_skipped").map((e) => e.reason), ["empty"]);
   assert.deepEqual(r.mdCodeOnlyOff.spoken, []);
   assert.deepEqual(r.mdCodeOnlyOff.events.filter((e) => e.event === "tts_skipped").map((e) => e.reason), ["empty"]);
@@ -371,4 +384,17 @@ test("speech_text, flag on: one event per unit, including units that clean to no
 test("speech_text, fallback: the full_response is reported as one more unit", () => {
   const events = speechText(r.mdFallback.events);
   assert.deepEqual(events.at(-1), ["# Title\n- one\n- two".length, "Title. one. two.".length]);
+});
+
+test("coalescing: the first sentence is spoken alone, the ones that waited are one utterance, with units and chars on tts_sentence_start", () => {
+  assert.deepEqual(r.coFirst.spoken, ["First sentence is long enough."]);
+  assert.deepEqual(r.coAll.spoken, ["First sentence is long enough.", "Second sentence is long too. Third sentence is also long."]);
+  const starts = r.coAll.events.filter((e) => e.event === "tts_sentence_start").map(({ index, units, chars }) => ({ index, units, chars }));
+  assert.deepEqual(starts, [{ index: 0, units: 1, chars: 30 }, { index: 1, units: 2, chars: 57 }]);
+  assert.deepEqual(r.coAll.events.filter((e) => e.event === "tts_requested").map((e) => e.index), [0, 1, 2]);
+  assert.equal(r.coAll.events.filter((e) => e.event === "tts_end").length, 2);
+});
+
+test("coalescing: speech_text is still one event per unit, before merging", () => {
+  assert.deepEqual(speechText(r.coAll.events), [[30, 30], [28, 28], [28, 28]]);
 });

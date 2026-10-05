@@ -655,7 +655,7 @@ function logSpeechEvent(e: SpeechEvent) {
     case "start":
       // tts_start keeps its meaning: the first audible audio of the turn, once per turn.
       if (e.first) logEvent("tts_start", { ...e.info, engine: ttsEngine?.name });
-      logEvent("tts_sentence_start", { index: e.index });
+      logEvent("tts_sentence_start", { index: e.index, units: e.units, chars: e.chars });
       break;
     case "end":
       logEvent("tts_end");
