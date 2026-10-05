@@ -1,9 +1,13 @@
 // @ts-nocheck
 // Vendored from @moonshine-ai/moonshine-js src/, upstream code not written against
-// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough), model.ts (loadModel retry after failure).
+// this project's stricter tsconfig. Deliberate local edits: transcriber.ts (VAD threshold passthrough), model.ts (loadModel retry after failure), constants.ts (asset paths served locally).
 //
 // Original work: Copyright (c) 2025 Useful Sensors, Inc., MIT License. The license text is in
 // src/vendor/LICENSE; upstream is https://github.com/moonshine-ai/moonshine-js (npm @moonshine-ai/moonshine-js 0.1.29).
+
+// Nutq edit: the assets are served from this app's own public/vendor (see docs/THIRD_PARTY.md), not from a CDN.
+// Absolute, so the runtimes that import() or fetch() them resolve it the same way wherever the page is hosted.
+export const assetURL = (path) => new URL(import.meta.env.BASE_URL + path, location.href).href
 
 const frameSize = 512
 const updateInterval = 16
@@ -21,9 +25,9 @@ export const Settings = {
     STREAM_COMMIT_EMA_PERIOD: 5,
     VAD_COMMIT_INTERVAL: Math.ceil((vadCommitSeconds * 10000) / frameSize),
     BASE_ASSET_PATH: {
-        MOONSHINE: "https://download.moonshine.ai/",
-        ONNX_RUNTIME: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/",
-        SILERO_VAD: "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.24/dist/"
+        MOONSHINE: assetURL("vendor/moonshine/"),
+        ONNX_RUNTIME: assetURL("vendor/onnxruntime-web-1.22.0/"),
+        SILERO_VAD: assetURL("vendor/vad-web-0.0.24/")
     },
     VERBOSE_LOGGING: false
 }

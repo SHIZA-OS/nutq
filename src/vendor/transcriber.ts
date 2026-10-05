@@ -5,7 +5,7 @@
 // Original work: Copyright (c) 2025 Useful Sensors, Inc., MIT License. The license text is in
 // src/vendor/LICENSE; upstream is https://github.com/moonshine-ai/moonshine-js (npm @moonshine-ai/moonshine-js 0.1.29).
 
-import { Settings } from "./constants";
+import { Settings, assetURL } from "./constants";
 import MoonshineModel from "./model";
 import MoonshineError from "./error";
 import { AudioNodeVAD } from "@ricky0123/vad-web";
@@ -597,7 +597,7 @@ class Transcriber {
             // 1.22.0 path here 404s (wrong-version wasm filenames), only surfaced once
             // vad-web actually resolves to a real installed package instead of the
             // broken node_modules symlink.
-            onnxWASMBasePath: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/",
+            onnxWASMBasePath: assetURL("vendor/onnxruntime-web-1.14.0/"),
         });
         this.attachStream(this.mediaStream);
         this.callbacks.onModelLoaded();

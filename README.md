@@ -42,6 +42,14 @@ Each default has an opt-out, set in the URL:
 
 Combine them with `&`, for example `http://localhost:5173/?silence=3000&reply=short&tts_stream=0` gives the original behaviour.
 
+## Network access needed
+
+The only network connection Nutq needs is the one to your ZeroClaw gateway (HTTP for pairing, a WebSocket for `/ws/chat`).
+Everything else is served from this repository: the speech model weights, both ONNX Runtime wasm builds, the voice
+activity model and the fonts live in `public/vendor/` and `public/fonts/`, and the page requests nothing from a CDN or
+from a font host. Nothing is pinned to an external URL, because nothing is loaded from one. What each file is, where
+it came from and its license: [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+
 ## Demo on Linux
 
 The demo script opens Chrome with its own profile (`~/.nutq-demo-chrome`). That gives a clean window and keeps the
@@ -55,8 +63,8 @@ demo's pairing token and the downloaded speech model cache between runs, apart f
    comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds nothing to the URL: the defaults above are
    the demo's settings.
 4. Pair (only the first time on that profile), then Connect.
-5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
-   speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
+5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile loads the
+   speech model (about 63 MB of weights, 27 to 38 s measured here, when they came from a CDN; not re-measured since they are served locally), and a first question exercises the whole path.
 
 ## Pairing
 
