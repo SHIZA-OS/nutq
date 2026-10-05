@@ -76,8 +76,8 @@ const PREFIXES = {
 
 export type ReplyStyle = keyof typeof PREFIXES;
 
-// Anything but exactly "voice" is "short".
+// "voice" is the default; only exactly "short" (?reply=short) opts out, to the original short prefix.
 export function replyPrefix(param: string | null): { style: ReplyStyle; prefix: string } {
-  const style: ReplyStyle = param === "voice" ? "voice" : "short";
+  const style: ReplyStyle = param === "short" ? "short" : "voice";
   return { style, prefix: PREFIXES[style] };
 }

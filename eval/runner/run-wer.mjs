@@ -28,7 +28,7 @@ const LOAD_TIMEOUT_MS = 240_000; // cold model download measured at 27 to 38 s; 
 const GRACE_MS = 1_500; // let a late stt_committed land before downloading events
 
 function parseArgs(argv) {
-  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, rawmic: false, silence: null };
+  const args = { model: "model/base", audioDir: join(homedir(), "Shiza/nutq-eval-audio/cases"), cases: null, label: null, rawmic: false, silence: "5000" }; // 5000: the fixed wait every baseline ran with; the page default is now the semantic wait, so it is set explicitly
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--model") args.model = argv[++i];
     else if (argv[i] === "--rawmic") args.rawmic = true;

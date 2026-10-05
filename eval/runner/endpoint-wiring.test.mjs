@@ -1,4 +1,4 @@
-// Tests that src/main.ts wires the text-dependent end of turn (?endpoint=semantic) to the Transcriber's
+// Tests that src/main.ts wires the text-dependent end of turn (the default; ?silence=<ms> opts out) to the Transcriber's
 // callbacks, in the real page in headless Chrome served by Vite. The Transcriber is replaced in the page by a
 // minimal fake (route interception) and getUserMedia by a fake stream, so there is no speech model, no
 // microphone and no gateway (?eval=1&nosend=1). The test fires the Transcriber callbacks itself and reads the
@@ -57,7 +57,7 @@ before(async () => {
   await probe.close();
 
   // finished text, then the speech end: the arm event says done, and the turn ends on auto_silence after that wait
-  let p = await openPage("endpoint=semantic");
+  let p = await openPage("");
   await p.cb("onSpeechStart", 0);
   await p.cb("onTranscriptionCommitted", "Thank you.");
   await p.cb("onSpeechEnd");
@@ -67,7 +67,7 @@ before(async () => {
   await p.page.close();
 
   // no text yet at the speech end, then a commit goes in flight, its open text lands, and the count drops
-  p = await openPage("endpoint=semantic");
+  p = await openPage("");
   await p.cb("onSpeechStart", 0);
   await p.cb("onSpeechEnd");
   await p.cb("onCommitsInFlight", 1);
@@ -77,7 +77,7 @@ before(async () => {
   await p.page.close();
 
   // open text arms the long wait; a later piece that finishes the sentence re-arms the timer to the short one
-  p = await openPage("endpoint=semantic");
+  p = await openPage("");
   await p.cb("onSpeechStart", 0);
   await p.cb("onTranscriptionCommitted", "I want a flight and");
   await p.cb("onSpeechEnd");
@@ -88,7 +88,7 @@ before(async () => {
   await p.page.close();
 
   // a speech start cancels the wait for good: text that lands later arms nothing and logs nothing
-  p = await openPage("endpoint=semantic");
+  p = await openPage("");
   await p.cb("onSpeechStart", 0);
   await p.cb("onSpeechEnd");
   await p.cb("onSpeechStart", 0);
@@ -100,8 +100,8 @@ before(async () => {
   r.speakingFinal = await p.only("transcript_final");
   await p.page.close();
 
-  // ?silence is a fixed wait that ignores the text, and wins over ?endpoint=semantic
-  p = await openPage("endpoint=semantic&silence=900");
+  // ?silence is the opt-out: a fixed wait that ignores the text
+  p = await openPage("silence=900");
   await p.cb("onSpeechStart", 0);
   await p.cb("onTranscriptionCommitted", "and");
   await p.cb("onSpeechEnd");
@@ -110,7 +110,7 @@ before(async () => {
   r.silenceEvents = await p.endpoint();
   await p.page.close();
 
-  // no ?endpoint: nothing semantic, no endpoint events
+  // the same opt-out at the old 800 ms: nothing semantic, no endpoint events
   p = await openPage("silence=800");
   await p.cb("onSpeechStart", 0);
   await p.cb("onTranscriptionCommitted", "and");
@@ -157,14 +157,14 @@ test("a speech start cancels the wait: later text and in-flight changes log noth
   assert.deepEqual(r.speakingFinal, []);
 });
 
-test("?silence wins over ?endpoint=semantic: the fixed wait ends the turn, with no endpoint events", () => {
+test("?silence=900 (the opt-out): the fixed wait ends the turn, with no endpoint events", () => {
   assert.equal(r.silenceFinal.trigger, "auto_silence");
   const waited = r.silenceFinal.timestamp_ms - r.silenceEnd.timestamp_ms;
   assert.ok(waited >= 850 && waited < 2500, `waited ${waited} ms for a 900 ms wait`);
   assert.deepEqual(r.silenceEvents, []);
 });
 
-test("without ?endpoint nothing semantic runs: the fixed wait applies and no endpoint events are logged", () => {
+test("?silence=800: nothing semantic runs, the fixed wait applies and no endpoint events are logged", () => {
   assert.equal(r.fixedFinal.trigger, "auto_silence");
   assert.deepEqual(r.fixedEvents, []);
 });

@@ -110,15 +110,15 @@ before(async () => {
     out.tier2 = { off: Object.fromEntries(t2.map((t) => [t, endHint(t)])), on: Object.fromEntries(t2.map((t) => [t, endHint(t, true)])) };
     out.tier2Wait = [waitFor("What is", { ...W, tier2: true }, 0), waitFor("What is", W, 0)];
 
-    // ?silence and ?endpoint: silence is a fixed wait and wins; endpoint=semantic is opt-in; absent is the 5000 default
-    const sem = waitFromParams(null, "semantic");
+    // ?silence=<ms> is the opt-out: a fixed wait that ignores the text (clamped); without it (or empty) the wait is the semantic one
+    const sem = waitFromParams(null);
     out.params = {
-      none: waitFromParams(null, null),
-      silence: waitFromParams("1200", null),
-      silenceWins: waitFromParams("1200", "semantic"),
-      silenceClamped: waitFromParams("100", "semantic"),
-      emptySilence: typeof waitFromParams("", "semantic"),
-      otherEndpoint: [waitFromParams(null, ""), waitFromParams(null, "fixed"), waitFromParams(null, "Semantic")],
+      none: typeof waitFromParams(null),
+      silence: waitFromParams("1200"),
+      silence5000: waitFromParams("5000"),
+      silenceClamped: [waitFromParams("100"), waitFromParams("99999")],
+      silenceInvalid: waitFromParams("abc"),
+      emptySilence: [typeof waitFromParams(""), typeof waitFromParams("  ")],
       semanticType: typeof sem,
       semanticDone: sem("Thank you.", 0),
       semanticOpen: sem("and", 0),
@@ -200,21 +200,18 @@ test("a misfire arms, a manual stop ends now, and text after the end changes not
 
 test("a fixed number ignores the text entirely", () => assert.deepEqual(r.fixed, { endsAt: 2100, wait: 2000 }));
 
-test("without ?endpoint=semantic the wait is the fixed one: 5000 by default, ?silence=<ms> clamped, other endpoint values ignored", () => {
-  assert.equal(r.params.none, 5000);
-  assert.equal(r.params.silence, 1200);
-  assert.deepEqual(r.params.otherEndpoint, [5000, 5000, 5000]);
-});
-
-test("?silence is an override: with it, ?endpoint=semantic is ignored and the wait is fixed (and clamped)", () => {
-  assert.equal(r.params.silenceWins, 1200);
-  assert.equal(r.params.silenceClamped, 800);
-});
-
-test("?endpoint=semantic alone, or with an empty ?silence=, gives the text-dependent wait with the SEMANTIC_WAITS values", () => {
+test("the default is the text-dependent wait: no ?silence, or an empty one, gives a function with the SEMANTIC_WAITS values", () => {
+  assert.equal(r.params.none, "function");
   assert.equal(r.params.semanticType, "function");
-  assert.equal(r.params.emptySilence, "function");
+  assert.deepEqual(r.params.emptySilence, ["function", "function"]);
   assert.deepEqual([r.params.semanticDone, r.params.semanticOpen, r.params.semanticInFlight], r.params.expected);
+});
+
+test("?silence=<ms> is the opt-out: a fixed wait that ignores the text, clamped to 800..8000; ?silence=5000 is exactly the old default", () => {
+  assert.equal(r.params.silence, 1200);
+  assert.deepEqual(r.params.silenceClamped, [800, 8000]);
+  assert.equal(r.params.silence5000, 5000);
+  assert.equal(r.params.silenceInvalid, 5000); // a value that is not a number falls back to the fixed default, as before
 });
 
 test("tier 2 is off by default: auxiliary verbs and pronouns at the end are not open", () => {

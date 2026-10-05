@@ -47,7 +47,7 @@ before(async () => {
     window.speechSynthesis.speak = (u) => window.__sp.spoken.push(u.text);
     window.speechSynthesis.cancel = () => window.__sp.cancels++;
   });
-  await page.goto(`${vite.url}?eval=1&model=zzz`); // an invalid model name: nothing is downloaded
+  await page.goto(`${vite.url}?eval=1&model=zzz&tts_stream=0`); // an invalid model name: nothing is downloaded; the original speak-at-done flow
   await page.fill("#ws-url", `ws://127.0.0.1:${server.address().port}/ws/chat`);
   await page.fill("#agent-alias", "stub");
   await page.fill("#auth-token", "stub-token");

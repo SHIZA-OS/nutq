@@ -99,7 +99,7 @@ before(async () => {
   });
 
   // Flag off: nothing is spoken until done, then the whole reply once, from full_response.
-  off = await openPage("");
+  off = await openPage("&tts_stream=0");
   await off.send({ type: "chunk", content: "This is the first sentence. This is the second one! " });
   r.offAfterChunks = await off.state();
   await off.send({ type: "done", full_response: "Full reply from done.", tokens_used: 1 });
@@ -196,7 +196,7 @@ before(async () => {
   };
   const md = "**Bold** start here today.\n- item one is an item\n- item two\n";
   // Flag off: the whole reply, once, from the done frame.
-  const mdOff = await openPage("");
+  const mdOff = await openPage("&tts_stream=0");
   await mdOff.send({ type: "chunk", content: md });
   await mdOff.send({ type: "done", full_response: md, tokens_used: 1 });
   r.mdOff = await playAll(mdOff);
@@ -221,7 +221,7 @@ before(async () => {
   client.destroy();
   await mdOn.page.close();
   // Flag off, only code.
-  const codeOff = await openPage("");
+  const codeOff = await openPage("&tts_stream=0");
   await codeOff.send({ type: "done", full_response: "```\ncode\n```", tokens_used: 1 });
   r.mdCodeOnlyOff = await playAll(codeOff);
   client.destroy();
@@ -335,7 +335,7 @@ before(async () => {
   await t8.page.close();
 
   // Flag off: a tool call changes nothing; the reply is spoken once at done.
-  const t6 = await openPage("");
+  const t6 = await openPage("&tts_stream=0");
   await t6.send({ type: "chunk", content: `${S1} ${S2} ${PART}` });
   await t6.send(tool);
   await t6.send({ type: "done", full_response: POST, tokens_used: 1 });

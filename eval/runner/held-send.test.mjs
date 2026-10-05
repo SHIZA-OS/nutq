@@ -14,7 +14,7 @@ before(async () => {
   h = await startHarness();
 
   // Hold, then send at done. ?reply=voice so the reply style is visible in the frame.
-  let p = await h.openPage("reply=voice");
+  let p = await h.openPage("reply=voice&tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second words");
   await p.utterance(); // sent: a reply is in flight
@@ -30,7 +30,7 @@ before(async () => {
   r.hold.second = await p.state();
 
   // Two utterances during one reply are one held message; waited_ms counts from the first.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second part", "third part");
   await p.utterance();
@@ -48,7 +48,7 @@ before(async () => {
   r.append.msgs = h.messages(p.conn);
 
   // Frames that do not end the turn send nothing; an aborted turn sends.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second words");
   await p.utterance();
@@ -70,7 +70,7 @@ before(async () => {
   r.aborted = { state: await p.state(), msgs: h.messages(p.conn) };
 
   // A turn-failure error sends too.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second words");
   await p.utterance();
@@ -80,7 +80,7 @@ before(async () => {
   r.failed = { state: await p.state(), msgs: h.messages(p.conn) };
 
   // The socket closes with a message held: it is dropped, said so, and nothing goes out on the next connection.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second words");
   await p.utterance();
@@ -101,7 +101,7 @@ before(async () => {
   r.closed.end = await p.state();
 
   // An empty utterance during a reply is not held.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words");
   await p.utterance();

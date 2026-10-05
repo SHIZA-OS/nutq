@@ -70,7 +70,7 @@ before(async () => {
     const sample = "# Title\n- **One** item with `code` and [a link](http://x.y)\n| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\nEnd 🎉";
     out.idempotent = [speakable(sample).text, speakable(speakable(sample).text).text];
     const { replyPrefix } = await import("/src/speech-text.ts");
-    out.prefix = { none: replyPrefix(null), empty: replyPrefix(""), short: replyPrefix("short"), voice: replyPrefix("voice"), upper: replyPrefix("VOICE"), other: replyPrefix("loud") };
+    out.prefix = { none: replyPrefix(null), empty: replyPrefix(""), short: replyPrefix("short"), voice: replyPrefix("voice"), upper: replyPrefix("VOICE"), shortUpper: replyPrefix("SHORT"), other: replyPrefix("loud") };
     return out;
   }, CASES);
 });
@@ -97,11 +97,16 @@ test("speakable: cleaning cleaned text again changes nothing", () => {
 // The prefix the eval runs before ?reply= existed were sent with. Pinned byte for byte so those runs stay reproducible.
 const OLD_PREFIX = "Respond in 1-2 short, complete sentences, suitable for being spoken aloud. Be concise but don't cut off mid-thought.\n\n";
 
-test("replyPrefix: short is the default and is byte-identical to the original prefix", () => {
-  for (const k of ["none", "empty", "short", "upper", "other"]) assert.deepEqual(r.prefix[k], { style: "short", prefix: OLD_PREFIX }, k);
+test("replyPrefix: ?reply=short is the opt-out and is byte-identical to the original prefix", () => {
+  assert.deepEqual(r.prefix.short, { style: "short", prefix: OLD_PREFIX });
 });
 
-test("replyPrefix: ?reply=voice asks for a thorough spoken answer with spoken signposts, no padding, no markup", () => {
+test("replyPrefix: voice is the default: anything but exactly short (nothing, empty, other text, other case) is voice", () => {
+  for (const k of ["none", "empty", "voice", "upper", "shortUpper", "other"]) assert.equal(r.prefix[k].style, "voice", k);
+  assert.deepEqual(r.prefix.none, r.prefix.voice);
+});
+
+test("replyPrefix: the voice style asks for a thorough spoken answer with spoken signposts, no padding, no markup", () => {
   const { style, prefix } = r.prefix.voice;
   assert.equal(style, "voice");
   assert.ok(prefix.endsWith("\n\n"));

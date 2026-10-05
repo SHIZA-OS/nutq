@@ -79,7 +79,7 @@ before(async () => {
   r.plain.before = beforePlain;
 
   // A reply that ends normally has no timer left, so nothing times out later.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.utterance();
   await p.send({ type: "done", full_response: "x", tokens_used: 1 });
@@ -87,7 +87,7 @@ before(async () => {
 
   // While the automatic reconnect is still connecting (the stub holds the upgrade back) there is no connection: the status says
   // connecting and the mic is disabled; when it opens, the status says why.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.utterance();
   h.upgradeDelay = 800;
@@ -100,7 +100,7 @@ before(async () => {
 
   // The reconnect cannot even start (the gateway URL was changed to something invalid): the page is left with no socket, and fixing
   // the URL and pressing Connect connects, as a plain connect.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.utterance();
   const goodUrl = await p.page.inputValue("#ws-url");
@@ -113,7 +113,7 @@ before(async () => {
   r.badUrl.fixed = await p.state();
 
   // The reconnect fails: the existing disconnected state, one attempt only, and a later manual Connect is a plain connect.
-  p = await h.openPage("");
+  p = await h.openPage("tts_stream=0");
   await p.commitOnStop();
   await p.texts("first words", "second words");
   await p.utterance();

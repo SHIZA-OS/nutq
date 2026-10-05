@@ -612,7 +612,7 @@ function connect() {
   };
 }
 
-// ?reply=voice asks for a thorough answer written as speech; anything else is the original short prefix (src/speech-text.ts).
+// The reply style (src/speech-text.ts): by default a thorough answer written as speech; ?reply=short is the original short prefix.
 const reply = replyPrefix(urlParams.get("reply"));
 
 // "held" is a message that waited for the turn in flight to end (sendHeld); the utterance's own trigger is not kept.
@@ -713,11 +713,12 @@ function logTtsError(code: string | undefined, cancelledBy = "canceled") {
 // Why speech was last cancelled (see cancelSpeech), for the browser's late "canceled" error on the flag-off path.
 let cancelReason = "canceled";
 
-// ?tts_stream=1 (any mode, default off): speak the reply sentence by sentence as its chunks arrive (src/sentence-splitter.ts
-// feeds src/speech-queue.ts) instead of once at done. Without a speech engine the flag does nothing and speak() reports it.
+// By default the reply is spoken sentence by sentence as its chunks arrive (src/sentence-splitter.ts feeds src/speech-queue.ts).
+// ?tts_stream=0 opts out to the original flow: the whole reply spoken once at done. Without a speech engine neither does anything
+// and speak() reports it. The "flag on" and "flag off" of the comments below mean streaming on (the default) and ?tts_stream=0.
 const splitter = new SentenceSplitter();
 let streamedChunks = ""; // the chunks of this turn so far, to compare with full_response at done
-const speechQueue = urlParams.get("tts_stream") === "1" && ttsEngine ? new SpeechQueue(ttsEngine, logSpeechEvent) : null;
+const speechQueue = urlParams.get("tts_stream") !== "0" && ttsEngine ? new SpeechQueue(ttsEngine, logSpeechEvent) : null;
 
 function logSpeechEvent(e: SpeechEvent) {
   switch (e.type) {
@@ -854,9 +855,9 @@ let sessionTranscript = "";
 
 // When a turn ends, and why, is decided by TurnPolicy (src/turn-policy.ts); this file feeds it the
 // events and the time, and owns the one JS timer that fires the auto-silence it asks for.
-// Any mode: ?silence=<ms> sets a fixed auto-silence delay (default 5000, clamped to 800..8000). ?endpoint=semantic
-// makes the delay depend on the transcript instead (see endHint in turn-policy.ts); ?silence overrides it.
-const endpointWait = waitFromParams(urlParams.get("silence"), urlParams.get("endpoint"));
+// Any mode: by default the delay depends on the transcript (see endHint in turn-policy.ts); ?silence=<ms> opts out to a
+// fixed auto-silence delay (clamped to 800..8000; 5000 was the fixed default before the semantic one became the default).
+const endpointWait = waitFromParams(urlParams.get("silence"));
 const isSemantic = typeof endpointWait === "function";
 let turn = new TurnPolicy(endpointWait);
 let silenceTimer: ReturnType<typeof setTimeout> | null = null;

@@ -121,7 +121,7 @@ before(async () => {
 
   // Flag off: the reply is spoken at done. Tapping the mic cancels it; the browser reports the cancelled utterance
   // afterwards, and that one event carries the reason mic_press.
-  let p = await openPage("");
+  let p = await openPage("tts_stream=0");
   await p.mic(); // nothing is speaking: speechSynthesis.cancel() is still called, and no event
   r.offIdle = await p.state();
   await p.mic(); // stop listening
@@ -164,7 +164,7 @@ before(async () => {
   // A reply in flight when the mic is tapped. Flag off: nothing is spoken at done, the guard still holds back the user's own
   // utterance, and the next turn speaks normally. The next turn is the held utterance, sent at done; the turn() after it taps
   // at the same fake instant, inside the re-arm window, so both taps are ignored and nothing mutes it.
-  p = await openPage("");
+  p = await openPage("tts_stream=0");
   await p.turn();
   await p.send({ type: "chunk", content: "Part of the reply. " });
   await p.mic(); // the tap under test: start listening while the reply is in flight

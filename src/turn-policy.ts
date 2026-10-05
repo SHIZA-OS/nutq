@@ -78,14 +78,11 @@ export function waitFor(text: string | null, w: SemanticWaits, commitsInFlight: 
   return Math.min(w.ceiling, Math.max(w.floor, ms));
 }
 
-// The wait for a page's ?silence and ?endpoint parameters. ?silence=<ms> is a fixed wait that ignores the text,
-// and it wins over ?endpoint=semantic. ?endpoint=semantic alone (an empty ?silence= counts as absent) is the
-// text-dependent wait. Anything else is the fixed default of SILENCE_COMMIT_MS. Semantic is opt-in; it is never
-// the default.
-export function waitFromParams(silence: string | null, endpoint: string | null): number | WaitFn {
-  if (endpoint === "semantic" && (silence === null || silence.trim() === "")) {
-    return (text, commitsInFlight) => waitFor(text, SEMANTIC_WAITS, commitsInFlight);
-  }
+// The wait for a page's ?silence parameter. The default (no ?silence=, or an empty one) is the text-dependent wait
+// (SEMANTIC_WAITS, the swept Conservative point). ?silence=<ms> opts out: a fixed wait that ignores the text, clamped to
+// 800..8000 (a value that is not a number is SILENCE_COMMIT_MS, the fixed 5000 ms that was the default before).
+export function waitFromParams(silence: string | null): number | WaitFn {
+  if (silence === null || silence.trim() === "") return (text, commitsInFlight) => waitFor(text, SEMANTIC_WAITS, commitsInFlight);
   return parseSilenceMs(silence);
 }
 
