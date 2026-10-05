@@ -37,9 +37,9 @@ for (const [script, args] of [
 }
 
 test("no committed file names a personal audio path", () => {
-  const needle = ["Shiza", "nutq-eval-audio"].join("/");
+  const needles = [["Shiza", "nutq-eval-audio"].join("/"), ["~", "Shiza"].join("/")]; // built from parts so this file does not contain them
   const files = execFileSync("git", ["ls-files", "-z"], { cwd: REPO, encoding: "utf8" })
     .split("\0")
     .filter((p) => p && existsSync(join(REPO, p)) && !/\.(onnx|wasm|woff2)$/.test(p) && p !== "package-lock.json");
-  assert.deepEqual(files.filter((p) => readFileSync(join(REPO, p), "utf8").includes(needle) || readFileSync(join(REPO, p), "utf8").includes("~/Shiza")), []);
+  assert.deepEqual(files.filter((p) => { const t = readFileSync(join(REPO, p), "utf8"); return needles.some((n) => t.includes(n)); }), []);
 });
