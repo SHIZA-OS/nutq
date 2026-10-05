@@ -81,7 +81,9 @@ type EvalEvent =
   | "mic_settings"
   | "transcript_final"
   | "send_skipped"
-  | "send_blocked"
+  | "send_held"
+  | "held_sent"
+  | "held_dropped"
   | "stt_model"
   | "ws_message_sent"
   | "first_chunk_received"
@@ -157,8 +159,9 @@ const micHint = $<HTMLParagraphElement>("mic-hint");
 function updateMicState() {
   micBtn.disabled = !(modelState === "ready" && (socketOpen || isNoSend));
   micHint.textContent =
-    blockedHint && replyState.inFlight
-      ? "Still answering, try again"
+    notice ??
+    (held
+      ? "Will send when the answer finishes"
       : modelState === "failed"
       ? "Speech model unavailable"
       : modelState === "idle"
@@ -167,7 +170,7 @@ function updateMicState() {
           ? "Loading the speech model, one moment"
           : micBtn.disabled
             ? "Connect to start listening"
-            : "Tap to start listening";
+            : "Tap to start listening");
 }
 
 if (!sttModelValid) {
@@ -196,9 +199,11 @@ let replyBuffer = "";
 // nothing is sent until the running turn ends.
 const replyState = new ReplyState();
 let replyTimer: ReturnType<typeof setTimeout> | null = null;
-// Set when an utterance was blocked while a reply is in flight; shows a hint under the mic button until the
-// reply ends (see updateMicState).
-let blockedHint = false;
+// An utterance that finished while a reply was in flight, waiting for the turn to end (see sendTranscript and sendHeld).
+// At most one: a later utterance is appended. `at` is when the first part was held. The hint under the mic button shows it.
+let held: { text: string; at: number } | null = null;
+// A one-off line for the hint under the mic button, shown over the others until the next connect.
+let notice: string | null = null;
 
 // Keeps one timer in step with the reply state: it exists exactly while a reply is in flight, so every normal
 // clear (a done, an abort, a turn-failure error, a closed socket) cancels it just by calling this. If it fires,
@@ -216,16 +221,14 @@ function syncReplyTimer() {
       log(`WARNING: no reply ended the turn after ${REPLY_TIMEOUT_MS / 1000} s, giving up on it. You can speak again.`);
       logEvent("turn_timeout", { ms: REPLY_TIMEOUT_MS });
       if (speechQueue) cancelSpeech(); // flag on: a reply that never ended is not read out any further
-      blockedHint = false;
       updateMicState();
     }
   }, Math.max(0, at - Date.now()));
 }
 
-// The reply state changed to "not in flight" (an ending frame or a close): drop the timer and the hint.
+// The reply state changed to "not in flight" (an ending frame or a close): drop the timer.
 function replyEnded() {
   syncReplyTimer();
-  blockedHint = false;
   updateMicState();
 }
 let receivedSessionStart = false;
@@ -451,6 +454,7 @@ function connect() {
     log("WebSocket open");
     setStatus(connStatus, "connected", "ok");
     socketOpen = true;
+    notice = null;
     updateMicState();
   };
 
@@ -547,6 +551,8 @@ function connect() {
       default:
         log(`Unhandled frame type "${parsed.type}": ${ev.data}`);
     }
+    // After the frame is handled, so its events and its reply belong to the turn it ended, not to the one sent now.
+    if (turnEnded) sendHeld(parsed.type);
   };
 
   socket.onerror = () => {
@@ -570,6 +576,12 @@ function connect() {
       );
     }
     setStatus(connStatus, "disconnected", "warn");
+    if (held) {
+      log("The connection closed with a message waiting to be sent; it was not sent");
+      logEvent("held_dropped", { reason: "closed", chars: held.text.length });
+      held = null;
+      notice = "Message not sent, the connection closed";
+    }
     replyState.closed();
     replyEnded();
     cancelSpeech();
@@ -582,7 +594,8 @@ function connect() {
 // ?reply=voice asks for a thorough answer written as speech; anything else is the original short prefix (src/speech-text.ts).
 const reply = replyPrefix(urlParams.get("reply"));
 
-type SendTrigger = "manual" | "auto_silence";
+// "held" is a message that waited for the turn in flight to end (sendHeld); the utterance's own trigger is not kept.
+type SendTrigger = "manual" | "auto_silence" | "held";
 
 // The mic re-arm window (MIC_REARM_MS in src/turn-state.ts). A press that would start listening is ignored from the moment
 // listening ends (a manual release or the auto_silence trigger) until MIC_REARM_MS after the send. Between the two,
@@ -599,10 +612,12 @@ function sendTranscript(text: string, trigger: SendTrigger) {
     return;
   }
   if (!replyState.trySend(Date.now())) {
-    // The utterance is dropped, not held. Its text is in transcript_final in eval mode, so it is not repeated here.
-    log("A reply is still in progress, so this utterance was not sent");
-    logEvent("send_blocked", { reason: "reply_in_flight" });
-    blockedHint = true;
+    // A reply is in flight and a message sent now would be steering, merged into that turn. So it is held and goes out when
+    // the turn ends (sendHeld). One held message at most: a later utterance is appended. The text is in transcript_final in
+    // eval mode, so it is not repeated in the log.
+    held = held ? { text: `${held.text} ${text}`, at: held.at } : { text, at: Date.now() };
+    log("A reply is still in progress, so this utterance is held and will be sent when it ends");
+    logEvent("send_held", { chars: held.text.length }); // the length of the whole held message so far
     updateMicState();
     return;
   }
@@ -616,6 +631,19 @@ function sendTranscript(text: string, trigger: SendTrigger) {
   lastSendAt = Date.now();
   logEvent("ws_message_sent", { send_trigger: trigger, reply_style: reply.style });
   log(`Sent (${trigger}): ${text}`);
+}
+
+// The turn in flight ended (done, aborted or a turn-failure error): send the held message, if any, as an ordinary message.
+// This is the only place a held message goes out, and only after the ending frame cleared the in-flight flag.
+function sendHeld(end: string) {
+  if (!held) return;
+  const { text, at } = held;
+  held = null;
+  logEvent("held_sent", { chars: text.length, waited_ms: Date.now() - at, end });
+  sendTranscript(text, "held");
+  // The user has the mic open again: the new answer is not read out over it, as for a reply the mic was tapped during.
+  if (listening) replyState.mute();
+  updateMicState();
 }
 
 // Voices load asynchronously in Chrome (getVoices() is empty until "voiceschanged"), so they are read at page
@@ -845,7 +873,7 @@ function scheduleSilenceTimer() {
 // silence-timeout path so the stop/flush/send sequence lives in one place.
 // trigger records which path called it, so ws_message_sent (and downstream
 // eval reporting) can tell manual releases apart from silence auto-sends.
-async function finishListening(trigger: SendTrigger) {
+async function finishListening(trigger: Exclude<SendTrigger, "held">) {
   if (!listening) return;
   listening = false;
   finishing = true;

@@ -30,7 +30,7 @@ const FAKE_TRANSCRIBER = `export class Transcriber {
   attachStream() {}
   async start() {}
   // A transcript is committed on stop only when the test asks, so a stop sends a message (a reply in flight).
-  async stop() { if (window.__stopDelay) await new Promise((r) => setTimeout(r, window.__stopDelay)); if (window.__stopThrow) throw new Error("stop failed"); if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
+  async stop() { if (window.__stopWait) await window.__stopWait; if (window.__stopThrow) throw new Error("stop failed"); if (window.__commitOnStop) this.callbacks.onTranscriptionCommitted("hello there"); }
 }`;
 
 async function openPage(query) {
@@ -39,6 +39,8 @@ async function openPage(query) {
   await page.addInitScript(() => {
     window.__sp = { utterances: [], cancels: 0 };
     window.__commitOnStop = false;
+    // A slow stop() without a real-time delay (which races under load): after __gateStop(), stop() waits until the test calls __openStop().
+    window.__gateStop = () => { window.__stopWait = new Promise((r) => (window.__openStop = r)); };
     // A fake clock: the page's Date.now only moves when the test says so.
     window.__now = 1000000;
     Date.now = () => window.__now;
@@ -155,13 +157,14 @@ before(async () => {
   client.destroy();
   await p.page.close();
 
-  // A reply in flight when the mic is tapped. Flag off: nothing is spoken at done, the guard still blocks the user's own
-  // utterance, and the next turn speaks normally.
+  // A reply in flight when the mic is tapped. Flag off: nothing is spoken at done, the guard still holds back the user's own
+  // utterance, and the next turn speaks normally. The next turn is the held utterance, sent at done; the turn() after it taps
+  // at the same fake instant, inside the re-arm window, so both taps are ignored and nothing mutes it.
   p = await openPage("");
   await p.turn();
   await p.send({ type: "chunk", content: "Part of the reply. " });
   await p.mic(); // the tap under test: start listening while the reply is in flight
-  await p.mic(); // the user "spoke" and stops: the guard blocks the send
+  await p.mic(); // the user "spoke" and stops: the guard holds the send back
   r.offMutedBlocked = await p.state();
   await p.send({ type: "done", full_response: "A reply that should not be spoken.", tokens_used: 1 });
   r.offMuted = await p.state();
@@ -266,18 +269,19 @@ before(async () => {
   await p.page.close();
 
   // The re-arm window starts at the release, not at the send: stop() runs the final transcription between them (up to about
-  // 500 ms live), and a press in that gap used to start a second utterance and send with listening true again. Here stop() takes
-  // 600 ms real time; the fake clock moves only when the test says, so the phases and the times are exact.
+  // 500 ms live), and a press in that gap used to start a second utterance and send with listening true again. Here stop() waits
+  // at a gate until the test opens it, and the fake clock moves only when the test says, so the phases and the times are exact.
   p = await openPage("tts_stream=1");
-  await p.page.evaluate(() => { window.__commitOnStop = true; window.__stopDelay = 600; });
+  await p.page.evaluate(() => { window.__commitOnStop = true; window.__gateStop(); });
   await p.page.click("#mic-btn"); // start listening
   r.finishing = { beforeRelease: await p.state() };
-  await p.page.click("#mic-btn"); // release: stop() runs for 600 ms
+  await p.page.click("#mic-btn"); // release: stop() waits at the gate
   await p.advance(100);
   await p.page.click("#mic-btn"); // during stop(): ignored, phase finishing, 100 ms after the release, no send yet
   r.finishing.during = await p.state();
   r.finishing.duringText = await p.page.textContent("#mic-btn");
   await p.advance(200);
+  await p.page.evaluate(() => window.__openStop()); // stop() finishes and the message is sent
   await waitLog(p.page, "ws_message_sent");
   await p.page.click("#mic-btn"); // at the send (fake clock unmoved): ignored, phase after_send, 0 ms after the send, 300 after the release
   r.finishing.atSend = await p.state();
@@ -295,11 +299,12 @@ before(async () => {
   // An empty utterance ends with send_skipped, and the window closes there: a press right after is not ignored (it would be
   // if the window ran to MIC_REARM_MS after the release). A press during stop() before the skip still is.
   p = await openPage("tts_stream=1");
-  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.page.evaluate(() => window.__gateStop());
   await p.page.click("#mic-btn"); // start listening
-  await p.page.click("#mic-btn"); // release: nothing committed, stop() runs for 600 ms
+  await p.page.click("#mic-btn"); // release: nothing committed, stop() waits at the gate
   await p.page.click("#mic-btn"); // during stop(): ignored
   r.emptyThenPress = { during: await p.state() };
+  await p.page.evaluate(() => window.__openStop());
   await waitLog(p.page, "send_skipped");
   await p.page.click("#mic-btn"); // at the skip, fake clock unmoved: listens at once
   r.emptyThenPress.after = await p.state();
@@ -311,11 +316,12 @@ before(async () => {
   p = await openPage("tts_stream=1");
   await p.turn(); // a send, then 5000 ms of fake time
   await p.send({ type: "done", full_response: "ok", tokens_used: 1 });
-  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.page.evaluate(() => window.__gateStop());
   await p.page.click("#mic-btn");
-  await p.page.click("#mic-btn"); // release: stop() runs for 600 ms
+  await p.page.click("#mic-btn"); // release: stop() waits at the gate
   await p.page.click("#mic-btn"); // during stop(), 5000 ms after the earlier send
   r.priorSend = await p.state();
+  await p.page.evaluate(() => window.__openStop());
   await p.page.waitForFunction(() => (document.getElementById("log").textContent.match(/ws_message_sent/g) ?? []).length >= 2, null, { timeout: 4000 }).catch(() => {});
   client.destroy();
   await p.page.close();
@@ -334,7 +340,7 @@ before(async () => {
 
   // The auto_silence trigger ends listening too, so a press during its stop() is ignored the same way.
   p = await openPage("tts_stream=1&silence=800");
-  await p.page.evaluate(() => { window.__stopDelay = 600; });
+  await p.page.evaluate(() => window.__gateStop());
   await p.mic(); // start listening
   await p.page.evaluate(() => {
     window.__tcb.onTranscriptionCommitted("hello there");
@@ -344,6 +350,7 @@ before(async () => {
   await waitLog(p.page, "auto-sending");
   await p.page.click("#mic-btn"); // during the auto_silence stop()
   r.autoFinishing = { during: await p.state() };
+  await p.page.evaluate(() => window.__openStop());
   await waitLog(p.page, "ws_message_sent");
   r.autoFinishing.after = await p.state();
   r.autoFinishing.text = await p.page.textContent("#mic-btn");
@@ -414,9 +421,9 @@ test("flag off: a reply in flight when the mic is tapped is not spoken at done; 
   assert.deepEqual(names(r.offMuted.events, "tts_start", "tts_skipped", "tts_end"), []);
 });
 
-test("the in-flight guard is unchanged: the utterance spoken during the muted reply is blocked with the hint", () => {
-  assert.deepEqual(names(r.offMutedBlocked.events, "send_blocked"), ["send_blocked"]);
-  assert.equal(r.offMutedBlocked.hint, "Still answering, try again");
+test("the in-flight guard still holds back the utterance spoken during the muted reply: it is held with the hint, not dropped", () => {
+  assert.deepEqual(names(r.offMutedBlocked.events, "send_blocked", "send_held"), ["send_held"]);
+  assert.equal(r.offMutedBlocked.hint, "Will send when the answer finishes");
 });
 
 test("flag off: the mute ended with the turn, so the next turn is spoken and not reported muted", () => {
