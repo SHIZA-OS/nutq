@@ -1,0 +1,185 @@
+{
+  "date": "2026-10-05",
+  "code_commit": "b8f8d70daa46d439db1a0104e38bda82f9b18752",
+  "recordings": 57,
+  "phases": 8,
+  "pre_roll_frames": 4,
+  "step1_fixed_policy": {
+    "command": "node eval/runner/replay-commits.mjs --wer eob-fixed --phases 8 --pre-roll 4",
+    "policy": "fixed:5000",
+    "reference_f2de874": {
+      "v1_case_phases_compared": 296,
+      "hypotheses_differing": 0,
+      "triggers_differing": 288,
+      "note": "f2de874 ended turns with a manual stop at the end of the WAV; the replay now models the 5 s auto-silence, so the trigger differs while the hypotheses do not"
+    },
+    "reference_gate_fixed5000": {
+      "case_phases_compared": 456,
+      "hypotheses_or_triggers_differing": 0
+    },
+    "v1_normalized_wer_by_phase": [
+      {
+        "phase": 0,
+        "f2de874_v1_norm_wer": 0.09829059829059829,
+        "head_fixed_v1_norm_wer": 0.09829059829059829
+      },
+      {
+        "phase": 1,
+        "f2de874_v1_norm_wer": 0.1111111111111111,
+        "head_fixed_v1_norm_wer": 0.1111111111111111
+      },
+      {
+        "phase": 2,
+        "f2de874_v1_norm_wer": 0.10683760683760683,
+        "head_fixed_v1_norm_wer": 0.10683760683760683
+      },
+      {
+        "phase": 3,
+        "f2de874_v1_norm_wer": 0.1111111111111111,
+        "head_fixed_v1_norm_wer": 0.1111111111111111
+      },
+      {
+        "phase": 4,
+        "f2de874_v1_norm_wer": 0.10256410256410256,
+        "head_fixed_v1_norm_wer": 0.10256410256410256
+      },
+      {
+        "phase": 5,
+        "f2de874_v1_norm_wer": 0.09401709401709402,
+        "head_fixed_v1_norm_wer": 0.09401709401709402
+      },
+      {
+        "phase": 6,
+        "f2de874_v1_norm_wer": 0.10683760683760683,
+        "head_fixed_v1_norm_wer": 0.10683760683760683
+      },
+      {
+        "phase": 7,
+        "f2de874_v1_norm_wer": 0.11965811965811966,
+        "head_fixed_v1_norm_wer": 0.11965811965811966
+      }
+    ],
+    "v1_normalized_wer_mean": 0.1063034188034188,
+    "all57_normalized_wer_mean": 0.12003722084367245,
+    "pause_cuts_of_96": 0,
+    "noise_sends_of_40": 0,
+    "nts01_stop_of_8": 3,
+    "wait_after_true_end_ms": {
+      "median": 5768,
+      "p90": 5800,
+      "max": 6152
+    }
+  },
+  "step2_semantic_policy": {
+    "command": "node eval/runner/replay-commits.mjs --wer eob-semantic --phases 8 --pre-roll 4 --policy semantic:1000,2200,2500,0,8000 --gate 2026-10-04-wer-replay-head-policy",
+    "gate": {
+      "reference": "2026-10-04-wer-replay-head-policy",
+      "pass": true,
+      "compared": 296,
+      "new_errors": 0,
+      "for_review": [
+        {
+          "phase": 0,
+          "id": "bn-03",
+          "baseline": "Set a timer for 10 minutes. Yes.",
+          "got": "Set a timer for 10 minutes. Yes",
+          "errors": {
+            "baseline": {
+              "S": 0,
+              "D": 0,
+              "I": 1
+            },
+            "got": {
+              "S": 0,
+              "D": 0,
+              "I": 1
+            }
+          }
+        },
+        {
+          "phase": 1,
+          "id": "bn-03",
+          "baseline": "That's a timer for 10 minutes. Yes.",
+          "got": "That's a timer for 10 minutes. Yes",
+          "errors": {
+            "baseline": {
+              "S": 1,
+              "D": 0,
+              "I": 1
+            },
+            "got": {
+              "S": 1,
+              "D": 0,
+              "I": 1
+            }
+          }
+        }
+      ],
+      "v1_wer_mean": 0.1063034188034188,
+      "reference_wer_mean": 0.1063034188034188
+    },
+    "end_of_turn": {
+      "policy": "semantic:1000,2200,2500,0,8000",
+      "latency_scale": 1,
+      "v1": {
+        "cases": 296,
+        "with_pause": 42,
+        "premature": 0,
+        "true_ends": 288,
+        "wait_median_ms": 1768,
+        "wait_p90_ms": 2968,
+        "wait_max_ms": 3352
+      },
+      "all": {
+        "cases": 456,
+        "with_pause": 156,
+        "premature": 13,
+        "true_ends": 418,
+        "wait_median_ms": 1768,
+        "wait_p90_ms": 2968,
+        "wait_max_ms": 3352
+      }
+    },
+    "note": "cuts, noise sends and all-57 WER are in README.md; raw/ holds the per-phase summaries of both replays",
+    "measured": {
+      "cuts_of_96": 12,
+      "cuts_by_recording": {
+        "mp-09": 1,
+        "mp-10": 8,
+        "mp-12": 3
+      },
+      "wait_after_true_end_ms": {
+        "median": 1768,
+        "p90": 2968,
+        "max": 3352,
+        "turns": 404
+      },
+      "all57_wer_mean": 0.14392059553349879,
+      "v1_wer_mean": 0.1063034188034188,
+      "noise_sends_of_40": 0,
+      "nts01_stop_of_8": 3
+    },
+    "sweep_row": {
+      "cuts_of_96": 12,
+      "cuts_by_recording": {
+        "mp-10": "8/8",
+        "mp-12": "3/8",
+        "mp-09": "1/8"
+      },
+      "wait_after_true_end_ms": {
+        "median": 1768,
+        "p90": 2968,
+        "max": 3352
+      },
+      "all57_wer_mean": 0.144,
+      "v1_wer_mean": 0.106,
+      "noise_sends_of_40": 0,
+      "nts01_stop_of_8": 3,
+      "gate_review": [
+        "phase 0 bn-03",
+        "phase 1 bn-03"
+      ],
+      "source": "eval/results/2026-10-05-endpoint-sweep/README.md, Real replay of the chosen policies, row semantic:1000,2200,2500,0,8000"
+    }
+  }
+}
