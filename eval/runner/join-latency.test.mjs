@@ -393,3 +393,74 @@ test("a muted turn does not change its neighbours: the turn before and the turn 
   assert.deepEqual(withMuted[2], allSpoken[2]);
   assert.equal(withMuted[1].muted.reason, "mic_press");
 });
+
+// Hold and send: an utterance finished during turn 1's reply is held and sent when that turn ends, as its own turn with
+// send_trigger "held". The utterance's speech and commit events fall inside turn 1's response window, and turn 1's
+// done_received comes just before the held send.
+function heldTurns() {
+  return [
+    { event: "speech_start", timestamp_ms: 0 },
+    { event: "speech_end", timestamp_ms: 900 },
+    { event: "stt_committed", timestamp_ms: 950 },
+    { event: "ws_message_sent", timestamp_ms: 1510, send_trigger: "auto_silence" },
+    { event: "first_chunk_received", timestamp_ms: 1800 },
+    { event: "mic_button_press", timestamp_ms: 1900 }, // the held utterance, said while the reply streams
+    { event: "speech_start", timestamp_ms: 1950 },
+    { event: "speech_end", timestamp_ms: 2050 },
+    { event: "stt_committed", timestamp_ms: 2100 },
+    { event: "mic_button_release", timestamp_ms: 2150 },
+    { event: "send_held", timestamp_ms: 2160, chars: 20 },
+    { event: "done_received", timestamp_ms: 6000 },
+    { event: "tts_muted", timestamp_ms: 6000, reason: "mic_press", point: "done", chars: 30 },
+    { event: "held_sent", timestamp_ms: 6000, chars: 20, waited_ms: 3840, end: "done" },
+    { event: "ws_message_sent", timestamp_ms: 6001, send_trigger: "held" },
+    { event: "first_chunk_received", timestamp_ms: 6300 },
+    { event: "done_received", timestamp_ms: 6900 },
+    { event: "tts_start", timestamp_ms: 6950 },
+  ];
+}
+
+test("a held turn is its own bucket, not unknown, and is measured from its send; the wait for the previous answer is not in its stages", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const result = joinLatency({ events: heldTurns(), sessions }, SK);
+
+  assert.equal(result.turns.length, 2);
+  assert.deepEqual(
+    [result.by_trigger.manual.length, result.by_trigger.auto_silence.length, result.by_trigger.held.length, result.by_trigger.unknown.length],
+    [0, 1, 1, 0],
+  );
+  const t = result.turns[1];
+  assert.equal(t.send_trigger, "held");
+  assert.equal(t.client.end_of_speech_ms, 2050); // the held utterance's own speech_end
+  assert.equal(t.stages_ms.stt_tail, 50);
+  assert.equal(t.stages_ms.dispatch_to_first_chunk, 299); // 6300 - 6001
+  assert.equal(t.stages_ms.full_completion, 899);
+  assert.equal(t.stages_ms.post_trigger, 949);
+  assert.equal(t.stages_ms.user_perceived, 949); // from the send, not from the release at 2150
+  assert.equal(t.stages_ms.timer_wait_ms, null);
+  assert.match(t.user_perceived_note, /held/);
+  assert.deepEqual(t.missing_client_events, []);
+});
+
+test("a held utterance does not change the turn it was said during: that turn's stages are those of the same turn without it", () => {
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const withHeld = joinLatency({ events: heldTurns(), sessions }, SK).turns[0];
+  const e = heldTurns();
+  const without = e.filter((x, i) => i < 5 || i >= 11); // drops the held utterance's own events (indices 5 to 10)
+  const base = joinLatency({ events: without, sessions }, SK).turns[0];
+  assert.deepEqual(withHeld, base);
+  assert.equal(withHeld.stages_ms.full_completion, 4490); // 6000 - 1510
+  assert.equal(withHeld.tts_start_null_reason, "muted:mic_press");
+});
+
+test("the held events (send_held, held_sent, held_dropped) are not read by name: they change no stage, wherever they fall", () => {
+  const HELD = (t) => [
+    { event: "send_held", timestamp_ms: t, chars: 5 },
+    { event: "held_sent", timestamp_ms: t + 1, chars: 5, waited_ms: 3, end: "done" },
+    { event: "held_dropped", timestamp_ms: t + 2, reason: "closed", chars: 5 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, "t1"), serverTurn(2, "t2")] };
+  const base = twoTurns();
+  const withNew = [...HELD(-100), ...base.slice(0, 2), ...HELD(1000), ...base.slice(2, 7), ...HELD(2300), ...base.slice(7, 10), ...HELD(5000), ...base.slice(10), ...HELD(9600)];
+  assert.deepEqual(joinLatency({ events: withNew, sessions }, SK), joinLatency({ events: base, sessions }, SK));
+});

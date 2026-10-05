@@ -120,7 +120,7 @@ function segmentTurns(events) {
       endOfSpeech = speechEnds.at(-1) ?? null;
       endOfSpeechSource = endOfSpeech ? "speech_end" : null;
     } else {
-      // manual (or unknown, treated the same): prefer the speech_end that
+      // manual, held, or unknown (all treated the same): prefer the speech_end that
       // closes the last utterance; if the user released mid-utterance
       // (no speech_end ever fired for it), fall back to the release itself.
       if (speechEndAfterLastStart) {
@@ -164,6 +164,12 @@ function segmentTurns(events) {
       // so it's surfaced separately rather than folded into user_perceived.
       userPerceivedMs = ms(sendEvent.timestamp_ms, ttsStart?.timestamp_ms);
       timerWaitMs = ms(endOfSpeech?.timestamp_ms, sendEvent.timestamp_ms);
+    } else if (sendTrigger === "held") {
+      // The message was held until the previous turn ended and sent then. The time from the release to the send is that
+      // turn's remaining reply, not this turn's latency, so it is left out (held_sent.waited_ms has it); like auto_silence
+      // this is measured from the send. The release is no anchor either: the utterance may have ended by auto_silence.
+      userPerceivedMs = ms(sendEvent.timestamp_ms, ttsStart?.timestamp_ms);
+      userPerceivedNote = "held turn: measured from the send; the wait for the previous answer is not included";
     } else if (lastMicRelease) {
       userPerceivedMs = ms(lastMicRelease.timestamp_ms, ttsStart?.timestamp_ms);
     } else {
@@ -316,7 +322,8 @@ export function joinLatency({ events, sessions }, sessionKey, { noServerSession 
     by_trigger: {
       manual: joined.filter((t) => t.send_trigger === "manual"),
       auto_silence: joined.filter((t) => t.send_trigger === "auto_silence"),
-      unknown: joined.filter((t) => t.send_trigger !== "manual" && t.send_trigger !== "auto_silence"),
+      held: joined.filter((t) => t.send_trigger === "held"),
+      unknown: joined.filter((t) => !["manual", "auto_silence", "held"].includes(t.send_trigger)),
     },
     unmatched: {
       client_turns_without_server_row: unmatchedClient,
@@ -360,7 +367,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   console.error(
     `Joined session ${result.session_key}: ${result.turns.length} turns ` +
       `(${result.by_trigger.manual.length} manual, ${result.by_trigger.auto_silence.length} auto_silence, ` +
-      `${result.by_trigger.unknown.length} unknown), ` +
+      `${result.by_trigger.held.length} held, ${result.by_trigger.unknown.length} unknown), ` +
       `${result.unmatched.client_turns_without_server_row.length} client turn(s) unmatched, ` +
       `${result.unmatched.server_turns_without_client_send.length} server turn(s) unmatched.`,
   );

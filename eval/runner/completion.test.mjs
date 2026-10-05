@@ -289,3 +289,59 @@ test("a muted turn with no server row and no failure event is unmatched_no_signa
   assert.equal(result.turns[0].outcome, "unmatched_no_signal");
   assert.deepEqual(result.turns[0].failure_events, []);
 });
+
+// Hold and send: a message held during a turn goes out when that turn ends, so an aborted or failed turn is followed at once
+// by a "held" turn. Completion reads no send_trigger and none of the held events; each turn keeps its own window and server row.
+test("an aborted turn followed by its held message: the abort stays in the first turn's window, the held turn is classified on its own row", () => {
+  const events = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "mic_button_press", timestamp_ms: 350 },
+    { event: "stt_committed", timestamp_ms: 400 },
+    { event: "send_held", timestamp_ms: 410, chars: 5 },
+    { event: "turn_aborted", timestamp_ms: 500 },
+    { event: "held_sent", timestamp_ms: 500, chars: 5, waited_ms: 90, end: "aborted" },
+    { event: "ws_message_sent", timestamp_ms: 501, send_trigger: "held" },
+    { event: "first_chunk_received", timestamp_ms: 700 },
+    { event: "done_received", timestamp_ms: 800 },
+    { event: "tts_start", timestamp_ms: 850 },
+  ];
+  const sessions = {
+    [SK]: [serverTurn(1, { outcome: "failure", action: "cancel" }), serverTurn(2, { outcome: "success", action: "complete" })],
+  };
+  const result = classifyCompletion({ events, sessions }, SK);
+  assert.deepEqual(result.turns.map((t) => t.outcome), ["cancelled", "completed"]);
+  assert.deepEqual(result.counts, { cancelled: 1, completed: 1 });
+});
+
+test("a held message sent after a failed turn that left no server row: the failure is the first turn's, the held turn is not dropped", () => {
+  const events = [
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "turn_error_frame", timestamp_ms: 300, message: "x" },
+    { event: "held_sent", timestamp_ms: 301, chars: 5, waited_ms: 90, end: "error" },
+    { event: "ws_message_sent", timestamp_ms: 302, send_trigger: "held" },
+    { event: "done_received", timestamp_ms: 800 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "failure", action: "fail" }), serverTurn(2, { outcome: "success", action: "complete" })] };
+  const result = classifyCompletion({ events, sessions }, SK);
+  assert.deepEqual(result.turns.map((t) => t.outcome), ["failed_provider", "completed"]);
+});
+
+test("the held events are not failure events: they change no classification, wherever they fall", () => {
+  const HELD = (t) => [
+    { event: "send_held", timestamp_ms: t, chars: 5 },
+    { event: "held_sent", timestamp_ms: t + 1, chars: 5, waited_ms: 3, end: "done" },
+    { event: "held_dropped", timestamp_ms: t + 2, reason: "closed", chars: 5 },
+  ];
+  const base = [
+    { event: "stt_committed", timestamp_ms: 150 },
+    { event: "ws_message_sent", timestamp_ms: 160, send_trigger: "manual" },
+    { event: "first_chunk_received", timestamp_ms: 300 },
+    { event: "done_received", timestamp_ms: 400 },
+    { event: "tts_start", timestamp_ms: 450 },
+  ];
+  const sessions = { [SK]: [serverTurn(1, { outcome: "success", action: "complete" })] };
+  const withNew = [...HELD(0), ...base.slice(0, 2), ...HELD(200), ...base.slice(2), ...HELD(500)];
+  assert.deepEqual(classifyCompletion({ events: withNew, sessions }, SK), classifyCompletion({ events: base, sessions }, SK));
+});
