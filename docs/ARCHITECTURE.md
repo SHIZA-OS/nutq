@@ -239,11 +239,18 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   defaults are `short` and off.
 
 **Coalescing (`?tts_stream=1`).** Each utterance pays the voice's start delay again, about 0.85 s between two utterances with the browser's
-default voice (see the experiment in PROGRESS). So `SpeechQueue` speaks the first unit of a turn alone, which keeps the time to first
-audio, and every later utterance is all the units that have arrived by the time the previous one ends, in order, joined with a space,
-broken at unit boundaries and capped at `MAX_UTTERANCE_CHARS` (1200, join spaces included). A unit longer than the cap is spoken alone,
+default voice (see the experiment in PROGRESS). So every utterance is all the units that have arrived by the time the previous one ends, in order,
+joined with a space, broken at unit boundaries and capped at `MAX_UTTERANCE_CHARS` (1200, join spaces included). The first utterance of a turn used
+to be the first unit alone, and the 0.85 s gap after one sentence then sounded like an ending before speech resumed. So it **waits** up to
+`FIRST_UTTERANCE_WAIT_MS` (700) after its first unit is ready, collecting the units that arrive meanwhile (same cap, same unit boundaries), and
+speaks at once when `done` arrives first (`finish()`) or when the batch is full (a unit would not fit, or it is exactly the cap). 700 is a judgement,
+not measured: about the voice's start delay. The cost is up to 700 ms more before the first audio of every reply, which has not been listened to or
+measured with the change in. Only the turn's first utterance waits: once audio has started nothing is held back. A tool call during the wait drops
+the collected units (`tts_dropped`; nothing was with the browser, so nothing is cancelled) and the next unit starts a new wait; a cancel ends it. The
+queue takes its timers as an option (and `firstWaitMs`, 0 turns the wait off), so a test drives it with a fake clock. A unit longer than the cap is spoken alone,
 not split. `tts_requested` stays per unit and `speech_text` stays per unit (logged before merging); `tts_end`, `tts_cancelled` and
-`tts_error` are per utterance; `tts_sentence_start { index, units, chars }` is per utterance, with `index` the first unit's. A cancel
+`tts_error` are per utterance; `tts_sentence_start { index, units, chars, waited_ms }` is per utterance, with `index` the first unit's; `waited_ms` is only on the
+utterance that waited (index 0 of a turn), the time from its first unit being ready to its being handed to the browser. A cancel
 (mic tap, abort, close, timeout, new send) stops the utterance in progress whole and drops what waits, as before. An engine error
 loses every unit of that utterance. The `full_response` fallback is one unit, so it plays alone and is not split. Queueing the next
 utterance ahead in the browser was measured and did not shorten the gap, so it is not done. The 1200 is a judgement, not a measured

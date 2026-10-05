@@ -629,3 +629,27 @@ Not done or open: the old socket's close is not reported as `ws_closed`, deliber
 A turn that timed out is therefore seen in the eval only through `turn_timeout` and the server row. An events file spanning a timeout has two `session_start` session ids, so `join-latency.mjs` needs `--session`.
 If the user is mid-utterance when the timeout fires, the button is disabled until the new socket opens (as for any closed connection), and an utterance finished before that is "Cannot send: not connected".
 
+## The first utterance waits for more units (2026-10-05)
+
+Version A of the two alternatives was kept (your answer: speech resumed after the pause, so the gap after the first sentence sounded like an ending). Version B (lower
+`MAX_UTTERANCE_CHARS` to 250) was not built; `MAX_UTTERANCE_CHARS` stays 1200. The first utterance of a turn is no longer the first unit alone: it waits up to
+`FIRST_UTTERANCE_WAIT_MS = 700` after its first unit is ready, collecting the units that arrive (same cap, same unit boundaries), and speaks at once when `done` arrives first
+(`finish()` now pumps) or when the batch is full (a unit does not fit, or it is exactly the cap). 700 is a judgement, not measured: about the voice's start delay. It adds up to 700 ms
+to the first audio of a reply; that has not been listened to or measured with the change in. `tts_sentence_start` keeps `index`, `units` and `chars` and gains `waited_ms` on the
+utterance that waited. A tool call during the wait drops the collected units (`tts_dropped`), and a cancel ends the wait.
+
+Decisions the spec left open: (1) the rule is "no audio yet this turn", not "index 0", so the first unit after a tool call that dropped everything unheard waits again (its `waited_ms`
+is then on an index above 0); once audio has started nothing waits. (2) The wait is not repeated for the rest of a turn whose first utterance failed. (3) `SpeechQueue` is no longer
+timer free: it takes `{ firstWaitMs, timers }` as options (defaults: 700 and the browser's), so unit tests drive it with the fake clock, and `firstWaitMs: 0` is the old behaviour exactly.
+
+Tests: 11 new unit cases in `speech-queue.test.mjs` (basic, collect, done, same tick, cap overflow, exact cap, one short, drop, cancel, later units and the next turn, tool call after audio,
+failed first, cap then failed, counts) and `first-wait.test.mjs` on the page with a fake 700 ms timer (collect, done, tool call, mic tap, `waited_ms`). The older page tests collapse the
+700 ms timer to 0 ms in their init scripts, because they are about what is spoken; four `tts-stream` scenarios sent several sentences in one chunk and expected the first to go out alone,
+which is exactly what changed, so their first sentence is now its own chunk. Mutation checks: 21 mutants on `speech-queue.ts`; 20 caught, and the survivor (`handover does not set waitOver`, a
+first utterance released by the cap that then fails) is now caught by a new case; the `waited_ms` field in `main.ts` is covered by the page tests. Not done: listening with the change in.
+
+Test infrastructure note (same day): during this phase the network of the machine was slow and then briefly down, and `npm test` failed 100 to 180 tests with `page.goto` timeouts although each
+file passed alone. Cause: the app's `index.html` links Google Fonts, which blocks the page's `load` event, and about 15 browsers start at once. The test and eval Vite server (`startVite`) now
+uses `eval/runner/vite.test.config.mjs`, which serves `index.html` without those two font links (nothing under test needs them); the app itself is unchanged. The first run after changing the
+config failed 24 tests with "Failed to fetch" while the shared Vite dependency cache was rebuilt by many servers at once; the next run passed, 386 of 386. A cold cache on a fresh checkout has the same race, which was not changed here.
+
