@@ -132,16 +132,15 @@ later speech start finds frames already in the buffer and pre-roll correctly pre
 clock; the caller passes the time). Auto-silence: 5000 ms after a speech end the turn ends with reason
 `auto_silence`; a speech start cancels it and a later speech end arms it again. A VAD misfire (a segment too short to count as speech, so no speech end follows) arms it the same way a
 speech end does, so a short word like "Yes." or "Stop" is sent without a manual stop; a later speech start still
-clears it, and recording is untouched. The delay is 5000 ms by default and can be set with `?silence=<ms>` in any
-mode (clamped to 800..8000; absent or not a number is the default). A transcript that is empty or only whitespace
-is not sent to the gateway (`send_skipped` event). The demo uses `?endpoint=semantic` (added to the URL by
-`scripts/demo-chrome-linux.sh`, which sets no `?silence`); the public default stays the fixed 5000. `?endpoint=semantic` (opt-in, never the default) makes the
-wait depend on the transcript instead: `endHint` reads the text so far as `done` (ends in `. ? !`), `open` (ends in
+clears it, and recording is untouched. A transcript that is empty or only whitespace
+is not sent to the gateway (`send_skipped` event). **The default wait depends on the transcript**; `?silence=<ms>` opts out to a fixed wait that ignores
+the text (any mode, clamped to 800..8000; a value that is not a number is 5000, the fixed default before the semantic one became the default, so `?silence=5000`
+reproduces the old behaviour exactly; an empty `?silence=` counts as absent). The old `?endpoint=semantic` is no longer read: it is the default, so a URL that
+still carries it behaves the same. `endHint` reads the text so far as `done` (ends in `. ? !`), `open` (ends in
 `...`, `,`, `;`, `:` or `-`, or its last word is a conjunction, article, preposition or filler, even after a full
 stop: "a flight and." is open; digits are words) or `unknown`, and each hint has its own wait, clamped to a floor and
 ceiling. With no text yet the wait is the `unknown` one, and it is held at least there while a commit is in flight. Text
-that arrives while the wait runs recomputes it and re-arms the timer. `?silence=<ms>` overrides it: with both, the fixed
-wait applies, so a demo URL must not carry `?silence`. `SEMANTIC_WAITS` (`src/turn-policy.ts`) is the Conservative point of the replay sweep
+that arrives while the wait runs recomputes it and re-arms the timer. `SEMANTIC_WAITS` (`src/turn-policy.ts`) is the Conservative point of the replay sweep
 (`eval/results/2026-10-05-endpoint-sweep`): done 1000 ms, unknown 2200 ms, open 2500 ms, floor 0, ceiling 8000, with the tier 1 open list only. A
 manual stop ends the turn at once with reason `manual`; once ended, a turn stays ended. `main.ts` drives it with
 `Date.now()` and one `setTimeout`, and the reason becomes the `trigger` of `transcript_final` and
@@ -224,21 +223,21 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   so the `voice` field of `tts_start` stays a best guess (the voice flagged default). Choosing a local voice
   automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for the
   demo. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
-- `?tts_stream=1` (any mode, default off): speak the reply sentence by sentence as its chunks arrive instead of
+- Sentence streaming (any mode, **on by default**; `?tts_stream=0` opts out to the original flow, the whole reply spoken once at `done`; any other value, such as
+  the old `?tts_stream=1`, is the default): speak the reply sentence by sentence as its chunks arrive instead of
   once at `done`. Chunk deltas go through `src/sentence-splitter.ts`, closed sentences are queued in
   `src/speech-queue.ts` and spoken, one utterance at a time (see "Coalescing" below), by the engine in `src/tts-engine.ts` (the browser's Web Speech, the
   only engine), and the tail is flushed at `done`. The speech comes from the chunks, not `full_response` (unless no sentence was queued by `done`, when `full_response`
   is spoken once, trimmed, through the same queue); the queue
   is cancelled on aborted, a turn-failure error, a closed socket, the reply timeout and a new send. Only `chunk`
   frames are spoken, never `thinking`, `tool_call` or `plan`. A `tool_call` frame drops speech that has not been heard (see "Tool calls" below).
-- `?reply=short|voice` (any mode, default `short`): which prefix goes in front of every message sent to the agent
-  (`src/speech-text.ts`). `short` is the original, "1-2 short, complete sentences", kept byte for byte (a test pins it) so earlier eval
-  runs can be repeated. `voice` asks for a thorough, complete answer written as speech: no markdown or dashes, short sentences, no URLs,
-  and the structure carried by spoken signposts ("There are three things. First, ..."). Anything but exactly `voice` is `short`.
-  `ws_message_sent` records `reply_style`. `scripts/demo-chrome-linux.sh` sets `reply=voice` and `tts_stream=1`; the code
-  defaults are `short` and off.
+- Reply style (any mode, **default `voice`**; `?reply=short` opts out): which prefix goes in front of every message sent to the agent
+  (`src/speech-text.ts`). `voice` asks for a thorough, complete answer written as speech: no markdown or dashes, short sentences, no URLs,
+  and the structure carried by spoken signposts ("There are three things. First, ..."). `short` is the original, "1-2 short, complete sentences", kept byte for byte
+  (a test pins it) so earlier eval runs can be repeated. Anything but exactly `short` is `voice` (so `?reply=SHORT` is `voice`).
+  `ws_message_sent` records `reply_style`.
 
-**Coalescing (`?tts_stream=1`).** Each utterance pays the voice's start delay again, about 0.85 s between two utterances with the browser's
+**Coalescing (sentence streaming).** Each utterance pays the voice's start delay again, about 0.85 s between two utterances with the browser's
 default voice (see the experiment in PROGRESS). So every utterance is all the units that have arrived by the time the previous one ends, in order,
 joined with a space, broken at unit boundaries and capped at `MAX_UTTERANCE_CHARS` (1200, join spaces included). The first utterance of a turn used
 to be the first unit alone, and the 0.85 s gap after one sentence then sounded like an ending before speech resumed. So it **waits** up to
@@ -256,7 +255,7 @@ loses every unit of that utterance. The `full_response` fallback is one unit, so
 utterance ahead in the browser was measured and did not shorten the gap, so it is not done. The 1200 is a judgement, not a measured
 threshold (see PROGRESS).
 
-**Tool calls (`?tts_stream=1`).** The agent can stream text before a tool call, and that text is not in `full_response`, which holds only the
+**Tool calls (sentence streaming).** The agent can stream text before a tool call, and that text is not in `full_response`, which holds only the
 last iteration. Chunks arrive before the `tool_call` frame, so some of it may already be audible; what has not been heard is dropped. On a
 `tool_call` frame `dropUnheardSpeech` (`main.ts`) discards the text the splitter holds (`pendingChars`, also resetting the open-code-fence
 state), and `SpeechQueue.drop()` removes every queued unit and the utterance with the engine if its audio has not started (the engine is told to
@@ -290,7 +289,7 @@ Events added for WER measurement:
 
 - `stt_model` `{ model }`: logged once at page load.
 - `stt_committed` `{ text }`: each committed piece, with its text, in eval mode.
-- `endpoint` `{ hint, wait_ms, text_chars, commits_in_flight }`: only with `?endpoint=semantic`, while a wait is running: when it is armed (speech end or
+- `endpoint` `{ hint, wait_ms, text_chars, commits_in_flight }`: only with the semantic wait (the default; not with `?silence=<ms>`), while a wait is running: when it is armed (speech end or
   misfire) and each time the committed text or the in-flight commit count changes it. `hint` is `done`, `open` or `unknown`, `wait_ms` the wait now in force.
 - `pre_roll` `{ frames }`: logged right after each `speech_start` in eval mode. `frames` is
   how many pre-roll frames were actually prepended (4 normally, 0 when speech restarts while
@@ -299,7 +298,7 @@ Events added for WER measurement:
   only in eval mode). A failed commit loses that piece of text.
 - `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
   eval mode only (see "Model calls are serialized").
-- `tts_start` `{ voice, local_service, voice_source, engine }`: the reply started to be spoken (with `?tts_stream=1`, its first sentence). `voice_source` is `param`
+- `tts_start` `{ voice, local_service, voice_source, engine }`: the reply started to be spoken (with sentence streaming, its first utterance). `voice_source` is `param`
   (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
   guess because Chrome does not say which voice it picked; both are null if no voices were available.
 - `speech_text` `{ raw_chars, spoken_chars }`: one per text handed to the voice (the whole reply with the flag off, each streamed

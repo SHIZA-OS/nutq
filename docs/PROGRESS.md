@@ -653,3 +653,23 @@ file passed alone. Cause: the app's `index.html` links Google Fonts, which block
 uses `eval/runner/vite.test.config.mjs`, which serves `index.html` without those two font links (nothing under test needs them); the app itself is unchanged. The first run after changing the
 config failed 24 tests with "Failed to fetch" while the shared Vite dependency cache was rebuilt by many servers at once; the next run passed, 386 of 386. A cold cache on a fresh checkout has the same race, which was not changed here.
 
+## End-of-build recordings pass (2026-10-05)
+
+Both replays ran at `b8f8d70` (57 recordings x 8 phases, real Transcriber, pre-roll 4); results in `eval/results/2026-10-05-end-of-build/` (README.md, summary.json; the per-phase summaries are in the gitignored `raw/`).
+Step 1, fixed policy: all 296 v1 case-phases have the hypothesis of f2de874, in every phase, with the same v1 normalized WER per phase (9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7, 12.0%; mean 10.6%); the trigger
+differs in 288 of them because f2de874 ended turns with a manual stop and the replay now models the 5 s auto-silence. Against `2026-10-05-wer-gate-fixed5000` all 456 case-phases are identical.
+Step 2, semantic 1000/2200/2500/0 (ceiling 8000): the v1 gate (reference `2026-10-04-wer-replay-head-policy`, the one the sweep used, because the sweep directory itself has no per-phase summaries) passes with 0 new errors and 2 for
+review (bn-03, phases 0 and 1, a trailing full stop), and the sweep's row for this policy is reproduced exactly: 12 cuts of 96 (mp-10 8/8, mp-12 3/8, mp-09 1/8), wait after the true end 1768 / 2968 / 3352 ms, v1 WER 10.6%,
+all-57 WER 14.4% (12.0% for the fixed policy: the cut-off pause takes lose words), 0 noise sends of 40, nts-01 "stop" 3 of 8. No new error in either step, so the defaults were flipped.
+
+## Public defaults flipped (2026-10-05)
+
+With no URL parameters the page now uses the semantic end of turn (conservative values), the `voice` reply style and sentence streaming. Opt-outs, all documented in the README: `?silence=<ms>` (a fixed wait; `?silence=5000` is exactly the
+old default), `?reply=short` (the original prefix, byte for byte) and `?tts_stream=0` (the original speak-at-done flow; this parameter is new, before it streaming was `=== "1"`). Details that were decisions: `waitFromParams` lost its `endpoint`
+argument, so `?endpoint=semantic` (the old demo URL) is simply ignored and behaves as the default, and likewise `reply=voice` and `tts_stream=1`; `?reply` matches exactly (`?reply=SHORT` is `voice`); any `?tts_stream` value other than `0` streams.
+`scripts/demo-chrome-linux.sh` no longer adds anything to the URL. `run-wer.mjs` now passes `silence=5000` unless `--silence` says otherwise, so the live baselines keep the wait they always had.
+
+Tests: the ones pinned to the old defaults were changed to the new ones. Pages that meant the old flow open with `tts_stream=0` (and `speech-cancel.test.mjs` too); `endpoint.test.mjs`, `endpoint-wiring.test.mjs` and `speech-text.test.mjs` test the new defaults and
+`?silence`/`?reply=short` as opt-outs; the new `defaults.test.mjs` runs the page with no parameters, with each opt-out and with the old demo settings, and checks the sent prefix, the armed wait and the speech flow. Mutation checks: 10 mutants in
+`main.ts`, `turn-policy.ts` and `speech-text.ts`; 8 were caught at once and two survived for lack of a test (an explicit `tts_stream=1` turning streaming off; `?reply=SHORT` read as `short`), both now covered and caught.
+

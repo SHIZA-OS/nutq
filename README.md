@@ -15,6 +15,33 @@ npm run dev
 Requires Node.js and npm. Point nutq at your own ZeroClaw instance by filling in the gateway
 URL, agent alias, and pairing token in the app.
 
+## How it behaves by default
+
+Open the page, connect, and tap the microphone button. With no URL parameters:
+
+- **You choose when you are done.** Tap again to send, or just stop talking: a turn is sent after a wait that depends on
+  what you said (1000 ms after a finished sentence, 2200 ms when the text has no final punctuation, 2500 ms after an
+  unfinished one such as "and"; see ARCHITECTURE, End of turn). The wait counts from the speech end the voice detector
+  reports, which comes 768 ms after you stop, so on the recordings the median wait after you stop was 1768 ms
+  (the 57 recordings the project is tested on, replayed offline; not a live measurement).
+- **The agent is asked for a spoken-style answer**: thorough, in short sentences, no markdown, signposted in words
+  ("There are three things. First, ..."). Markup that still comes through is not read out.
+- **The answer is spoken sentence by sentence as it arrives**, with the browser's default voice (add `voice=<exact name>`
+  to the URL to pick another; the page logs the voice list). The first sentence waits up to 700 ms for the next one to
+  join it, so the pause after it does not sound like an ending.
+- **Tapping the microphone while it speaks stops it.** If you finish a question while the answer is still coming, it
+  is held and sent when the answer ends (the hint under the button says so); it is not sent in the middle of a turn.
+
+Each default has an opt-out, set in the URL:
+
+| you want | add to the URL | what it does |
+|---|---|---|
+| a fixed wait instead of the text-dependent one | `?silence=<ms>` (800 to 8000) | the turn is sent that long after the speech end, whatever you said; `?silence=5000` is the old fixed default |
+| short answers | `?reply=short` | the agent is asked for one or two short sentences |
+| the whole answer spoken at the end | `?tts_stream=0` | nothing is spoken until the answer is complete, then all of it at once |
+
+Combine them with `&`, for example `http://localhost:5173/?silence=3000&reply=short&tts_stream=0` gives the original behaviour.
+
 ## Demo on Linux
 
 The demo script opens Chrome with its own profile (`~/.nutq-demo-chrome`). That gives a clean window and keeps the
@@ -25,24 +52,11 @@ demo's pairing token and the downloaded speech model cache between runs, apart f
    Pairing below.
 2. Start the dev server: `npm run dev` (it serves http://localhost:5173).
 3. Run `scripts/demo-chrome-linux.sh`. It takes an optional URL if the server is elsewhere, and the Chrome binary
-   comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds three settings to the URL, each only if the URL
-   does not already set it:
-   - `reply=voice`: the agent is asked for a thorough answer written as speech. Any markdown that still comes through is
-     not read out.
-   - `tts_stream=1`: the reply is spoken sentence by sentence as it arrives.
-   - `endpoint=semantic`: a turn is sent after a wait that depends on what you said (1000 ms after a finished sentence,
-     2200 ms when the text has no final punctuation, 2500 ms after an unfinished one such as "and"; see ARCHITECTURE,
-     End of turn). The wait counts from the speech end the voice detector reports, which comes 768 ms after you stop,
-     so the median measured wait after you stop is 1768 ms. Do not add `?silence=<ms>` to the demo URL: it overrides
-     semantic mode with a fixed wait.
-
-   The public defaults are `reply=short`, no streaming and a fixed 5000 ms wait.
+   comes from `$CHROME_BIN` (default `/usr/bin/google-chrome`). It adds nothing to the URL: the defaults above are
+   the demo's settings.
 4. Pair (only the first time on that profile), then Connect.
 5. Ask one warm-up question before the audience arrives. The first Connect on a cold profile downloads the
    speech model (about 63 MB, 27 to 38 s measured here), and a first question exercises the whole path.
-
-Replies are spoken with the browser's default voice; add `voice=<exact name>` to the URL to pick another (the page
-logs the voice list).
 
 ## Pairing
 

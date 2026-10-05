@@ -75,7 +75,7 @@ plan):**
   button starting to listen while speech was playing, for the browser's `canceled` report and for a streamed queue alike) and `tts_error` `{message}`
   (any other `onerror` code). None of these is read by `join-latency.mjs` or `completion.mjs`; neither are the three held events, and `send_trigger: "held"`
   is read only by `join-latency.mjs` (below).
-- Sentence streaming (`?tts_stream=1`, default off): `tts_requested` `{index}` (a sentence was queued for speech;
+- Sentence streaming (the default; off with `?tts_stream=0`): `tts_requested` `{index}` (a sentence was queued for speech;
   `index` counts from 0 within the turn), `tts_sentence_start` `{index, units, chars, waited_ms}` (an utterance became audible, the engine's
   `onstart`; since the speech queue merges the units that waited into one utterance, `index` is its first unit, `units`
   how many units it holds and `chars` its length. `waited_ms` is present only on the turn's first utterance, which is held back up to 700 ms for more
@@ -97,14 +97,14 @@ plan):**
   (`mic_button_release`, or the `auto_silence` trigger) to the press. `since_send_ms` is the time from the send (`ws_message_sent`) to the press, always
   under 400, and `null` in the `finishing` phase. A press that stops listening is never reported here. An utterance that sent nothing (`send_skipped`)
   closes the window at the skip.
-- `tts_dropped` `{reason, units, chars, partial_chars}` (`?tts_stream=1` only): a `tool_call` frame arrived and speech that had not been heard was
+- `tts_dropped` `{reason, units, chars, partial_chars}` (sentence streaming only): a `tool_call` frame arrived and speech that had not been heard was
   dropped, because text streamed before a tool call is not part of `full_response`. `reason` is `tool_call`. `units` is how many queued units were
   dropped, including an utterance that was with the engine but not audible yet (the engine is told to cancel it, and no `tts_cancelled` is reported
   for it); `chars` is those units' own characters, without join spaces; `partial_chars` is the unfinished text the splitter held. It is not emitted
   when nothing was dropped, and an utterance that is audible is never dropped. A turn whose speech was all dropped has `tts_requested` events with no
   `tts_sentence_start`; the done fallback may then speak `full_response` as one more unit (`tts_requested`, then `tts_text_mismatch`).
 - `tts_muted` `{reason, point, chars}`: the mic button was tapped while a reply was in flight, so the rest of that reply is
-  not spoken (with or without `?tts_stream=1`); `reason` is `mic_press`. The mute ends with the turn: done, aborted, a
+  not spoken (with or without sentence streaming); `reason` is `mic_press`. The mute ends with the turn: done, aborted, a
   turn-failure error, a closed socket or the 60 s timeout. `chars` means two different things by `point`. `point: "done"`
   is the total: the characters of text that went unspoken for the turn, the trimmed reply (`full_response` when the
   gateway sent one), the same in both modes and not emitted when it is empty. `point: "chunk"` (flag on only) marks
