@@ -432,3 +432,20 @@ bn-03 in one). The measured pauses of the 12 pause takes are 1.6 to 3.0 s, not t
 the dose-response by pause length cannot be tested. Limits: 12 pause recordings by one speaker; the 8 phases only shift the frame grid, so they are not
 independent; cuts are dominated by single recordings (mp-10 for the semantic points, mp-08 for fixed:2200). Not changed: `SEMANTIC_WAITS`, the
 code default (5000) and the demo script. The sweep script, the take check and the burst detector are in `eval/runner/endpoint-*.mjs`.
+
+## Endpoint settings chosen (2026-10-05)
+
+The sweep (`eval/results/2026-10-05-endpoint-sweep/`) picked the Conservative point, `semantic:1000,2200,2500,0` with the tier 1 open list, and
+`SEMANTIC_WAITS` in `src/turn-policy.ts` now has those values (done 1000, unknown 2200, open 2500, floor 0, ceiling 8000 unchanged). The code default
+stays the fixed 5000: semantic is still opt-in with `?endpoint=semantic`. `scripts/demo-chrome-linux.sh` now adds `endpoint=semantic` and no longer sets
+`silence`, because `?silence` overrides semantic mode.
+
+Why this point, from the sweep report (simulator at latency scale 1, and a real replay of the same policy over all 57 recordings and 8 phases, which
+matched the simulator's cuts exactly): median wait after the true end of speech 1768 ms against 2968 ms for the best fixed wait, `fixed:2200`; p90 2968
+against 3000 ms. It costs 12 pause cuts of 96 turn-phases against 8 for `fixed:2200`. Real v1 gate: PASS, 0 fail, 2 review (bn-03 in phases 0 and 1);
+v1 WER 10.6%, all-57 WER 14.4% (`fixed:2200`: 10.6% and 13.4%).
+
+Limitation: the 12 cuts are dominated by one recording. mp-10 is cut in 8 of 8 phases (Moonshine puts a full stop in the middle of the sentence, so the
+text reads as done and the 1000 ms wait ends the turn), mp-12 in 3 of 8 and mp-09 in 1 of 8; without mp-10 the cuts are 4. The sweep had 12 pause
+recordings by one speaker, and its measured pauses were 1.6 to 3.0 s, so this is a result for those takes, not a general cut rate. These waits have
+not been tried live with the microphone in a demo.
