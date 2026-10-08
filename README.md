@@ -41,6 +41,20 @@ Open http://localhost:5173 in Chrome or Firefox, then:
 5. Tap the microphone button and speak. Tap again to send, or just stop talking: the turn is sent after a short wait.
    The answer is spoken as it arrives. Tapping the microphone while it speaks stops it.
 
+## Two themes
+
+The page has two looks, switched with the toggle in the header. **ZeroClaw** (the default for a new visitor) is a dashboard
+layout in the style of the ZeroClaw interface: a round mic button, a pipeline health panel and a banner while the speech
+model is not loaded. **SHIZA** is a dark page with a starry sky and a cloud of "pollen" particles that is the mic button:
+it turns while you listen and moves with the loudness of your voice. Both show the same controls and the same state.
+
+The choice is kept in the browser (local storage key `theme`) and the tab icon follows it. Under `prefers-reduced-motion`
+the SHIZA canvases are drawn once and do not animate; they also stop while the tab is hidden or the ZeroClaw theme is
+active. To measure the voice level the page reads the microphone stream in a separate, read-only audio analyser; it plays
+nothing and does not change the stream.
+
+ZeroClaw and its logo are trademarks of ZeroClaw Labs. This project is not affiliated with or endorsed by ZeroClaw Labs.
+
 ## Pairing
 
 If your gateway requires pairing (`require_pairing` is on by default in ZeroClaw), get a one-time 6-digit code from it,

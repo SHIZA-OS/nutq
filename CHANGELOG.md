@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Two themes on one page, switched by a toggle in the header and remembered in local storage (`theme`): **ZeroClaw** (the
+  default for a new visitor) and **SHIZA**. Each has its own layout, logo, colours and fonts; the tab icon follows the theme.
+  The toggle is a real switch (`role="switch"`, `aria-checked`).
+- The ZeroClaw theme shows a pipeline health panel and a model banner. Both are derived from the status text the page
+  already shows, through one table in `src/ui/theme.ts`; text the table does not know is shown as neutral, never as an error.
+- The SHIZA theme has a starry sky and a "pollen" cloud behind the mic button. The cloud is the mic button (the same click, the
+  same code), turns while listening, is dimmed while the button is disabled, and follows the loudness of the microphone.
+  No animation runs in the ZeroClaw theme, in a hidden tab, or under `prefers-reduced-motion` (one still frame).
+- `src/main.ts` announces the microphone stream with two window events, `mic-stream` (detail `{ stream }`, right after
+  `getUserMedia` succeeds) and `mic-stream-end` (listening stopped, or the start failed). The level meter is a read-only
+  listener with its own audio analyser, closed on stop. Nothing else in `main.ts` changed.
+- Brand assets in `public/brand/` (logos, tab icons) and the fonts Inter and Spectral (plus the Cormorant Garamond italic),
+  all served from the repository. `docs/THIRD_PARTY.md` lists them; the rights for the ZeroClaw logo and the SHIZA marks are
+  marked TBD there.
+
+### Changed
+
+- DM Sans is no longer bundled (Inter replaces it) and the Vite template favicon is gone.
+- The ZeroClaw logo and SHIZA icon were reduced with svgo (path data at 3 decimals; at display size the largest colour
+  difference from the original is 19 of 255), the SHIZA wordmark only lost its embedded metadata, and the PNG tab icons were
+  recompressed losslessly.
+
+### Known limitations
+
+- The themes were checked in Chrome only.
+- With the browser's local storage blocked, `src/main.ts` throws at load (`loadSavedTokenForCurrentUrl` reads it without a
+  guard). This is older than the themes; the theme code itself copes with blocked storage.
+- Nothing stops the microphone tracks: after listening stops the stream stays open and every start opens a new one. This
+  is older than the themes and is not fixed here.
+- The design's entrance animations are not built.
+
 ## 0.1.0 (2026-10-06)
 
 First version meant for other people to clone and run. No git tag has been created for it.

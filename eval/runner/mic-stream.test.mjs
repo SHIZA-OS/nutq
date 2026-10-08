@@ -66,11 +66,20 @@ before(async () => {
   await p.page.waitForFunction(() => window.__mic.contexts.some((c) => !c.__src && c.state === "running"), null, { timeout: 4000 }).catch(() => {});
   await p.page.waitForTimeout(500);
   r.listening = { ...(await state(p.page)), level: await level(p.page), canvas: await p.page.evaluate(() => document.documentElement.dataset.canvas) };
+  // The level rises a fixed fraction per frame, so with few frames it needs longer; wait for it rather than sample once.
+  for (const t0 = Date.now(); r.listening.level <= 0.5 && Date.now() - t0 < 10000; ) {
+    await p.page.waitForTimeout(100);
+    r.listening.level = await level(p.page);
+  }
   await p.mic(); // release
   await p.page.waitForTimeout(300);
   r.stopped = { ...(await state(p.page)), logs: [...closedLogs] };
-  await p.page.waitForTimeout(1500);
-  r.decayed = await level(p.page);
+  // The level eases towards rest a fixed fraction per frame, so how long that takes depends on the frame rate (low while the other
+  // test files run Chrome in parallel): wait for it, with a generous limit, instead of for a fixed time.
+  for (const t0 = Date.now(); Date.now() - t0 < 10000; await p.page.waitForTimeout(100)) {
+    r.decayed = await level(p.page);
+    if (r.decayed < 0.05) break;
+  }
   await p.advance(5000);
   await p.mic();
   await p.page.waitForTimeout(400);
@@ -126,8 +135,8 @@ test("release announces the end; the meter's AudioContext is closed and logged o
   assert.match(r.stopped.logs[0], /AudioContext closed/);
 });
 
-test("after stopping, the pollen decays to rest", () => {
-  assert.ok(r.decayed < 0.05, `level ${r.decayed} a second and a half after stop`);
+test("after stopping, the pollen decays to rest (within ten seconds)", () => {
+  assert.ok(r.decayed < 0.05, `level ${r.decayed} ten seconds after stop`);
 });
 
 test("a second utterance opens a second meter and closes it too, with one log each", () => {
