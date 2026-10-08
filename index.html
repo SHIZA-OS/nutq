@@ -1,171 +1,268 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="zeroclaw">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/brand/favicon-zeroclaw-32.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Nutq</title>
+    <link id="tab-icon" rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-zeroclaw-32.png" />
+    <link id="touch-icon" rel="apple-touch-icon" href="/brand/favicon-zeroclaw-180.png" />
+    <script>
+      // Runs before first paint, so neither the wrong theme nor the wrong tab icon ever shows. Mirrors parseTheme and
+      // THEMES in src/ui/theme.ts; eval/runner/theme.test.mjs checks that the two agree.
+      (function () {
+        var t = "zeroclaw";
+        try {
+          if (localStorage.getItem("theme") === "shiza") t = "shiza";
+        } catch (e) {}
+        document.documentElement.dataset.theme = t;
+        document.getElementById("tab-icon").href = "/brand/favicon-" + t + "-32.png";
+        document.getElementById("touch-icon").href = "/brand/favicon-" + t + "-180.png";
+      })();
+    </script>
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <!-- Icons shared by both themes: stroke only, coloured by the page's CSS. -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3" /></symbol>
+      <symbol id="i-speaker" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5Z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" /></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5" /><path d="m10.7 12.3 9.8-9.8M17 6l3 3M14 9l2 2" /></symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0ZM12 17v4" /></symbol>
+      <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6M12 19h8" /></symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3ZM19 10v1a7 7 0 0 1-14 0v-1M12 18v4" /></symbol>
+      <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0ZM12 9v4M12 17h.01" /></symbol>
+      <symbol id="i-spark" viewBox="0 0 24 24"><path d="M10 3 11.6 8.4 17 10l-5.4 1.6L10 17l-1.6-5.4L3 10l5.4-1.6ZM18.5 14.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z" /></symbol>
+    </svg>
+
     <div id="app">
       <header class="site-header">
-        <div class="brand">
-          <div class="wordmark">SHIZA</div>
-          <p class="tagline">Own Your AI. Before AI Owns You.</p>
-        </div>
-        <div class="header-right">
-          <div class="nutq-mark">
-            <span class="nutq-word">Nutq</span>
-            <span class="nutq-arabic" lang="ar">نطق</span>
+        <!-- Decorative brand marks, one per theme; the other one is display:none and, being lazy, is never fetched. -->
+        <img class="logo logo-zeroclaw" src="/brand/zeroclaw-logo.svg" alt="ZeroClaw" loading="lazy" decoding="async" />
+        <img class="logo logo-shiza" src="/brand/shiza-logo.svg" alt="SHIZA" loading="lazy" decoding="async" />
+        <span class="brand-divider" aria-hidden="true"></span>
+        <div class="doc">
+          <div class="doc-name">
+            <span class="doc-arabic" lang="ar">نطق</span>
+            <h1 class="doc-title">Nutq</h1>
           </div>
-          <p class="meta-line">Voice chat for ZeroClaw &middot; <span class="version">v0.1.0</span></p>
+          <p class="doc-meta">Voice chat for ZeroClaw &middot; <span class="version">v0.1.0</span></p>
         </div>
+        <button id="theme-switch" type="button" class="theme-switch" role="switch" aria-checked="false" aria-label="SHIZA theme">
+          <span class="track"><span class="knob"></span></span>
+          <span class="sw-label">SHIZA theme</span>
+        </button>
       </header>
 
-      <p class="pipeline-breadcrumb">
-        Mic &rarr; Moonshine STT (local WASM) &rarr; ZeroClaw
-        <code class="pill-code">/ws/chat</code> &rarr; SpeechSynthesis
-      </p>
-
-      <section class="mic-hero">
-        <div class="mic-glow" aria-hidden="true"></div>
-        <button id="mic-btn" type="button" class="mic-circle" disabled>Start listening</button>
-        <p id="mic-hint" class="mic-hint">Connect to load the speech model</p>
-        <button id="retry-model-btn" type="button" class="btn-ghost" hidden>Try again</button>
-        <p id="env-note" class="mic-hint" hidden></p>
-        <span id="mic-status" class="status status-warn">model not loaded</span>
-      </section>
-
-      <div class="transcript-grid">
-        <section class="glass-card">
-          <h3 class="card-label">STT (committed)</h3>
-          <div
-            id="committed-transcript"
-            class="transcript-box committed"
-            data-placeholder="No committed transcript yet."
-          ></div>
-        </section>
-        <section class="glass-card">
-          <h3 class="card-label">TTS (ZeroClaw response)</h3>
-          <div id="reply-box" class="transcript-box reply" data-placeholder="No reply yet."></div>
-        </section>
+      <div id="model-banner" class="banner" hidden>
+        <svg class="icon" aria-hidden="true"><use href="#i-warn" /></svg>
+        <div class="banner-text">
+          <div id="model-banner-title" class="banner-title"></div>
+          <div id="model-banner-detail" class="banner-detail"></div>
+        </div>
+        <button id="banner-connect" type="button" class="btn-outline" hidden>
+          <svg class="icon" aria-hidden="true"><use href="#i-plug" /></svg>
+          Connect
+        </button>
       </div>
 
-      <div class="field live-field">
-        <div class="field-label">Live transcript (streaming, uncommitted)</div>
-        <div id="live-transcript" class="transcript-box live"></div>
-      </div>
+      <main class="main">
+        <p class="pipeline-breadcrumb">
+          <span class="stage">Mic</span><span class="arrow" aria-hidden="true">&rarr;</span>
+          <span class="stage">Moonshine STT (local WASM)</span><span class="arrow" aria-hidden="true">&rarr;</span>
+          <span class="stage">ZeroClaw <code class="pill-code">/ws/chat</code></span><span class="arrow" aria-hidden="true">&rarr;</span>
+          <span class="stage">SpeechSynthesis</span>
+        </p>
 
-      <section class="card">
-        <h2 class="card-title">Pairing</h2>
-        <div class="pairing-row">
-          <label class="field-block">
-            Pairing code (6 digits)
-            <input
-              id="pair-code"
-              type="text"
-              inputmode="numeric"
-              maxlength="6"
-              placeholder="123456"
-              class="code-input"
-            />
-          </label>
-          <button id="pair-btn" type="button" class="btn-solid">Pair</button>
-        </div>
-        <span id="pair-status" class="status status-warn">not paired</span>
+        <div class="layout">
+          <section class="voice card">
+            <h2 class="card-title voice-title">
+              <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-mic" /></svg></span>Voice
+            </h2>
 
-        <div id="pair-fallback" class="fallback-panel" hidden>
-          <div class="field-label">Automatic pairing didn't go through</div>
-          <p class="sub">
-            Automatic pairing didn't go through (this is often a cross-origin restriction your
-            browser enforces when this page and your ZeroClaw gateway are on different
-            origins). Run the command below yourself, or send it to whoever runs your ZeroClaw
-            instance, then paste the token it returns below.
-          </p>
-          <pre id="pair-fallback-curl" class="transcript-box code-block"></pre>
-          <label class="field-block">
-            Paste token from curl output
-            <span class="input-wrap">
-              <input
-                id="pair-fallback-token"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="zc_..."
-              />
-              <button
-                id="pair-fallback-token-toggle"
-                type="button"
-                class="btn-ghost input-toggle"
-                aria-pressed="false"
-                aria-label="Show pasted token"
-              >
-                Show
+            <div class="mic-hero">
+              <div class="mic-stage">
+                <button id="mic-btn" type="button" class="mic-circle" disabled>Start listening</button>
+              </div>
+              <p id="mic-hint" class="mic-hint">Connect to load the speech model</p>
+              <button id="retry-model-btn" type="button" class="btn-ghost" hidden>Try again</button>
+              <p id="env-note" class="mic-hint" hidden></p>
+              <span id="mic-status" class="status status-warn">model not loaded</span>
+            </div>
+
+            <div class="transcript-grid">
+              <section class="tx-card">
+                <h3 class="card-label">
+                  <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-wave" /></svg></span>STT (committed)
+                </h3>
+                <div
+                  id="committed-transcript"
+                  class="transcript-box committed"
+                  data-placeholder="No committed transcript yet."
+                ></div>
+              </section>
+              <section class="tx-card">
+                <h3 class="card-label">
+                  <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-speaker" /></svg></span>TTS (ZeroClaw response)
+                </h3>
+                <div id="reply-box" class="transcript-box reply" data-placeholder="No reply yet."></div>
+              </section>
+            </div>
+
+            <div class="live-field">
+              <div class="field-label">Live transcript (streaming, uncommitted)</div>
+              <div id="live-transcript" class="transcript-box live"></div>
+            </div>
+          </section>
+
+          <section class="health card" aria-labelledby="health-title">
+            <h2 id="health-title" class="card-title">
+              <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-pulse" /></svg></span>Pipeline health
+            </h2>
+            <ul class="health-list">
+              <li class="health-row" data-row="mic" data-tone="idle">
+                <span class="health-name">mic</span><span class="health-badge">IDLE</span><span class="health-sub"></span>
+              </li>
+              <li class="health-row" data-row="model" data-tone="warn">
+                <span class="health-name">moonshine-stt</span><span class="health-badge">WAIT</span><span class="health-sub">model not loaded</span>
+              </li>
+              <li class="health-row" data-row="socket" data-tone="warn">
+                <span class="health-name">ws/chat</span><span class="health-badge">OFF</span><span class="health-sub">disconnected</span>
+              </li>
+              <li class="health-row" data-row="speech" data-tone="ok">
+                <span class="health-name">speech-synthesis</span><span class="health-badge">OK</span><span class="health-sub"></span>
+              </li>
+            </ul>
+          </section>
+
+          <section class="pairing card">
+            <h2 class="card-title">
+              <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-key" /></svg></span><em>Pairing</em>
+              <svg class="spark" aria-hidden="true"><use href="#i-spark" /></svg>
+            </h2>
+            <div class="card-body">
+              <div class="pairing-row">
+                <label class="field-block grow">
+                  Pairing code (6 digits)
+                  <input
+                    id="pair-code"
+                    type="text"
+                    inputmode="numeric"
+                    maxlength="6"
+                    placeholder="123456"
+                    class="code-input"
+                  />
+                </label>
+                <button id="pair-btn" type="button" class="btn-solid">Pair</button>
+              </div>
+
+              <div id="pair-fallback" class="fallback-panel" hidden>
+                <div class="field-label">Automatic pairing didn't go through</div>
+                <p class="sub">
+                  Automatic pairing didn't go through (this is often a cross-origin restriction your
+                  browser enforces when this page and your ZeroClaw gateway are on different
+                  origins). Run the command below yourself, or send it to whoever runs your ZeroClaw
+                  instance, then paste the token it returns below.
+                </p>
+                <pre id="pair-fallback-curl" class="transcript-box code-block"></pre>
+                <label class="field-block">
+                  Paste token from curl output
+                  <span class="input-wrap">
+                    <input
+                      id="pair-fallback-token"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="zc_..."
+                    />
+                    <button
+                      id="pair-fallback-token-toggle"
+                      type="button"
+                      class="btn-ghost input-toggle"
+                      aria-pressed="false"
+                      aria-label="Show pasted token"
+                    >
+                      Show
+                    </button>
+                  </span>
+                </label>
+                <button id="pair-fallback-save-btn" type="button" class="btn-solid">Save token</button>
+              </div>
+            </div>
+            <span id="pair-status" class="status status-warn">not paired</span>
+          </section>
+
+          <section class="connection card">
+            <h2 class="card-title">
+              <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-plug" /></svg></span>
+              <span class="title-shiza">ZeroClaw <em>connection</em></span><span class="title-zeroclaw">Gateway connection</span>
+              <svg class="spark" aria-hidden="true"><use href="#i-spark" /></svg>
+            </h2>
+            <div class="card-body">
+              <div class="form-grid">
+                <label class="field-block wide">
+                  Gateway URL
+                  <input id="ws-url" type="text" value="ws://127.0.0.1:42617/ws/chat" />
+                </label>
+                <label class="field-block">
+                  Agent alias
+                  <input id="agent-alias" type="text" placeholder="e.g. default" />
+                </label>
+              </div>
+              <div class="token-row">
+                <label class="field-block grow">
+                  Pairing token (optional)
+                  <span class="input-wrap">
+                    <input
+                      id="auth-token"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="bearer token, if required"
+                    />
+                    <button
+                      id="auth-token-toggle"
+                      type="button"
+                      class="btn-ghost input-toggle"
+                      aria-pressed="false"
+                      aria-label="Show pairing token"
+                    >
+                      Show
+                    </button>
+                  </span>
+                </label>
+                <button id="connect-btn" type="button" class="btn-solid">Connect</button>
+              </div>
+            </div>
+            <span id="conn-status" class="status status-warn">disconnected</span>
+          </section>
+
+          <section class="logs card">
+            <div class="card-title-row">
+              <h2 class="card-title">
+                <span class="tile"><svg class="icon" aria-hidden="true"><use href="#i-terminal" /></svg></span><em>Logs</em>
+                <svg class="spark" aria-hidden="true"><use href="#i-spark" /></svg>
+              </h2>
+              <button id="eval-download-btn" type="button" class="btn-ghost" hidden>
+                Download events JSONL
               </button>
-            </span>
-          </label>
-          <button id="pair-fallback-save-btn" type="button" class="btn-solid">Save token</button>
+            </div>
+            <pre id="log" class="log-box"></pre>
+          </section>
         </div>
-      </section>
-
-      <section class="card">
-        <h2 class="card-title">1. ZeroClaw connection</h2>
-        <div class="form-grid">
-          <label class="field-block">
-            Gateway URL
-            <input id="ws-url" type="text" value="ws://127.0.0.1:42617/ws/chat" />
-          </label>
-          <label class="field-block">
-            Agent alias
-            <input id="agent-alias" type="text" placeholder="e.g. default" />
-          </label>
-        </div>
-        <div class="token-row">
-          <label class="field-block grow">
-            Pairing token (optional)
-            <span class="input-wrap">
-              <input
-                id="auth-token"
-                type="password"
-                autocomplete="off"
-                spellcheck="false"
-                placeholder="bearer token, if required"
-              />
-              <button
-                id="auth-token-toggle"
-                type="button"
-                class="btn-ghost input-toggle"
-                aria-pressed="false"
-                aria-label="Show pairing token"
-              >
-                Show
-              </button>
-            </span>
-          </label>
-          <button id="connect-btn" type="button" class="btn-solid">Connect</button>
-        </div>
-        <span id="conn-status" class="status status-warn">disconnected</span>
-      </section>
-
-      <section class="card">
-        <div class="card-title-row">
-          <h2 class="card-title">Logs</h2>
-          <button id="eval-download-btn" type="button" class="btn-ghost" hidden>
-            Download events JSONL
-          </button>
-        </div>
-        <pre id="log" class="log-box"></pre>
-      </section>
+      </main>
 
       <footer class="site-footer">
-        <div class="brand">
-          <div class="wordmark">SHIZA</div>
-          <p class="tagline">Own Your AI. Before AI Owns You.</p>
-        </div>
-        <p class="footer-contact">shiza.ai | hello@shiza.ai</p>
+        <img class="foot-icon" src="/brand/shiza-icon.svg" alt="" loading="lazy" decoding="async" />
+        <span class="foot-tagline">Own Your AI, Before AI Owns You.</span>
+        <span class="foot-product">Nutq &middot; voice chat for ZeroClaw</span>
+        <span class="foot-dot" aria-hidden="true"></span>
+        <span class="foot-created">Created by <a href="https://shiza.ai">SHIZA</a></span>
+        <span class="foot-sep" aria-hidden="true"></span>
+        <span class="foot-contact">shiza.ai | hello@shiza.ai</span>
       </footer>
     </div>
+    <script type="module" src="/src/ui/theme.ts"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
