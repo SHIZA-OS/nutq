@@ -240,13 +240,47 @@ body {
 }
 
 /* Until the sky canvas draws (and with reduced motion, or without scripting) the SHIZA page has a still glow. */
-:root[data-theme="shiza"] body {
+:root[data-theme="shiza"]:not([data-canvas="running"], [data-canvas="static"]) body {
   background:
     radial-gradient(60% 55% at 82% 8%, rgba(98, 52, 214, 0.24), transparent 70%),
     radial-gradient(35% 40% at 98% 0%, rgba(139, 92, 255, 0.2), transparent 70%),
     radial-gradient(40% 40% at 2% 95%, rgba(120, 127, 247, 0.07), transparent 70%),
     var(--bg);
   background-attachment: fixed;
+}
+
+/* The canvases src/ui/theme.ts adds: the sky fixed behind the page, the pollen filling the mic stage under the (transparent)
+   mic button. Neither takes the pointer, and neither exists visually in the ZeroClaw theme. */
+.sky,
+.pollen {
+  display: block;
+  pointer-events: none;
+}
+
+.sky {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pollen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+:root[data-theme="zeroclaw"] .sky,
+:root[data-theme="zeroclaw"] .pollen {
+  display: none;
+}
+
+/* with a canvas drawing, the CSS glow under the mic stage is the canvas's job */
+:root[data-canvas="running"] .mic-stage::before,
+:root[data-canvas="static"] .mic-stage::before {
+  display: none;
 }
 
 #app {

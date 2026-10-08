@@ -86,6 +86,284 @@ export const describeMic = (text: string | null | undefined): MicEntry => lookup
 export const describeConn = (text: string | null | undefined): Row => lookup(STATUS.conn, text, NEUTRAL);
 export const describePair = (text: string | null | undefined): Tone => lookup<Tone>(STATUS.pair, text, "neutral");
 
+// --- Canvases (SHIZA theme) ---------------------------------------------------------------------------------------
+// A starry sky behind the page and the "pollen" cloud behind the mic button. Both only draw: the pollen reads the mode from
+// <html data-mic> and data-model (published by refresh() from the DOM main.ts writes) and clicking it is clicking the real
+// #mic-btn, which covers the stage (the canvas ignores the pointer). <html data-canvas> says what the loop is doing:
+// "running" (SHIZA, tab visible, motion allowed), "static" (SHIZA with reduced motion: one still frame, redrawn on a state
+// change or resize) or "stopped" (ZeroClaw theme or hidden tab: no animation frame is requested at all).
+
+type Dot = { x: number; y: number; z: number; r: number; s: number; c: string; ph: number; ox: number; oy: number; mote: boolean; sx: number; sy: number; depth: number; size: number };
+
+const PALETTE = ["#8B5CFF", "#8B5CFF", "#8B5CFF", "#8B5CFF", "#787FF7", "#787FF7", "#787FF7", "#C178FF", "#C178FF", "#F5F2FF"];
+const GOLDEN = Math.PI * (3 - Math.sqrt(5));
+const pick = () => PALETTE[Math.floor(Math.random() * PALETTE.length)];
+
+const stars = Array.from({ length: 280 }, () => {
+  const bias = Math.random() < 0.55; // towards the upper right, where the nebula sits
+  return { x: bias ? 0.45 + Math.random() * 0.55 : Math.random(), y: bias ? Math.random() * 0.55 : Math.random(), s: 0.3 + Math.random() * 1.1, a: 0.25 + Math.random() * 0.6, ph: Math.random() * 6.28, sp: 0.5 + Math.random() * 1.8 };
+});
+const dust = Array.from({ length: 140 }, () => ({ u: Math.random(), off: (Math.random() - 0.5) * 0.09, s: 0.4 + Math.random() * 1.2, a: 0.2 + Math.random() * 0.6, ph: Math.random() * 6.28 }));
+
+const dots: Dot[] = [];
+for (let i = 0; i < 360; i++) {
+  const y = 1 - (i / 359) * 2;
+  const rr = Math.sqrt(1 - y * y);
+  const th = GOLDEN * i;
+  const shell = Math.random() < 0.72;
+  dots.push({ x: Math.cos(th) * rr, y, z: Math.sin(th) * rr, r: shell ? 0.9 + Math.random() * 0.14 : 0.25 + Math.random() * 0.6, s: 0.7 + Math.random() * 1.5, c: pick(), ph: Math.random() * 6.28, ox: 0, oy: 0, mote: false, sx: 0, sy: 0, depth: 0, size: 0 });
+}
+for (let j = 0; j < 46; j++) { // loose motes drifting around the cloud
+  const a = Math.random() * 6.283;
+  const b = Math.acos(2 * Math.random() - 1);
+  dots.push({ x: Math.sin(b) * Math.cos(a), y: Math.cos(b), z: Math.sin(b) * Math.sin(a), r: 1.25 + Math.random() * 0.6, s: 0.5 + Math.random() * 0.9, c: pick(), ph: Math.random() * 6.28, ox: 0, oy: 0, mote: true, sx: 0, sy: 0, depth: 0, size: 0 });
+}
+
+let skyCanvas: HTMLCanvasElement;
+let pollenCanvas: HTMLCanvasElement;
+let angle = 0;
+let level = 0; // eased towards levelTarget; Phase 4 feeds the real microphone level into levelTarget
+let levelTarget = 0;
+let burst = 0;
+let pointer = { x: 0, y: 0, active: false };
+
+// Fits the canvas to its CSS box (at most `maxDpr` device pixels per CSS pixel) and returns a context drawing in CSS pixels.
+function fit(cv: HTMLCanvasElement, maxDpr: number) {
+  const w = cv.clientWidth;
+  const h = cv.clientHeight;
+  const ctx = cv.getContext("2d");
+  if (!ctx || !w || !h) return null;
+  const dpr = Math.min(maxDpr, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+
+const streak = (u: number, w: number, h: number, t: number) => [
+  w * (0.38 + 0.66 * u),
+  h * (0.34 - 0.27 * u + Math.sin(u * 5.2 + t * 0.15) * 0.035 + Math.sin(u * 2.1 - t * 0.1) * 0.02 - 0.12 * Math.sin(u * Math.PI)),
+];
+
+function drawSky(t: number, still: boolean) {
+  const f = fit(skyCanvas, 1.5);
+  if (!f) return;
+  const { ctx, w, h } = f;
+  const tt = still ? 0 : t;
+  const big = Math.max(w, h);
+  const blob = (x: number, y: number, r: number, rgba: string) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba);
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  };
+  blob(w * 0.82, h * 0.1, big * 0.55, "rgba(98,52,214,0.24)");
+  blob(w * 0.98, h * -0.02, big * 0.35, "rgba(139,92,255,0.20)");
+  blob(w * 0.62, h * 0.24, big * 0.22, "rgba(193,120,255,0.07)");
+  blob(w * 0.02, h * 0.95, big * 0.4, "rgba(120,127,247,0.07)");
+
+  ctx.globalCompositeOperation = "lighter";
+  stars.forEach((st, i) => {
+    ctx.globalAlpha = st.a * (still ? 1 : 0.6 + 0.4 * Math.sin(tt * st.sp + st.ph));
+    ctx.fillStyle = i % 5 === 0 ? "#C9B8FF" : "#F5F2FF";
+    ctx.beginPath();
+    ctx.arc(st.x * w, st.y * h, st.s, 0, 6.283);
+    ctx.fill();
+  });
+
+  // the light streak: wide haze, mid glow, bright core
+  for (const [lw, alpha, color] of [[46, 0.035, "#8B5CFF"], [16, 0.07, "#9D74FF"], [3, 0.22, "#C9B8FF"], [1, 0.55, "#EDE6FF"]] as const) {
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (let k = 0; k <= 60; k++) {
+      const [x, y] = streak(k / 60, w, h, tt);
+      if (k === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#DCCEFF";
+  for (const d of dust) { // dust riding the streak
+    const u = (d.u + tt * 0.004) % 1;
+    const [x, y] = streak(u, w, h, tt);
+    ctx.globalAlpha = d.a * (still ? 1 : 0.65 + 0.35 * Math.sin(tt * 1.3 + d.ph)) * (0.3 + 0.7 * u);
+    ctx.beginPath();
+    ctx.arc(x, y + d.off * h, d.s, 0, 6.283);
+    ctx.fill();
+  }
+
+  // the flare where the streak brightens
+  const [fx, fy] = streak(0.78, w, h, tt);
+  const fr = 70 + (still ? 0 : 8 * Math.sin(tt * 0.7));
+  const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
+  fg.addColorStop(0, "rgba(255,255,255,0.9)");
+  fg.addColorStop(0.12, "rgba(214,196,255,0.55)");
+  fg.addColorStop(0.45, "rgba(139,92,255,0.18)");
+  fg.addColorStop(1, "rgba(139,92,255,0)");
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = fg;
+  ctx.beginPath();
+  ctx.arc(fx, fy, fr, 0, 6.283);
+  ctx.fill();
+  const lg = ctx.createLinearGradient(fx - 140, fy, fx + 140, fy);
+  lg.addColorStop(0, "rgba(201,184,255,0)");
+  lg.addColorStop(0.5, "rgba(237,230,255,0.7)");
+  lg.addColorStop(1, "rgba(201,184,255,0)");
+  ctx.fillStyle = lg;
+  ctx.fillRect(fx - 140, fy - 0.75, 280, 1.5);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+}
+
+// How the cloud looks for what the page says: listening (bright, quicker), ready, loading the model (dim, fast swirl), or
+// disabled for any other reason (not loaded, no connection, an error: dimmest and nearly still).
+function pollenMode() {
+  const d = document.documentElement.dataset;
+  if (d.mic === "listening") return { spin: 0.42, alpha: 1 };
+  if (d.mic === "disabled") return d.model === "idle" ? { spin: 0.6, alpha: 0.55 } : { spin: 0.07, alpha: 0.35 };
+  return { spin: 0.16, alpha: 0.85 };
+}
+
+function drawPollen(t: number, dt: number, still: boolean) {
+  const f = fit(pollenCanvas, 2);
+  if (!f) return;
+  const { ctx, w, h } = f;
+  const mode = pollenMode();
+  level += ((still ? 0 : levelTarget) - level) * 0.12;
+  burst *= 0.92;
+  if (!still) angle += mode.spin * dt;
+  const ca = Math.cos(angle);
+  const sa = Math.sin(angle);
+  const tilt = 0.38;
+  const ct = Math.cos(tilt);
+  const st = Math.sin(tilt);
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(w, h) * 0.32;
+  const fov = 3.2;
+
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 1.5); // the soft core glow, dimmed with the mode like the dots
+  g.addColorStop(0, `rgba(139,92,255,${Math.min(0.9, (0.1 + level * 0.18 + burst * 0.12) * (mode.alpha / 0.85)).toFixed(3)})`);
+  g.addColorStop(1, "rgba(139,92,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.globalCompositeOperation = "lighter";
+  for (const q of dots) {
+    const x = q.x * ca + q.z * sa;
+    let z = -q.x * sa + q.z * ca;
+    const y = q.y * ct - z * st;
+    z = q.y * st + z * ct;
+    let rad = q.r;
+    if (!still) {
+      rad *= 1 + 0.035 * Math.sin(t * 0.9 + q.ph);
+      if (q.mote) rad += 0.08 * Math.sin(t * 0.4 + q.ph);
+    }
+    rad *= 1 + level * 0.32 * (0.55 + 0.45 * Math.sin(t * 7 + q.ph * 3)) + burst * 0.28;
+    const sc = fov / (fov + z * rad);
+    const sx = cx + x * rad * R * sc;
+    const sy = cy + y * rad * R * sc;
+    let tx = 0;
+    let ty = 0;
+    if (pointer.active) { // the cursor pushes dots away, and they spring back
+      const dx = sx - pointer.x;
+      const dy = sy - pointer.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (d < 95) {
+        const k = (1 - d / 95) ** 2 * 46;
+        tx = (dx / d) * k;
+        ty = (dy / d) * k;
+      }
+    }
+    q.ox += (tx - q.ox) * 0.18;
+    q.oy += (ty - q.oy) * 0.18;
+    q.sx = sx + q.ox;
+    q.sy = sy + q.oy;
+    q.depth = (1 - (z * rad) / 1.6) / 2; // about 0 at the back, 1 at the front
+    q.size = q.s * sc * (1 + level * 0.5);
+  }
+  for (const q of dots) {
+    ctx.globalAlpha = Math.max(0.06, Math.min(1, (0.22 + 0.78 * q.depth) * mode.alpha * (q.mote ? 0.55 : 1)));
+    ctx.fillStyle = q.c;
+    ctx.beginPath();
+    ctx.arc(q.sx, q.sy, q.size, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = "source-over";
+}
+
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+let raf = 0;
+let lastT = 0;
+let lastSky = 0;
+
+function canvasMode(): "running" | "static" | "stopped" {
+  if (document.documentElement.dataset.theme !== "shiza" || document.hidden) return "stopped";
+  return reducedMotion.matches ? "static" : "running";
+}
+
+function frame(now: number) {
+  raf = requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  drawPollen(now / 1000, dt, false);
+  if (now - lastSky >= 33) { // ponytail: the full-screen sky is drawn at about 30 fps; every frame if it ever looks choppy
+    lastSky = now;
+    drawSky(now / 1000, false);
+  }
+}
+
+// Starts, stops or redraws according to canvasMode(); called whenever the theme, tab visibility or motion setting changes.
+function syncCanvas() {
+  const m = canvasMode();
+  document.documentElement.dataset.canvas = m;
+  if (m === "running") {
+    if (!raf) {
+      lastT = performance.now();
+      raf = requestAnimationFrame(frame);
+    }
+    return;
+  }
+  cancelAnimationFrame(raf);
+  raf = 0;
+  if (m === "static") redrawStill();
+}
+
+function redrawStill() {
+  if (canvasMode() !== "static") return;
+  drawSky(0, true);
+  drawPollen(0, 0, true);
+}
+
+function initCanvases() {
+  skyCanvas = document.createElement("canvas");
+  skyCanvas.className = "sky";
+  pollenCanvas = document.createElement("canvas");
+  pollenCanvas.className = "pollen";
+  for (const cv of [skyCanvas, pollenCanvas]) cv.setAttribute("aria-hidden", "true");
+  document.body.prepend(skyCanvas);
+  document.querySelector(".mic-stage")!.prepend(pollenCanvas);
+
+  const mic = byId("mic-btn");
+  mic.addEventListener("pointermove", (e) => {
+    const r = pollenCanvas.getBoundingClientRect();
+    pointer = { x: e.clientX - r.left, y: e.clientY - r.top, active: true };
+  });
+  mic.addEventListener("pointerleave", () => { pointer.active = false; });
+  mic.addEventListener("click", () => { burst = 1; }); // a disabled button gets no click, so a refused press does not pulse
+  document.addEventListener("visibilitychange", syncCanvas);
+  reducedMotion.addEventListener("change", syncCanvas);
+  window.addEventListener("resize", redrawStill);
+}
+
 // --- DOM wiring ---------------------------------------------------------------------------------------------------
 
 const byId = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -111,6 +389,7 @@ function applyTheme(theme: Theme) {
   byId<HTMLLinkElement>("tab-icon").href = themeIcon(theme, 32);
   byId<HTMLLinkElement>("touch-icon").href = themeIcon(theme, 180);
   byId("theme-switch").setAttribute("aria-checked", String(theme === "shiza"));
+  syncCanvas();
 }
 
 function setText(el: Element, text: string) {
@@ -153,9 +432,11 @@ function refresh() {
     setText(byId("model-banner-detail"), mic.banner.detail);
   }
   byId("banner-connect").hidden = conn.tone === "ok";
+  redrawStill(); // with reduced motion the cloud is one still frame; a new state is a new frame
 }
 
 function init() {
+  initCanvases();
   applyTheme(loadTheme());
   byId("theme-switch").addEventListener("click", () => {
     const next: Theme = document.documentElement.dataset.theme === "shiza" ? "zeroclaw" : "shiza";

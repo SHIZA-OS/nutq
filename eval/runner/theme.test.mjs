@@ -35,6 +35,12 @@ async function open({ saved, width = 1280, reduced = false, brokenStorage = fals
   } else if (saved !== undefined) {
     await context.addInitScript((v) => localStorage.setItem("theme", v), saved);
   }
+  // Counts animation frames requested, so a test can tell "drawing" from "no animation work at all".
+  await context.addInitScript(() => {
+    window.__raf = 0;
+    const raf = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb) => { window.__raf++; return raf(cb); };
+  });
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(`${e}\n${e.stack ?? ""}`));
@@ -284,4 +290,89 @@ test("reduced motion stops the status dot's pulse and the ZeroClaw mic rings; wi
 
 test("index.html keeps the eval download button's markup that vite.config.js strips from production builds", () => {
   assert.match(HTML, /\s*<button id="eval-download-btn"[\s\S]*?<\/button>/);
+});
+
+// --- canvases (the SHIZA theme's sky and pollen) ---
+
+const frames = (page) => page.evaluate(() => window.__raf);
+const canvasMode = (page) => page.evaluate(() => document.documentElement.dataset.canvas);
+const drawn = (page, sel) => page.evaluate((q) => { const c = document.querySelector(q); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let a = 0; for (let i = 3; i < d.length; i += 4) a += d[i]; return { w: c.width, h: c.height, alpha: a }; }, sel);
+async function settled(page, ms = 400) { const before = await frames(page); await page.waitForTimeout(ms); return (await frames(page)) - before; }
+const hideTab = (page, hidden) => page.evaluate((h) => { Object.defineProperty(document, "hidden", { configurable: true, get: () => h }); document.dispatchEvent(new Event("visibilitychange")); }, hidden);
+
+test("canvases: the ZeroClaw theme requests no animation frames and shows no canvas", async () => {
+  const { page, context } = await open({ saved: "zeroclaw" });
+  assert.equal(await canvasMode(page), "stopped");
+  assert.equal(await settled(page), 0);
+  for (const sel of [".sky", ".pollen"]) assert.equal(await page.evaluate((q) => getComputedStyle(document.querySelector(q)).display, sel), "none");
+  await context.close();
+});
+
+test("canvases: the SHIZA theme draws the sky and the pollen, and switching back stops all frames", async () => {
+  const { page, context, errors } = await open({ saved: "shiza" });
+  assert.equal(await canvasMode(page), "running");
+  assert.ok((await settled(page)) > 5, "frames are being requested");
+  const sky = await drawn(page, ".sky");
+  const pollen = await drawn(page, ".pollen");
+  assert.ok(sky.alpha > 0 && pollen.alpha > 0, "both canvases have pixels");
+  assert.deepEqual([sky.w > 0, sky.h > 0], [true, true]);
+
+  await page.locator("#theme-switch").click();
+  assert.equal(await canvasMode(page), "stopped");
+  assert.equal(await settled(page), 0);
+  await page.locator("#theme-switch").click();
+  assert.equal(await canvasMode(page), "running");
+  assert.ok((await settled(page)) > 5);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("canvases: a hidden tab stops all frames and a visible one resumes them", async () => {
+  const { page, context } = await open({ saved: "shiza" });
+  assert.ok((await settled(page)) > 5);
+  await hideTab(page, true);
+  assert.equal(await canvasMode(page), "stopped");
+  assert.equal(await settled(page), 0);
+  await hideTab(page, false);
+  assert.equal(await canvasMode(page), "running");
+  assert.ok((await settled(page)) > 5);
+  await context.close();
+});
+
+test("canvases: with reduced motion there is one still frame and no animation frames, redrawn when the state changes", async () => {
+  const { page, context } = await open({ saved: "shiza", reduced: true });
+  assert.equal(await canvasMode(page), "static");
+  assert.equal(await settled(page), 0);
+  const still = await drawn(page, ".pollen");
+  assert.ok(still.alpha > 0 && (await drawn(page, ".sky")).alpha > 0);
+
+  const enable = (listening) => page.evaluate((l) => { document.getElementById("mic-btn").disabled = false; document.getElementById("mic-btn").textContent = l ? "Stop listening" : "Start listening"; }, listening);
+  await enable(false);
+  await page.waitForFunction(() => document.documentElement.dataset.mic === "ready");
+  const ready = await drawn(page, ".pollen");
+  await enable(true);
+  await page.waitForFunction(() => document.documentElement.dataset.mic === "listening");
+  const listening = await drawn(page, ".pollen");
+  assert.ok(still.alpha < ready.alpha, `disabled ${still.alpha} is dimmer than ready ${ready.alpha}`);
+  assert.ok(ready.alpha < listening.alpha, `ready ${ready.alpha} is dimmer than listening ${listening.alpha}`);
+  assert.equal(await settled(page), 0);
+  await context.close();
+});
+
+test("canvases: the pollen is the mic button, no second path: the canvas ignores the pointer and a click lands on #mic-btn", async () => {
+  const { page, context } = await open({ saved: "shiza" });
+  await page.evaluate(() => {
+    const b = document.getElementById("mic-btn");
+    b.disabled = false;
+    window.__micClicks = 0;
+    b.addEventListener("click", (e) => { e.stopImmediatePropagation(); window.__micClicks++; }, true);
+  });
+  const stage = await page.locator(".mic-stage").boundingBox();
+  const x = stage.x + stage.width / 2;
+  const y = stage.y + stage.height / 2;
+  assert.equal(await page.evaluate(([px, py]) => document.elementFromPoint(px, py)?.id, [x, y]), "mic-btn");
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".pollen")).pointerEvents), "none");
+  await page.mouse.click(x, y);
+  assert.equal(await page.evaluate(() => window.__micClicks), 1);
+  await context.close();
 });
