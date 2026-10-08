@@ -220,7 +220,7 @@
   --terminal-bg: #000000;
   --terminal-text: #d9d4e6;
   --focus-ring: rgba(193, 120, 255, 0.35);
-  --glass: rgba(17, 17, 24, 0.6);
+  --glass: rgba(17, 17, 24, 0.72);
   --card-border: rgba(139, 92, 255, 0.25);
   --card-border-hover: rgba(139, 92, 255, 0.55);
   --font-body: var(--font-serif);
@@ -663,9 +663,9 @@ a {
   padding: 22px 24px;
   border: 1px solid var(--card-border);
   border-radius: 13px;
+  /* A plain semi-opaque fill, not backdrop-filter: the status dot pulses inside a card, and a blurred card re-rendered
+     around it on every frame (about 80 points of GPU, idle, in software rendering). */
   background: var(--glass);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
@@ -680,8 +680,6 @@ a {
   padding: 0;
   border: 0;
   background: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 
 :root[data-theme="shiza"] .voice:hover {
@@ -1361,18 +1359,41 @@ input:focus {
   border: 1.5px solid var(--border);
 }
 
-/* The dot pulses while listening and while connected */
-:root[data-mic="listening"] #mic-status::before,
-#conn-status.status-ok::before {
+/* The dot pulses while listening and while connected. The pulse is a second dot that only scales and fades: transform and
+   opacity are composited without repainting, where animating a box-shadow repainted the page every frame (about 20 points of a
+   core, idle, in the first version). */
+.status {
+  position: relative;
+  --dot-left: 11px; /* border plus padding: where the 6px dot sits */
+}
+
+:root[data-theme="shiza"] .status {
+  --dot-left: 11.5px;
+}
+
+:root[data-mic="listening"] #mic-status::after,
+#conn-status.status-ok::after {
+  content: "";
+  position: absolute;
+  left: var(--dot-left);
+  top: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pill-a);
+  pointer-events: none;
+  will-change: transform, opacity;
   animation: dot-pulse 2s ease-out infinite;
 }
 
 @keyframes dot-pulse {
   from {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pill-a) 60%, transparent);
+    transform: scale(1);
+    opacity: 0.7;
   }
   to {
-    box-shadow: 0 0 0 7px transparent;
+    transform: scale(2.6);
+    opacity: 0;
   }
 }
 

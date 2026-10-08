@@ -25,7 +25,7 @@ after(async () => {
 });
 
 // A page with the given saved theme (undefined: nothing saved), optionally 480 wide, reduced motion, or with storage that throws.
-async function open({ saved, width = 1280, reduced = false, brokenStorage = false, block = [] } = {}) {
+async function open({ saved, width = 1280, reduced = false, brokenStorage = false, block = [], fakeClock = false } = {}) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: reduced ? "reduce" : "no-preference" });
   if (brokenStorage) {
     await context.addInitScript(() => {
@@ -35,8 +35,39 @@ async function open({ saved, width = 1280, reduced = false, brokenStorage = fals
   } else if (saved !== undefined) {
     await context.addInitScript((v) => localStorage.setItem("theme", v), saved);
   }
+  if (fakeClock) {
+    // A virtual clock: timers and animation frames run only when the test advances it (one frame every 1000/60 ms), so the
+    // number of pollen drawings in a stretch of time is exact.
+    await context.addInitScript(() => {
+      let now = 1e6;
+      let n = 0;
+      let timers = [];
+      let queue = [];
+      performance.now = () => now;
+      window.setTimeout = (fn, ms = 0) => { timers.push({ id: ++n, at: now + ms, fn }); return n; };
+      window.clearTimeout = (id) => { timers = timers.filter((x) => x.id !== id); };
+      window.requestAnimationFrame = (cb) => { window.__raf++; queue.push([++n, cb]); return n; };
+      window.cancelAnimationFrame = (id) => { queue = queue.filter(([i]) => i !== id); };
+      window.__raf = 0;
+      window.__run = (ms) => {
+        for (const end = now + ms; now < end; ) {
+          now += 1000 / 60;
+          const due = timers.filter((x) => x.at <= now);
+          timers = timers.filter((x) => x.at > now);
+          due.forEach((x) => x.fn());
+          const q = queue;
+          queue = [];
+          q.forEach(([, cb]) => cb(now));
+        }
+      };
+      // Draws of the pollen canvas: its context is cleared once per drawing.
+      window.__pollenDraws = 0;
+      const clear = CanvasRenderingContext2D.prototype.clearRect;
+      CanvasRenderingContext2D.prototype.clearRect = function (...a) { if (this.canvas.className === "pollen") window.__pollenDraws++; return clear.apply(this, a); };
+    });
+  }
   // Counts animation frames requested, so a test can tell "drawing" from "no animation work at all".
-  await context.addInitScript(() => {
+  if (!fakeClock) await context.addInitScript(() => {
     window.__raf = 0;
     const raf = window.requestAnimationFrame.bind(window);
     window.requestAnimationFrame = (cb) => { window.__raf++; return raf(cb); };
@@ -279,7 +310,7 @@ test("reduced motion stops the status dot's pulse and the ZeroClaw mic rings; wi
   const pulse = (page) => page.evaluate(() => {
     document.getElementById("conn-status").className = "status status-ok";
     document.documentElement.dataset.mic = "listening";
-    return [getComputedStyle(document.getElementById("conn-status"), "::before").animationName, getComputedStyle(document.querySelector(".mic-stage"), "::before").animationName];
+    return [getComputedStyle(document.getElementById("conn-status"), "::after").animationName, getComputedStyle(document.querySelector(".mic-stage"), "::before").animationName];
   });
   for (const [reduced, expected] of [[false, ["dot-pulse", "ring"]], [true, ["none", "none"]]]) {
     const { page, context } = await open({ saved: "zeroclaw", reduced });
@@ -415,5 +446,51 @@ test("meter: a stream that cannot be measured is ignored; a hidden tab or the Ze
   await page.evaluate(() => window.dispatchEvent(new CustomEvent("mic-stream-end")));
   assert.equal(await open_(), 0);
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test("canvases: the sky is one still drawing, redrawn on a resize; the pollen keeps moving", async () => {
+  const { page, context } = await open({ saved: "shiza" });
+  const url = (sel) => page.evaluate((q) => document.querySelector(q).toDataURL(), sel);
+  const sky1 = await url(".sky");
+  const pollen1 = await url(".pollen");
+  await page.waitForTimeout(700);
+  assert.equal(await url(".sky"), sky1, "the sky does not change between frames");
+  assert.notEqual(await url(".pollen"), pollen1, "the pollen does");
+  const widthBefore = (await drawn(page, ".sky")).w;
+  await page.setViewportSize({ width: 800, height: 700 });
+  await page.waitForFunction((w) => document.querySelector(".sky").width !== w, widthBefore);
+  assert.notEqual(await url(".sky"), sky1, "a new size is a new drawing");
+  await context.close();
+});
+
+test("canvases: idle, the pollen is drawn and its frames requested about 30 times a second; listening, on every frame", async () => {
+  const { page, context } = await open({ saved: "shiza", fakeClock: true });
+  const second = async () => {
+    await page.evaluate(() => { window.__pollenDraws = 0; window.__raf = 0; });
+    await page.evaluate(() => window.__run(1000));
+    return page.evaluate(() => ({ draws: window.__pollenDraws, frames: window.__raf }));
+  };
+  const idle = await second();
+  assert.ok(idle.draws >= 28 && idle.draws <= 32, `${idle.draws} draws in a second while idle`);
+  assert.ok(idle.frames <= 32, `${idle.frames} animation frames requested in a second while idle (a skipped frame still costs a main-thread frame)`);
+  await page.evaluate(() => { document.documentElement.dataset.mic = "listening"; });
+  await page.evaluate(() => window.__run(100)); // the loop notices on its next turn
+  const listening = await second();
+  assert.ok(listening.draws >= 58 && listening.draws <= 62, `${listening.draws} draws in a second while listening`);
+  await context.close();
+});
+
+test("the status dot's pulse and the mic rings animate only opacity and transform, nothing that repaints", async () => {
+  const { page, context } = await open();
+  const used = await page.evaluate(() => {
+    const out = {};
+    for (const sheet of document.styleSheets) for (const rule of sheet.cssRules) {
+      if (rule.type !== CSSRule.KEYFRAMES_RULE || !["dot-pulse", "ring"].includes(rule.name)) continue;
+      out[rule.name] = [...new Set([...rule.cssRules].flatMap((k) => [...k.style]))].sort();
+    }
+    return out;
+  });
+  assert.deepEqual(used, { "dot-pulse": ["opacity", "transform"], ring: ["opacity", "transform"] });
   await context.close();
 });

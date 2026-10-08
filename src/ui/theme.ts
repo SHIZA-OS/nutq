@@ -90,8 +90,9 @@ export const describePair = (text: string | null | undefined): Tone => lookup<To
 // A starry sky behind the page and the "pollen" cloud behind the mic button. Both only draw: the pollen reads the mode from
 // <html data-mic> and data-model (published by refresh() from the DOM main.ts writes) and clicking it is clicking the real
 // #mic-btn, which covers the stage (the canvas ignores the pointer). <html data-canvas> says what the loop is doing:
-// "running" (SHIZA, tab visible, motion allowed), "static" (SHIZA with reduced motion: one still frame, redrawn on a state
-// change or resize) or "stopped" (ZeroClaw theme or hidden tab: no animation frame is requested at all).
+// "running" (SHIZA, tab visible, motion allowed: the pollen loop runs, about 30 fps unless listening), "static" (SHIZA with
+// reduced motion: one still frame, redrawn on a state change or resize) or "stopped" (ZeroClaw theme or hidden tab: no animation
+// frame is requested at all). The sky is never animated: it is drawn on a theme switch, a visibility change and a resize.
 
 type Dot = { x: number; y: number; z: number; r: number; s: number; c: string; ph: number; ox: number; oy: number; mote: boolean; sx: number; sy: number; depth: number; size: number };
 
@@ -101,9 +102,9 @@ const pick = () => PALETTE[Math.floor(Math.random() * PALETTE.length)];
 
 const stars = Array.from({ length: 280 }, () => {
   const bias = Math.random() < 0.55; // towards the upper right, where the nebula sits
-  return { x: bias ? 0.45 + Math.random() * 0.55 : Math.random(), y: bias ? Math.random() * 0.55 : Math.random(), s: 0.3 + Math.random() * 1.1, a: 0.25 + Math.random() * 0.6, ph: Math.random() * 6.28, sp: 0.5 + Math.random() * 1.8 };
+  return { x: bias ? 0.45 + Math.random() * 0.55 : Math.random(), y: bias ? Math.random() * 0.55 : Math.random(), s: 0.3 + Math.random() * 1.1, a: 0.25 + Math.random() * 0.6 };
 });
-const dust = Array.from({ length: 140 }, () => ({ u: Math.random(), off: (Math.random() - 0.5) * 0.09, s: 0.4 + Math.random() * 1.2, a: 0.2 + Math.random() * 0.6, ph: Math.random() * 6.28 }));
+const dust = Array.from({ length: 140 }, () => ({ u: Math.random(), off: (Math.random() - 0.5) * 0.09, s: 0.4 + Math.random() * 1.2, a: 0.2 + Math.random() * 0.6 }));
 
 const dots: Dot[] = [];
 for (let i = 0; i < 360; i++) {
@@ -146,16 +147,17 @@ function fit(cv: HTMLCanvasElement, maxDpr: number) {
   return { ctx, w, h };
 }
 
-const streak = (u: number, w: number, h: number, t: number) => [
+const streak = (u: number, w: number, h: number) => [
   w * (0.38 + 0.66 * u),
-  h * (0.34 - 0.27 * u + Math.sin(u * 5.2 + t * 0.15) * 0.035 + Math.sin(u * 2.1 - t * 0.1) * 0.02 - 0.12 * Math.sin(u * Math.PI)),
+  h * (0.34 - 0.27 * u + Math.sin(u * 5.2) * 0.035 + Math.sin(u * 2.1) * 0.02 - 0.12 * Math.sin(u * Math.PI)),
 ];
 
-function drawSky(t: number, still: boolean) {
+// Drawn once, not animated: on a theme switch, a visibility change and a resize (see syncCanvas). A continuous full-screen
+// loop was the largest CPU cost of the SHIZA theme.
+function drawSky() {
   const f = fit(skyCanvas, 1.5);
   if (!f) return;
   const { ctx, w, h } = f;
-  const tt = still ? 0 : t;
   const big = Math.max(w, h);
   const blob = (x: number, y: number, r: number, rgba: string) => {
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -171,7 +173,7 @@ function drawSky(t: number, still: boolean) {
 
   ctx.globalCompositeOperation = "lighter";
   stars.forEach((st, i) => {
-    ctx.globalAlpha = st.a * (still ? 1 : 0.6 + 0.4 * Math.sin(tt * st.sp + st.ph));
+    ctx.globalAlpha = st.a;
     ctx.fillStyle = i % 5 === 0 ? "#C9B8FF" : "#F5F2FF";
     ctx.beginPath();
     ctx.arc(st.x * w, st.y * h, st.s, 0, 6.283);
@@ -186,25 +188,24 @@ function drawSky(t: number, still: boolean) {
     ctx.lineCap = "round";
     ctx.beginPath();
     for (let k = 0; k <= 60; k++) {
-      const [x, y] = streak(k / 60, w, h, tt);
+      const [x, y] = streak(k / 60, w, h);
       if (k === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
   }
   ctx.fillStyle = "#DCCEFF";
-  for (const d of dust) { // dust riding the streak
-    const u = (d.u + tt * 0.004) % 1;
-    const [x, y] = streak(u, w, h, tt);
-    ctx.globalAlpha = d.a * (still ? 1 : 0.65 + 0.35 * Math.sin(tt * 1.3 + d.ph)) * (0.3 + 0.7 * u);
+  for (const d of dust) { // dust along the streak
+    const [x, y] = streak(d.u, w, h);
+    ctx.globalAlpha = d.a * (0.3 + 0.7 * d.u);
     ctx.beginPath();
     ctx.arc(x, y + d.off * h, d.s, 0, 6.283);
     ctx.fill();
   }
 
   // the flare where the streak brightens
-  const [fx, fy] = streak(0.78, w, h, tt);
-  const fr = 70 + (still ? 0 : 8 * Math.sin(tt * 0.7));
+  const [fx, fy] = streak(0.78, w, h);
+  const fr = 70;
   const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
   fg.addColorStop(0, "rgba(255,255,255,0.9)");
   fg.addColorStop(0.12, "rgba(214,196,255,0.55)");
@@ -354,47 +355,64 @@ function readLevel(): number {
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let raf = 0;
-let lastT = 0;
-let lastSky = 0;
+let timer = 0;
+let lastDraw = 0;
+const IDLE_FRAME_MS = 30; // the gap between pollen frames while not listening: about 30 fps on a 60 Hz screen
 
 function canvasMode(): "running" | "static" | "stopped" {
   if (document.documentElement.dataset.theme !== "shiza" || document.hidden) return "stopped";
   return reducedMotion.matches ? "static" : "running";
 }
 
+// The pollen at full rate only while listening (when it follows the voice), otherwise about 30 fps. dt is the time since the
+// last frame, so the spin speed does not depend on the rate.
 function frame(now: number) {
-  raf = requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - lastT) / 1000);
-  lastT = now;
+  raf = 0;
+  const dt = Math.min(0.05, (now - lastDraw) / 1000);
+  lastDraw = now;
   levelTarget = readLevel();
   drawPollen(now / 1000, dt, false);
-  if (now - lastSky >= 33) { // ponytail: the full-screen sky is drawn at about 30 fps; every frame if it ever looks choppy
-    lastSky = now;
-    drawSky(now / 1000, false);
+  nextFrame();
+}
+
+// While idle the next animation frame is not even requested until the gap has passed: a frame that is requested and then skipped
+// still makes the browser run its whole main-thread frame (style, layout, paint checks), which cost more than drawing.
+function nextFrame() {
+  const wait = document.documentElement.dataset.mic === "listening" ? 0 : IDLE_FRAME_MS - (performance.now() - lastDraw);
+  if (wait > 1) {
+    timer = window.setTimeout(() => {
+      timer = 0;
+      raf = requestAnimationFrame(frame);
+    }, wait);
+  } else {
+    raf = requestAnimationFrame(frame);
   }
 }
 
 // Starts, stops or redraws according to canvasMode(); called whenever the theme, tab visibility or motion setting changes.
+// The sky is drawn here, once, and again on a resize; only the pollen has a loop.
 function syncCanvas() {
   const m = canvasMode();
   document.documentElement.dataset.canvas = m;
   syncMeter();
+  if (m !== "stopped") drawSky();
   if (m === "running") {
-    if (!raf) {
-      lastT = performance.now();
-      raf = requestAnimationFrame(frame);
+    if (!raf && !timer) {
+      lastDraw = performance.now();
+      nextFrame();
     }
     return;
   }
   cancelAnimationFrame(raf);
+  clearTimeout(timer);
   raf = 0;
-  if (m === "static") redrawStill();
+  timer = 0;
+  redrawStill();
 }
 
+// With reduced motion the pollen is one still frame; a new state or size is a new frame.
 function redrawStill() {
-  if (canvasMode() !== "static") return;
-  drawSky(0, true);
-  drawPollen(0, 0, true);
+  if (canvasMode() === "static") drawPollen(0, 0, true);
 }
 
 function initCanvases() {
@@ -424,7 +442,10 @@ function initCanvases() {
   });
   document.addEventListener("visibilitychange", syncCanvas);
   reducedMotion.addEventListener("change", syncCanvas);
-  window.addEventListener("resize", redrawStill);
+  window.addEventListener("resize", () => {
+    if (canvasMode() !== "stopped") drawSky();
+    redrawStill();
+  });
 }
 
 // --- DOM wiring ---------------------------------------------------------------------------------------------------
@@ -495,7 +516,7 @@ function refresh() {
     setText(byId("model-banner-detail"), mic.banner.detail);
   }
   byId("banner-connect").hidden = conn.tone === "ok";
-  redrawStill(); // with reduced motion the cloud is one still frame; a new state is a new frame
+  redrawStill();
 }
 
 function init() {
