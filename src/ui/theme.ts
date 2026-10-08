@@ -122,8 +122,11 @@ for (let j = 0; j < 46; j++) { // loose motes drifting around the cloud
 let skyCanvas: HTMLCanvasElement;
 let pollenCanvas: HTMLCanvasElement;
 let angle = 0;
-let level = 0; // eased towards levelTarget; Phase 4 feeds the real microphone level into levelTarget
+let level = 0; // eased towards levelTarget, which the meter below sets from the microphone
 let levelTarget = 0;
+
+// For tests: how loud the pollen currently thinks the microphone is (0 to 1).
+export const pollenLevel = () => level;
 let burst = 0;
 let pointer = { x: 0, y: 0, active: false };
 
@@ -300,6 +303,55 @@ function drawPollen(t: number, dt: number, still: boolean) {
   ctx.globalCompositeOperation = "source-over";
 }
 
+// --- Real microphone level ----------------------------------------------------------------------------------------
+// main.ts announces the microphone stream with a window event right after getUserMedia succeeds ("mic-stream", detail
+// { stream }) and announces its end ("mic-stream-end") when listening stops. The meter below is a read-only listener: its own
+// AudioContext and AnalyserNode fed from the stream, never connected to any output, the stream itself untouched. It exists
+// only while the pollen is animating (SHIZA, tab visible, motion allowed) and is closed on stop, a theme switch or a hidden tab.
+
+type Meter = { ctx: AudioContext; src: MediaStreamAudioSourceNode; analyser: AnalyserNode; buf: Float32Array<ArrayBuffer> };
+let micStream: MediaStream | null = null;
+let meter: Meter | null = null;
+
+function openMeter() {
+  if (meter || !micStream) return;
+  const ctx = new AudioContext();
+  try {
+    const src = ctx.createMediaStreamSource(micStream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    src.connect(analyser); // and nowhere else
+    meter = { ctx, src, analyser, buf: new Float32Array(analyser.fftSize) };
+    ctx.resume().catch(() => {});
+  } catch {
+    micStream = null; // something we cannot measure (not a real MediaStream): the cloud just stays at rest
+    ctx.close().catch(() => {});
+  }
+}
+
+function closeMeter() {
+  if (!meter) return;
+  const { ctx, src, analyser } = meter;
+  meter = null;
+  src.disconnect();
+  analyser.disconnect();
+  ctx.close().then(() => console.info(`mic level meter closed, AudioContext ${ctx.state}`), () => {});
+}
+
+function syncMeter() {
+  if (micStream && canvasMode() === "running") openMeter();
+  else closeMeter();
+}
+
+// Loudness of the last 1024 samples, scaled so ordinary speech (RMS around 0.05 to 0.15) moves the cloud well without pinning it.
+function readLevel(): number {
+  if (!meter) return 0;
+  meter.analyser.getFloatTimeDomainData(meter.buf);
+  let sum = 0;
+  for (const v of meter.buf) sum += v * v;
+  return Math.min(1, Math.sqrt(sum / meter.buf.length) * 6);
+}
+
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let raf = 0;
 let lastT = 0;
@@ -314,6 +366,7 @@ function frame(now: number) {
   raf = requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - lastT) / 1000);
   lastT = now;
+  levelTarget = readLevel();
   drawPollen(now / 1000, dt, false);
   if (now - lastSky >= 33) { // ponytail: the full-screen sky is drawn at about 30 fps; every frame if it ever looks choppy
     lastSky = now;
@@ -325,6 +378,7 @@ function frame(now: number) {
 function syncCanvas() {
   const m = canvasMode();
   document.documentElement.dataset.canvas = m;
+  syncMeter();
   if (m === "running") {
     if (!raf) {
       lastT = performance.now();
@@ -359,6 +413,15 @@ function initCanvases() {
   });
   mic.addEventListener("pointerleave", () => { pointer.active = false; });
   mic.addEventListener("click", () => { burst = 1; }); // a disabled button gets no click, so a refused press does not pulse
+  window.addEventListener("mic-stream", (e) => {
+    closeMeter(); // a stream replaced without an end in between
+    micStream = (e as CustomEvent<{ stream: MediaStream }>).detail?.stream ?? null;
+    syncMeter();
+  });
+  window.addEventListener("mic-stream-end", () => {
+    micStream = null;
+    syncMeter();
+  });
   document.addEventListener("visibilitychange", syncCanvas);
   reducedMotion.addEventListener("change", syncCanvas);
   window.addEventListener("resize", redrawStill);

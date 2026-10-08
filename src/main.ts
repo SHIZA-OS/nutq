@@ -932,6 +932,7 @@ function scheduleSilenceTimer() {
 async function finishListening(trigger: Exclude<SendTrigger, "held">) {
   if (!listening) return;
   listening = false;
+  window.dispatchEvent(new CustomEvent("mic-stream-end"));
   finishing = true;
   releasedAt = Date.now();
   clearSilenceTimer();
@@ -1081,6 +1082,7 @@ async function startMicrophone(t: Transcriber): Promise<string | null> {
   try {
     t.callbacks.onPermissionsRequested();
     const stream = await navigator.mediaDevices.getUserMedia(micConstraints(isEvalMode, isRawMic));
+    window.dispatchEvent(new CustomEvent("mic-stream", { detail: { stream } })); // for the page's level meter, which only reads it
     // What Chrome actually applied, since a constraint can be ignored.
     const { echoCancellation, noiseSuppression, autoGainControl, sampleRate } = stream.getAudioTracks()[0]?.getSettings() ?? {};
     const applied = { echoCancellation, noiseSuppression, autoGainControl, sampleRate };
@@ -1090,6 +1092,7 @@ async function startMicrophone(t: Transcriber): Promise<string | null> {
     await t.start();
     return null;
   } catch (e) {
+    window.dispatchEvent(new CustomEvent("mic-stream-end"));
     t.stop();
     log(`Microphone could not be started: ${e}`);
     const name = (e as { name?: string })?.name;

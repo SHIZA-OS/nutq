@@ -376,3 +376,44 @@ test("canvases: the pollen is the mic button, no second path: the canvas ignores
   assert.equal(await page.evaluate(() => window.__micClicks), 1);
   await context.close();
 });
+
+// --- the level meter, driven by the two window events directly (main.ts's side is mic-stream.test.mjs) ---
+
+test("meter: a stream that cannot be measured is ignored; a hidden tab or the ZeroClaw theme closes the meter, a visible SHIZA page reopens it", async () => {
+  const { page, context, errors } = await open({ saved: "shiza" });
+  await page.mouse.click(5, 5); // a user gesture, so the page's audio contexts may start
+  await page.evaluate(() => {
+    window.__ctxs = [];
+    const Native = window.AudioContext;
+    window.AudioContext = class extends Native { constructor(...a) { super(...a); window.__ctxs.push(this); } };
+    const c = new Native();
+    const d = c.createMediaStreamDestination();
+    const o = c.createOscillator();
+    o.connect(d);
+    o.start();
+    window.__stream = d.stream;
+  });
+  const open_ = () => page.evaluate(() => window.__ctxs.filter((c) => c.state !== "closed").length);
+
+  // not a MediaStream, like the harness's stub
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("mic-stream", { detail: { stream: { getAudioTracks: () => [] } } })));
+  await page.waitForTimeout(150);
+  assert.equal(await open_(), 0, "nothing left open for a stream it cannot read");
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("mic-stream", { detail: { stream: window.__stream } })));
+  await page.waitForFunction(() => window.__ctxs.some((c) => c.state !== "closed"));
+  assert.equal(await open_(), 1);
+
+  await hideTab(page, true);
+  await page.waitForFunction(() => window.__ctxs.every((c) => c.state === "closed"));
+  await hideTab(page, false);
+  await page.waitForFunction(() => window.__ctxs.some((c) => c.state !== "closed"));
+  assert.equal(await open_(), 1, "reopened on the same stream");
+
+  await page.locator("#theme-switch").click(); // to ZeroClaw
+  await page.waitForFunction(() => window.__ctxs.every((c) => c.state === "closed"));
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("mic-stream-end")));
+  assert.equal(await open_(), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
