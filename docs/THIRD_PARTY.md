@@ -25,7 +25,7 @@ files were downloaded from them.
 | `public/vendor/onnxruntime-web-1.14.0/ort-wasm-simd.wasm` | `https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort-wasm-simd.wasm` | 10,014,674 | `9bd07bababc65f53d061f457233eeae501be7ceb8a2adb9eef52d87fe776d865` |
 | `public/vendor/vad-web-0.0.24/silero_vad_v5.onnx` | `https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.24/dist/silero_vad_v5.onnx` | 2,327,524 | `2623a2953f6ff3d2c1e61740c6cdb7168133479b267dfef114a4a3cc5bdd788f` |
 | `public/vendor/vad-web-0.0.24/vad.worklet.bundle.min.js` | `https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.24/dist/vad.worklet.bundle.min.js` | 2,642 | `c187b8546aa8e8d91c8cbfccdd00407ca44724e7f3369770a5524efc76d441a0` |
-| `public/fonts/*.woff2` (7 files) | the files Google Fonts' CSS pointed to on 2026-10-05 | see the directory | not recorded |
+| `public/fonts/*.woff2` (10 files) | the files Google Fonts' CSS pointed to on 2026-10-05 | see the directory | not recorded |
 
 The Silero model, the worklet and the 1.14.0 wasm were compared byte for byte with the copies inside the installed npm
 packages `@ricky0123/vad-web@0.0.24` and its nested `onnxruntime-web@1.14.0`, and are identical.
@@ -49,9 +49,23 @@ Only the files requested on a plain load are bundled. ONNX Runtime 1.14.0 has th
 | ONNX Runtime Web wasm 1.14.0 (`ort-wasm-simd.wasm`) | npm `onnxruntime-web@1.14.0`, via jsDelivr (this is the version `@ricky0123/vad-web@0.0.24` depends on) | MIT, Copyright (c) Microsoft Corporation | `LICENSE` of https://github.com/microsoft/onnxruntime at tag `v1.14.0` (identical text to v1.22.0) | Yes, same conditions |
 | Silero VAD v5 model (`silero_vad_v5.onnx`) and the VAD audio worklet (`vad.worklet.bundle.min.js`) | npm `@ricky0123/vad-web@0.0.24`, via jsDelivr | model: MIT, Copyright (c) 2020-present Silero Team; worklet (vad-web code): ISC, Copyright (c) 2022-present ricky0123 | model: `LICENSE` of https://github.com/snakers4/silero-vad at commit `caddb3b7ce1dee88a14d5621a0e9a8fdeb2c2c48`. Worklet: `LICENSE` of https://github.com/ricky0123/vad at commit `2778c913ad04c2b49635ac900a44066dafc81a83`; `package.json` of the npm package says ISC, and the package contains no license file | Yes for both, with their notices. The file is byte-identical to the copy inside the npm package; we did not compare it with the file in the silero-vad repository |
 | Amiri (regular, italic; latin and arabic subsets) | Google Fonts | SIL Open Font License 1.1, Copyright 2010-2022 The Amiri Project Authors | `ofl/amiri/OFL.txt` in https://github.com/google/fonts, commit `39d11bc313031c9f68e21a297ce5e4a15cc5365e` | Yes (OFL permits bundling and redistribution of unmodified fonts) |
-| Cormorant Garamond (300, 500; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2015 the Cormorant Project Authors | `ofl/cormorantgaramond/OFL.txt`, commit `6a386aadc0a33dd3d810b833d9c5105345cbb0e6` | Yes |
-| DM Sans (400, 500, 600; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2014 The DM Sans Project Authors | `ofl/dmsans/OFL.txt`, commit `c26e50af610a8300ad53a2b4955828e329a52d39` | Yes |
+| Cormorant Garamond (300 to 500 normal, 300 and 400 italic; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2015 the Cormorant Project Authors | `ofl/cormorantgaramond/OFL.txt`, commit `6a386aadc0a33dd3d810b833d9c5105345cbb0e6` | Yes |
+| Inter (400 to 700; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2020 The Inter Project Authors | `ofl/inter/OFL.txt`, commit `b0928647ba26c8d55548aa19feb2f7aeba622d4a` | Yes |
+| Spectral (400 normal and italic; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2017 The Spectral Project Authors | `ofl/spectral/OFL.txt`, commit `9c96641e1f222219ce1fd949e919f0258b6ec2ee` | Yes |
 | JetBrains Mono (400, 500; latin subset) | Google Fonts | SIL OFL 1.1, Copyright 2020 The JetBrains Mono Project Authors | `ofl/jetbrainsmono/OFL.txt`, commit `2e05c1cf00a6e4f40a4b931600a90881c26e15cd` | Yes |
+
+### Brand assets
+
+Served from `public/brand/`. They were supplied in the design handoff for the two themes; Nutq did not create them.
+The SVGs are the supplied files with only the embedded C2PA metadata block (and its namespace declaration) removed,
+which was checked to render pixel for pixel the same in headless Chrome at 4 times the display height.
+
+| File | What it is | Size in bytes | Rights |
+|---|---|---|---|
+| `shiza-logo.svg`, `shiza-icon.svg`, `favicon-shiza-32.png`, `favicon-shiza-180.png` | SHIZA wordmark, icon and tab icons | see the directory | SHIZA brand marks, shown in the SHIZA theme. Whether they may be redistributed under this repository's MIT license: TBD, to be confirmed by SHIZA |
+| `zeroclaw-logo.svg`, `favicon-zeroclaw-32.png`, `favicon-zeroclaw-180.png` | ZeroClaw logo and tab icons | see the directory | Source and license of the supplied files: TBD, not verified. Shown in the ZeroClaw theme only to identify the product Nutq talks to |
+
+ZeroClaw and its logo are trademarks of ZeroClaw Labs. This project is not affiliated with or endorsed by ZeroClaw Labs.
 
 ## 3. Code in the production bundle
 
@@ -83,9 +97,9 @@ is in [src/vendor/LICENSE](../src/vendor/LICENSE). `src/vendor/pre-roll.ts` is o
 | `typescript` | 6.0.3 | Apache-2.0 |
 | `playwright-core` | 1.63.0 | Apache-2.0 |
 
-`public/favicon.svg` and `public/icons.svg` are byte-identical to the files in `packages/create-vite/template-vanilla-ts/public`
-of https://github.com/vitejs/vite (compared on 2026-10-05), so they fall under the Vite MIT license. `icons.svg` is not
-referenced by the app.
+`public/icons.svg` is byte-identical to the file in `packages/create-vite/template-vanilla-ts/public`
+of https://github.com/vitejs/vite (compared on 2026-10-05), so it falls under the Vite MIT license. It is not
+referenced by the app. The Vite template's `favicon.svg`, which this page used as its tab icon before the themes, is gone.
 
 ## 6. Not shipped, used by the user's browser
 
