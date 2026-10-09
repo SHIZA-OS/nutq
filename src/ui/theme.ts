@@ -104,7 +104,6 @@ const stars = Array.from({ length: 280 }, () => {
   const bias = Math.random() < 0.55; // towards the upper right, where the nebula sits
   return { x: bias ? 0.45 + Math.random() * 0.55 : Math.random(), y: bias ? Math.random() * 0.55 : Math.random(), s: 0.3 + Math.random() * 1.1, a: 0.25 + Math.random() * 0.6 };
 });
-const dust = Array.from({ length: 140 }, () => ({ u: Math.random(), off: (Math.random() - 0.5) * 0.09, s: 0.4 + Math.random() * 1.2, a: 0.2 + Math.random() * 0.6 }));
 
 const dots: Dot[] = [];
 for (let i = 0; i < 360; i++) {
@@ -147,11 +146,6 @@ function fit(cv: HTMLCanvasElement, maxDpr: number) {
   return { ctx, w, h };
 }
 
-const streak = (u: number, w: number, h: number) => [
-  w * (0.38 + 0.66 * u),
-  h * (0.34 - 0.27 * u + Math.sin(u * 5.2) * 0.035 + Math.sin(u * 2.1) * 0.02 - 0.12 * Math.sin(u * Math.PI)),
-];
-
 // Drawn once, not animated: on a theme switch, a visibility change and a resize (see syncCanvas). A continuous full-screen
 // loop was the largest CPU cost of the SHIZA theme.
 function drawSky() {
@@ -180,48 +174,6 @@ function drawSky() {
     ctx.fill();
   });
 
-  // the light streak: wide haze, mid glow, bright core
-  for (const [lw, alpha, color] of [[46, 0.035, "#8B5CFF"], [16, 0.07, "#9D74FF"], [3, 0.22, "#C9B8FF"], [1, 0.55, "#EDE6FF"]] as const) {
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lw;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    for (let k = 0; k <= 60; k++) {
-      const [x, y] = streak(k / 60, w, h);
-      if (k === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#DCCEFF";
-  for (const d of dust) { // dust along the streak
-    const [x, y] = streak(d.u, w, h);
-    ctx.globalAlpha = d.a * (0.3 + 0.7 * d.u);
-    ctx.beginPath();
-    ctx.arc(x, y + d.off * h, d.s, 0, 6.283);
-    ctx.fill();
-  }
-
-  // the flare where the streak brightens
-  const [fx, fy] = streak(0.78, w, h);
-  const fr = 70;
-  const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr);
-  fg.addColorStop(0, "rgba(255,255,255,0.9)");
-  fg.addColorStop(0.12, "rgba(214,196,255,0.55)");
-  fg.addColorStop(0.45, "rgba(139,92,255,0.18)");
-  fg.addColorStop(1, "rgba(139,92,255,0)");
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = fg;
-  ctx.beginPath();
-  ctx.arc(fx, fy, fr, 0, 6.283);
-  ctx.fill();
-  const lg = ctx.createLinearGradient(fx - 140, fy, fx + 140, fy);
-  lg.addColorStop(0, "rgba(201,184,255,0)");
-  lg.addColorStop(0.5, "rgba(237,230,255,0.7)");
-  lg.addColorStop(1, "rgba(201,184,255,0)");
-  ctx.fillStyle = lg;
-  ctx.fillRect(fx - 140, fy - 0.75, 280, 1.5);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = "source-over";
 }
