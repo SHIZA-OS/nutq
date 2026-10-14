@@ -39,6 +39,8 @@
 
 First version meant for other people to clone and run. No git tag has been created for it.
 
+The project was first named Sawt and was renamed Nutq (نطق, "utterance") because the first name collided with an existing project.
+
 ### What it does
 
 - Voice chat with a ZeroClaw agent in the browser: microphone, local speech-to-text (Moonshine base, WebAssembly, with a
@@ -80,3 +82,10 @@ First version meant for other people to clone and run. No git tag has been creat
 - Moonshine's upstream source repository has been archived (`docs/ROADMAP.md`).
 - Listening is tap to start and tap to stop; there is no continuous listening and no barge-in by voice.
 - The recorded test audio the evaluation drivers need is not in the repository; record your own with `eval/wer/record.sh`.
+- The end-of-turn waits were chosen by an offline replay of 57 recordings, not tried live with a microphone in a demo; their pause
+  cut rate is a result for 12 takes by one speaker (`docs/ARCHITECTURE.md`, "Why these waits").
+- The speech changes (sentence batching, the first-sentence wait, dash handling, the mute after a mic tap) were checked by tests and
+  measurements, not by listening. A voice that drops out mid-utterance cannot be detected from the browser's `onend`.
+- A short segment the voice detector calls a misfire leaves the page recording (`isTalking` stays true); a later speech start
+  then prepends no pre-roll.
+- Measured results and how to read them: `docs/ARCHITECTURE.md`, "Eval tools, case sets and results".

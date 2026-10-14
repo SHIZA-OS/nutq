@@ -139,6 +139,15 @@ is an inference, not tested.
 `onVADMisfire` only logs: `isTalking` stays true and `speechBuffer` keeps recording, so a
 later speech start finds frames already in the buffer and pre-roll correctly prepends 0.
 
+**Capture rate and the VAD session.** The microphone is resampled to 16 kHz by vad-web's worklet, a box-average
+decimator. It is exact at 48000 Hz (1536 input samples per 512 sample frame, no drift) and stretches time by 0.057%
+at 44100 Hz. It has no real low-pass filter: tones at 9 to 12 kHz alias at only 4.6 to 9.5 dB down, and 7 kHz is 2.6 dB
+down. That is a quality limit of the decimator, not a bug, and nothing was changed. With a 48 kHz device, short words
+("Yes.", "Stop") were detected and sent in 6 of 6 runs of a diagnostic. The page creates one Silero VAD session per
+page (never one per Connect or per listening session). One session takes about 100 MB once and does not grow per turn;
+each extra session costs about 10.5 MB and is never released, which matters only to tools that create many (the offline
+replay opens one page per phase for that reason). These were measured once, on one machine.
+
 ## End of turn
 
 `src/turn-policy.ts` decides when a listening turn ends and why, as a pure module (no timers, no DOM, no
@@ -159,6 +168,38 @@ manual stop ends the turn at once with reason `manual`; once ended, a turn stays
 `Date.now()` and one `setTimeout`, and the reason becomes the `trigger` of `transcript_final` and
 `ws_message_sent`. The offline replay (`replay-commits.mjs`) drives the same module with time taken from frame
 positions.
+
+**Why these waits.** The values come from an offline sweep (`eval/results/2026-10-05-endpoint-sweep/`): all 57
+recordings at 8 frame phases, the real transcriber run once per recording and phase, then 640 policies replayed on those
+streams with the real `TurnPolicy` at model latency scales of 0.5, 1 and 2. The simulator matched a real replay
+exactly (cuts by recording, median, p90 and maximum wait) for the five policies that were also run for real. It does not
+model the flush `stop()` does on an early end: two policies sent a non-empty message ("It") on one noise-only turn that
+the simulator said was empty. The chosen point (`semantic:1000,2200,2500,0`) has a median wait after the true end of
+speech of 1768 ms, against 2968 ms for the best fixed wait (`fixed:2200`), and p90 2968 ms against 3000 ms. It costs
+12 cut pauses out of 96 turn-phases, against 8 for `fixed:2200`. No semantic policy in the grid got under 12 cuts: the
+speech model puts a full stop in the middle of some sentences (mp-10) and reads a pause after a complete clause (mp-12)
+as done, and the grid's `done` wait topped out at 1000 ms. Pauses after function words were protected (0 of 64 cut with
+an `open` wait of 2500 ms or more). Adding auxiliary verbs and subject pronouns to the open list (tier 2) never beat the
+tier 1 list. Limits: the 12 cuts are dominated by one recording (mp-10 is cut in 8 of 8 phases; without it the cuts are
+4); the 12 pause recordings are by one speaker and their measured pauses were 1.6 to 3.0 s, so this is a result for
+those takes and not a general cut rate; the 8 phases only shift the frame grid, so they are not independent; and
+these waits were not tried live with a microphone in a demo. The replay has no real clock: it models the time a
+commit's text takes to reach the policy as 269 ms per second of audio minus 61 ms (floor 100 ms), a line fitted to 297
+live commit calls (residual standard deviation 191 ms).
+
+## Mute after a mic tap
+
+Tapping the mic button to start listening while a reply is in flight mutes the rest of that reply, with sentence
+streaming on or off. `ReplyState` (`src/turn-state.ts`) holds the mute. `mute()` sets it only while a reply is in
+flight, and it is cleared at every point that clears the in-flight flag (`done`, `aborted`, a turn-failure `error`, a
+closed socket, the reply timeout), so the next turn speaks normally. A tap with no reply in flight mutes nothing. While
+muted, later chunks are still shown in the transcript card but not queued for speech, and at `done` nothing is spoken:
+no tail, no `full_response` fallback, no `tts_text_mismatch`, no `tts_skipped`. `main.ts` reads the mute before it
+handles the frame, because a `done` clears it. A tool call in a muted turn does nothing and cannot unmute. The user's
+own utterance made during the muted reply is held and sent when the turn ends (see "One turn at a time" below).
+`tts_muted { reason, point, chars }` records the mute; `join-latency.mjs` reports a muted turn as muted, with a null
+reason for the missing `tts_start`, and not as a missing client event. Not checked by ear in a real browser: a mic tap
+mid-reply in both modes.
 
 ## Mic press right after listening ends
 
@@ -215,7 +256,10 @@ Connect is a plain connect. Until the new socket opens the mic is disabled, as f
 Every socket handler (`onopen`, `onmessage`, `onerror`, `onclose`) first checks that its socket is still the current one and returns if not. The old socket is
 let go of before the new one is made, and its close (and anything it still delivers) arrives later; without the check that close would reset the new
 connection's status, in-flight flag and speech. The new connection starts a new session, so an events file that spans a timeout has two `session_start`
-session ids, and `join-latency.mjs` then needs `--session` to pick one.
+session ids, and `join-latency.mjs` then needs `--session` to pick one. The old socket's close is deliberately not reported as `ws_closed`, because
+`completion.mjs` reads `ws_closed` as a failure signal and a late one would land in the next turn's window; a turn that timed out therefore shows up in
+the eval only through `turn_timeout` and the server row. If the user is mid-utterance when the timeout fires, the button is disabled until the new
+socket opens, and an utterance finished before then is "Cannot send: not connected".
 
 ## Eval mode: WER replay
 
@@ -252,8 +296,41 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   (a test pins it) so earlier eval runs can be repeated. Anything but exactly `short` is `voice` (so `?reply=SHORT` is `voice`).
   `ws_message_sent` records `reply_style`.
 
+**The sentence splitter.** `src/sentence-splitter.ts` closes a unit at `. ? !` followed by whitespace, and at a newline. It does not split inside a
+number or after `Dr.`, `Mr.`, `Mrs.`, `Ms.`, `e.g.`, `i.e.`, `vs.` or `U.S.`, and a fragment under 20 characters is merged into the next unit;
+`flush()` at `done` releases what is left. Known limits: text with no `. ? !` plus whitespace (an unpunctuated list, or Arabic, Urdu or CJK
+terminators) is spoken whole when `done` arrives.
+
+**The gap between utterances (experiment).** With sentence streaming each sentence used to be its own `speechSynthesis` utterance, handed to the browser
+only after the previous one's `onend`, and there was an audible pause of about 740 to 890 ms between sentences. A throwaway page (outside the
+repository; headed Chrome 154, a dedicated profile, the browser's default voice with `lang` en-US as the app uses, a network voice the page cannot name)
+measured `onend` to the next `onstart` for 7 short sentences, two rounds each, 12 gaps per mode:
+
+| mode | mean | median | min to max | sd |
+|---|---|---|---|---|
+| one after another (as the app did) | 892 ms | 850 ms | 723 to 1105 | 127 |
+| all queued ahead in the browser | 841 ms | 841 ms | 730 to 963 | 62 |
+
+Queueing ahead did not help (the 50 ms difference of the means is inside the noise), so Chrome does not prepare the next utterance early. The delay from
+`speak()` to the first `onstart` was 1964, 1005, 820 and 975 ms in the four rounds (the first one cold). One long utterance each, listened to by one
+person, one run per length:
+
+| chars | sentences | audio duration | `onend` | heard |
+|---|---|---|---|---|
+| 301 | 5 | 18.3 s | fired | all of it |
+| 553 | 9 | 33.6 s | fired | stopped early |
+| 1193 | 19 | 73.6 s | fired | all of it |
+| 2409 | 38 | 151.0 s | fired | all of it |
+
+There is no sign of a hard length limit up to 2409 characters, and the one failure (553) does not follow from length; with one run per length its cause is
+unknown. `onend` fired after the full expected duration even when the audio stopped early, so a cut-off cannot be detected from `tts_end`, and
+`onboundary` never fired, so progress inside an utterance cannot be seen. The repeat runs were skipped. The 1200 character cap below is a judgement from
+this table: inside the range that played fully, half the exposure of 2400 if a voice drops out inside a batch, and about one 0.85 s gap per 73 s of
+speech. A drop-out inside a merged utterance loses more speech than one inside a single sentence, and `tts_end` will not show it;
+`tts_sentence_start { units, chars }` is there so a complaint can be matched to a batch size.
+
 **Coalescing (sentence streaming).** Each utterance pays the voice's start delay again, about 0.85 s between two utterances with the browser's
-default voice (see the experiment in PROGRESS). So every utterance is all the units that have arrived by the time the previous one ends, in order,
+default voice (see the experiment above). So every utterance is all the units that have arrived by the time the previous one ends, in order,
 joined with a space, broken at unit boundaries and capped at `MAX_UTTERANCE_CHARS` (1200, join spaces included). The first utterance of a turn used
 to be the first unit alone, and the 0.85 s gap after one sentence then sounded like an ending before speech resumed. So it **waits** up to
 `FIRST_UTTERANCE_WAIT_MS` (700) after its first unit is ready, collecting the units that arrive meanwhile (same cap, same unit boundaries), and
@@ -268,13 +345,16 @@ utterance that waited (index 0 of a turn), the time from its first unit being re
 (mic tap, abort, close, timeout, new send) stops the utterance in progress whole and drops what waits, as before. An engine error
 loses every unit of that utterance. The `full_response` fallback is one unit, so it plays alone and is not split. Queueing the next
 utterance ahead in the browser was measured and did not shorten the gap, so it is not done. The 1200 is a judgement, not a measured
-threshold (see PROGRESS).
+threshold (see the experiment above).
 
 **Tool calls (sentence streaming).** The agent can stream text before a tool call, and that text is not in `full_response`, which holds only the
 last iteration. Chunks arrive before the `tool_call` frame, so some of it may already be audible; what has not been heard is dropped. On a
 `tool_call` frame `dropUnheardSpeech` (`main.ts`) discards the text the splitter holds (`pendingChars`, also resetting the open-code-fence
 state), and `SpeechQueue.drop()` removes every queued unit and the utterance with the engine if its audio has not started (the engine is told to
-cancel it, and its late callbacks are ignored). An utterance that is audible plays to its end and is not cancelled. Chunks after the call are
+cancel it, and its late callbacks are ignored). "Not started speaking" is read as "not audible": an utterance handed to the browser whose `onstart` has
+not fired is dropped too, because the first sentence of a reply sits in exactly that state for the voice's start delay (0.8 to 2 s in the gap
+experiment), which is when a tool call is likely to arrive. For the literal reading (only units still in the queue), `SpeechQueue.drop()` is the one place to
+change. An utterance that is audible plays to its end and is not cancelled. Chunks after the call are
 spoken as usual, numbering goes on, and each further tool call repeats the drop. `tts_dropped { reason: "tool_call", units, chars, partial_chars }`
 is logged only when something was dropped (`units` and `chars` count the dropped units' own text, without join spaces; `partial_chars` the splitter
 text). The done fallback asks `SpeechQueue.fresh`, the units queued since the last tool call, instead of the turn's total: if nothing was queued
@@ -297,6 +377,22 @@ Markers cut across chunks never reach the cleaner half-formed, because only clos
 several units is carried by the caller (`speechInCode`). A unit that cleans to nothing is not queued. Not handled: symbols such as
 `->`, nested emphasis across lines, and a reply hard-wrapped inside a sentence (it would be spoken as two utterances; the replies
 probed so far were not wrapped).
+
+**Reply style probe.** Before the `voice` prefix was built, three questions that invite structure (a Python project setup, PostgreSQL against MongoDB,
+pre-deployment checks) were put to the agent through the ZeroClaw CLI, each with no prefix and with the voice prefix. With no prefix every reply was
+markdown: bold (2 to 26 times per reply), headings (3 to 6), bullets, numbered lists, fenced and inline code, and em dashes. With the voice prefix none of the
+three had bold, headings, bullets, numbers, code, tables, URLs or emoji; they were prose paragraphs, each one a single line of 190 to 410 characters with
+blank lines between (not hard-wrapped), but one still contained em dashes, which is why `speakable()` handles dashes and the prefix names them.
+
+| question | no prefix | voice prefix |
+|---|---|---|
+| set up a Python project | 195 words, 5.8 s | 272 words, 5.1 s |
+| PostgreSQL vs MongoDB | 350 words, 8.3 s | 300 words, 6.2 s |
+| pre-deployment checks | 322 words, 5.7 s | 242 words, 4.6 s |
+
+The times include the CLI's start-up and are not the `/ws/chat` path (a CLI call gives no chunks). With six samples and the longest at 8.3 s, the 60 s
+reply timeout was not close; answers longer than about 350 words were not tried. In one no-prefix reply the agent asked to run a shell command and waited for
+approval; Nutq always denies approvals. Not checked: how dashes and ranges sound by ear.
 - `?model=<path>` (eval only, default `model/base`): picks the Moonshine model. The value
   must contain `tiny` or `base`, otherwise an error is shown and the mic stays disabled.
 
@@ -325,6 +421,57 @@ Events added for WER measurement:
 Runner note: wait for the mic button to enable (status "ready") before starting audio. With
 Chrome's `--use-file-for-fake-audio-capture=<wav>%noloop`, the file plays once from the
 moment the mic opens, and the mic now opens only after the load.
+
+## Eval tools, case sets and results
+
+**Case sets.** `eval/wer/cases.jsonl` lists 57 scripted cases; the recordings are not in the repository (`eval/wer/record.sh` records them). The 37 rows
+without a `set` are v1, the comparable baseline: first words soft and strong, problem words, assistant queries, numbers, casual, short, one silence case
+and background noise. The 20 rows with `set: v2` are noise-only cases (no-01 to no-04), noise then "Stop." (nts-01), and the pause cases (mp-01 to mp-12,
+te-01, te-02, ls-01), recorded with a per-case `seconds` and a `pause_s` prompt that says to count the pause silently. Summaries report v1 next to all
+scored cases.
+
+**Tools** (`eval/runner/`):
+
+- `run-wer.mjs` replays the recordings through the real page in system Chrome with a fake microphone (`?eval=1&nosend=1`, so nothing reaches ZeroClaw) and
+  scores them. It passes `silence=5000` unless `--silence` says otherwise, so live baselines keep the fixed wait they always had.
+- `run-model-only.mjs` feeds whole files straight to the model with no VAD; `--trim-from-trigger` starts each file at a frame offset from the VAD trigger.
+- `vad-onset.mjs` measures how late the VAD triggers after the true speech onset, per case.
+- `wer.mjs` is the scorer. Corpus WER is errors over reference words, silence excluded. `num_norm` turns 1 and 2 digit integers into words on both sides
+  ("12" to "twelve"); raw figures are kept so older numbers stay comparable.
+- `replay-commits.mjs` is the offline replay: the real transcriber is fed each WAV frame by frame and every commit is printed with its frame range, the path
+  that fired it and its text (`--frames a-b` dumps probability and EMA per frame). `--wer <label>` is the phase-swept replay: every case at 8 frame phases,
+  scored with `wer.mjs`, written to `eval/results/<date>-wer-<label>/`. `--policy`, `--latency-scale` and `--streams` drive end-of-turn experiments, and
+  `--gate <results dir>` checks a run against a reference: it fails only on a new error (more substitutions, deletions or insertions after number
+  normalization) and lists other changed hypotheses for review. Limits: no Chrome microphone processing, no resampling, no streaming updates, no real-time
+  scheduling; the turn ends the way `run-wer.mjs` ends it (the `main.ts` turn policy driven with time from frame positions, then a manual stop 10 s after the
+  WAV ends if it has not ended).
+- `endpoint-sweep.mjs`, `endpoint-sim.mjs`, `endpoint-check.mjs` and `endpoint-metrics.mjs` replay and score end-of-turn policies (see "Why these waits").
+- `parse-trace.mjs`, `join-latency.mjs` and `completion.mjs` join the page's events with ZeroClaw's runtime trace (see [eval-harness-design.md](eval-harness-design.md)).
+
+**Measurement policy.** Compare logic changes with the phase-swept replay; take absolute numbers from interleaved live runs. Three live repeats do not
+separate differences of about 2 points: the same code ranged from 7.7% to 12.8% across repeats, and the audio the model receives differs between repeats of
+the same recording (of 101 commits matched by position across three repeats, 74 had the same length in all three and only 12 of those had the same audio hash).
+Two back-to-back runs with `?rawmic=1` raised same-length hash agreement (62.5%, against 23% to 52% for the default microphone pairs) but did not stabilize
+transcripts or WER, so the cause of the variation is unexplained; the 44.1 kHz capture rate Chrome reports is untested. Compare arms only by interleaving them.
+
+**Results so far** (v1 set, 37 recordings, `model/base`, mean of three live repeats unless stated; per-run folders are under `eval/results/`):
+
+| change | raw WER | number-normalized WER | soft first words right (of 5) |
+|---|---|---|---|
+| baseline, no pre-roll | 27.5% | 23.5% | 1 in every repeat |
+| 4 frame pre-roll | 15.7% | 12.4% | 5 in every repeat |
+| plus stop guard and recorded-frames pause gate | 12.3% | 8.5% | 5 in every repeat |
+| serialized model calls (interleaved A/B: before 13.5% raw, 10.0% normalized; after 12.7%, 9.1%) | 12.7% | 9.1% | 5 in every repeat |
+| phase-swept replay, current code (not a live number) | 14.6% | 10.6% | not tabulated |
+
+Reading it: the pre-roll gain (about 11 points normalized) is well beyond the measured noise. The gate fix's gain (about 4 points) was measured across time
+windows that were not interleaved and is of the order of the run-to-run spread, so its size is unconfirmed although its mechanism is confirmed (a commit
+boundary moved back onto the word). Serializing the model calls is WER-neutral: the 0.85 point difference is inside the ranges. It was made because the
+`Session already started` error appeared in earlier runs; it did not appear in the nine serialized runs (counted from the per-run raw events, which
+are not committed). The replay figure measures something different from the live runs and is for comparing logic
+changes. On all 57 recordings at the chosen end-of-turn waits the replayed WER is 14.4% (13.4% for `fixed:2200`); see
+`eval/results/2026-10-05-end-of-build/`. Two cases (fst-04, pw-04) were worse
+after pre-roll and one short tail (pw-04's second commit) is unstable between repeats; neither was investigated.
 
 ## The `/ws/chat` protocol
 

@@ -115,6 +115,9 @@ Nutq always denies tool approval requests. When the agent asks to run a tool tha
 and answers `deny`; there is no setting that approves one. Tools the agent is configured to run without approval are
 under ZeroClaw's control, not Nutq's.
 
+When you debug the gateway container, note that `docker compose config` prints the fully interpolated configuration with
+environment variables (API keys included), so do not share or paste its output.
+
 ## Production build
 
 ```
@@ -184,6 +187,8 @@ in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | You want a local voice on Linux Chrome | Chrome lists local voices (through speech-dispatcher) only when started with `--enable-speech-dispatcher`. `?voice=<exact name>` picks one; the page logs the voice list. |
 | "This browser has no WebAssembly support" | Use a current desktop browser. |
 | The agent never answers, or the log shows a provider error | Check the gateway, not Nutq. The ZeroClaw daemon writes almost nothing to `docker logs`; its runtime errors are in `/zeroclaw-data/.zeroclaw/data/state/runtime-trace.jsonl` inside the container. |
+| A change to the gateway's compose file or `config.toml` seems to have no effect | `docker compose restart` picks up neither. A plain `docker compose up -d` picks up compose-file changes; changes to a mounted volume or to `config.toml` need `docker compose up -d --force-recreate`. |
+| `config.toml` is empty after you wrote to it in the container | Write through `docker exec -i`, never a plain `docker exec`: without `-i` the write truncates the file. |
 
 The log panel at the bottom of the page records pairing, connection, speech-model and error messages; look there first.
 
