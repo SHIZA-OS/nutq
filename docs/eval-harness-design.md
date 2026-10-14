@@ -467,24 +467,20 @@ Checked directly against `SHIZA-OS/zeroclaw`'s real `ws.rs`. Findings:
   `session_key` is present, and should report a count of skipped/unattributable rows per run as a
   data-quality signal, rather than silently drop them with no trace of having done so.
 
-## 9. Suggested Build Order for Claude Code
+## 9. Build status
 
-1. Add the timestamp instrumentation to Nutq's client code (section 4). Verify events actually log
-   correctly for one real manual test run before building anything else on top.
-2. Confirmed: session-level correlation works with zero protocol change (session_key derives
-   directly from the session_id already sent in session_start). Per-turn correlation for
-   multiturn_context cases uses send-order matching instead of a client-generated ID, since a proper
-   fix would require a zeroclaw fork change, which is out of scope for this repo. See
-   section 8 for the full resolution.
-3. Done: `eval/runner/parse-trace.mjs` parses `runtime-trace.jsonl` into per-session, per-turn
-   records (`gateway_ws_turn`, additively extended with `provider_calls`/`provider_duration_ms`
-   from `llm_request`/`llm_response`).
-4. Done: `eval/runner/join-latency.mjs` joins client events (exported via `?eval=1`) against
-   `parse-trace.mjs`'s output by session_key and send-order, computes the staged latency numbers
-   from section 5.1 per turn, tagged by `send_trigger`. Verified against a real recorded session.
-5. Add WER (needs `jiwer` or equivalent, plus the first handful of real eval cases with reference
-   transcripts).
-6. Add answer correctness and intent preservation (needs the judge-model decision resolved first).
-7. Done: `eval/runner/completion.mjs`, session completion rate (section 5.5). Cost per turn is out of
-   scope for Nutq's harness (section 5.6).
-8. Add client-side resource footprint last, it's the most browser-dependent and least critical piece.
+Built, in `eval/runner/` unless noted:
+
+- Client-side instrumentation (section 4): the eval events in `src/main.ts`, behind `?eval=1` and absent from a production build.
+- `parse-trace.mjs` parses `runtime-trace.jsonl` into per-session, per-turn records (`gateway_ws_turn`, additively extended with
+  `provider_calls` and `provider_duration_ms` from `llm_request` and `llm_response`).
+- `join-latency.mjs` joins the client events (exported with `?eval=1`) with `parse-trace.mjs`'s output by `session_key` and send order and
+  computes the staged latency numbers of section 5.1 per turn, tagged by `send_trigger`. Session-level correlation needs no protocol change
+  (`session_key` derives from the `session_id` already sent in `session_start`); per-turn correlation uses send-order matching, since a
+  client-generated turn id would need a ZeroClaw change, which is out of scope for this repository (section 8).
+- `completion.mjs`: session completion rate (section 5.5).
+- Word error rate (section 5.2): `wer.mjs`, `run-wer.mjs`, `run-model-only.mjs` and `replay-commits.mjs` with the cases in `eval/wer/cases.jsonl`; see
+  [ARCHITECTURE.md](ARCHITECTURE.md), "Eval tools, case sets and results".
+
+Not built: answer correctness and intent preservation (sections 5.3 and 5.4; there is no judge code and the judge model is undecided) and the
+client-side resource footprint (section 5.7). Cost per turn is out of scope for Nutq's harness (section 5.6).

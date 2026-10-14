@@ -547,11 +547,9 @@ and pairing issues, only show up in:
 This is a JSONL (newline-delimited JSON) file. When something is failing and `docker logs`
 looks clean, check this file next rather than assuming the failure is client-side.
 
-## Local test backend
+## Test backend
 
-The local test backend is the `SHIZA-OS/zeroclaw` fork. It must be built using
-`Dockerfile.debian`, not the default distroless Dockerfile: the distroless image has no shell
-binary in it, which breaks the workflows used for debugging and config inspection (e.g.
-`docker exec` into a shell).
-
-Current provider configuration: `anthropic.default`, model `claude-haiku-4-5-20251001`.
+The live eval runs and manual tests were made against the `SHIZA-OS/zeroclaw` fork (version and caveats: README,
+"ZeroClaw compatibility"). To `docker exec` into the container for configuration and debugging, build `Dockerfile.debian`; the
+default distroless image has no shell. The live runs in `eval/results/2026-09-28-*` used the provider alias `anthropic.default` with model
+`claude-haiku-4-5-20251001`.

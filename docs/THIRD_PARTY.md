@@ -56,7 +56,7 @@ Only the files requested on a plain load are bundled. ONNX Runtime 1.14.0 has th
 
 ### Brand assets
 
-Served from `public/brand/`. They were supplied in the design handoff for the two themes; Nutq did not create them.
+Served from `public/brand/`. They were supplied for the two themes; Nutq did not create them.
 The SVGs were reduced once with svgo 3.3.5 (run through `npx`, not a dependency of this repository). `shiza-logo.svg` is
 the supplied file with only the embedded C2PA metadata block and its namespace declaration removed; it renders pixel for
 pixel the same. `zeroclaw-logo.svg` and `shiza-icon.svg` also had their path data rewritten at 3 decimals; at display

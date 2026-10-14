@@ -10,8 +10,7 @@ The pipeline, in short: microphone audio is transcribed locally in-browser with 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full data flow and protocol details,
 including the pairing-token gotcha and a known upstream config-parsing bug.
 
-For what's next, in priority order, see
-[docs/ROADMAP.md](docs/ROADMAP.md). For setup, tests and commit conventions, see
+For open work, see [docs/ROADMAP.md](docs/ROADMAP.md). For setup, tests and commit conventions, see
 [CONTRIBUTING.md](CONTRIBUTING.md). What the project bundles or loads from third parties is in
 [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
 
@@ -35,9 +34,3 @@ These apply to everything written in this repo: code, comments, docs, and commit
   same flag; `eval/runner/prod-build.test.mjs` fails if an event name reaches the bundle.
 - **Anything third-party that is added or bundled gets a license check and an entry in
   [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md)**, with its license file next to it.
-- **Writing to a ZeroClaw container's `config.toml`** must go through `docker exec -i`, never a
-  plain `docker exec`. Without `-i`, the write truncates the file.
-- **`docker compose up -d` vs `--force-recreate` vs `restart`:** a plain `docker compose up -d`
-  picks up compose-file changes. Changes to a mounted volume or to `config.toml` require
-  `docker compose up -d --force-recreate` to actually take effect. `docker compose restart`
-  picks up neither, and will silently leave the container running on stale state.
