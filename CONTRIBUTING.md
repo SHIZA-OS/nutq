@@ -34,7 +34,7 @@ npm run dev        # http://localhost:5173, with eval mode available (?eval=1)
 - **Read the code you will touch first**, then write the failing test, then the change.
 - **Mutation-check your tests.** After a test passes, break the code it is meant to guard in the smallest way that should
   make it fail, and run the test again. If it still passes, the test does not guard what you thought; strengthen it. Report
-  the mutants that survived rather than leaving them out. The `PROGRESS.md` entries show the habit in use.
+  the mutants that survived rather than leaving them out.
 - **Keep eval instrumentation out of production.** Eval mode, its URL parameters and the event code are gated on
   `import.meta.env.PROD`. `eval/runner/prod-build.test.mjs` builds the app and fails if an event name reaches the bundle.
 - **Anything third-party that you bundle or load** needs its license checked, its license file next to it, and an entry in

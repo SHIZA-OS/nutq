@@ -10,8 +10,7 @@ The pipeline, in short: microphone audio is transcribed locally in-browser with 
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full data flow and protocol details,
 including the pairing-token gotcha and a known upstream config-parsing bug.
 
-For where the project stands and how it got there, see
-[docs/PROGRESS.md](docs/PROGRESS.md). For what's next, in priority order, see
+For what's next, in priority order, see
 [docs/ROADMAP.md](docs/ROADMAP.md). For setup, tests and commit conventions, see
 [CONTRIBUTING.md](CONTRIBUTING.md). What the project bundles or loads from third parties is in
 [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).

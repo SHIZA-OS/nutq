@@ -2,7 +2,7 @@
 // page in headless Chrome. speechSynthesis.speak and cancel are replaced in the page by recorders, and the test
 // fires the utterance callbacks itself, so nothing is spoken and the timing is exact. The eval events are read from
 // the log panel. A message cannot be sent without a microphone and the speech model, so a turn in flight, a failure
-// error and the reply timeout are not driven here (see docs/PROGRESS.md). Runs with the rest of the suite via `npm test`.
+// error and the reply timeout are not driven here (see held-send.test.mjs and reply-timeout.test.mjs). Runs with the rest of the suite via `npm test`.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";

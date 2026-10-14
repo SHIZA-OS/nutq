@@ -7,8 +7,8 @@ Code under test: `b8f8d70daa46d439db1a0104e38bda82f9b18752` (after the re-arm wi
 Command: `node eval/runner/replay-commits.mjs --wer eob-fixed --phases 8 --pre-roll 4` (end of turn: fixed 5000 ms auto-silence, as every baseline).
 
 - **Hypotheses: identical.** 296 v1 case-phases compared with `2026-10-04-wer-replay-head` (f2de874): 0 differ. v1 normalized WER by phase is the same in all 8 phases: 9.8, 11.1, 10.7, 11.1, 10.3, 9.4, 10.7, 12.0%; mean 10.6%.
-- The `trigger` differs in 288 of the 296: f2de874 ended turns with a manual stop at the end of the WAV, and the replay now models the 5 s auto-silence (documented in PROGRESS). The hypotheses are not affected.
-- Against `2026-10-05-wer-gate-fixed5000` (all 57 recordings, the fixed policy of the sweep session): 456 case-phases, 0 differ in hypothesis or in trigger.
+- The `trigger` differs in 288 of the 296: f2de874 ended turns with a manual stop at the end of the WAV, and the replay now models the 5 s auto-silence (documented in `docs/ARCHITECTURE.md`, "Eval tools, case sets and results"). The hypotheses are not affected.
+- Against `2026-10-05-wer-gate-fixed5000` (all 57 recordings, the fixed policy of the sweep): 456 case-phases, 0 differ in hypothesis or in trigger.
 - All 57 recordings: normalized WER mean 12.0%. Pause cuts 0 of 96. Noise recordings: 0 of 40 turn-phases would send text. nts-01 sends "stop" in 3 of 8 phases (as in the sweep). Wait after the true end: median 5768, p90 5800, max 6152 ms.
 
 ## Step 2: conservative semantic policy against the sweep

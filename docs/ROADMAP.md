@@ -1,7 +1,7 @@
 # Roadmap
 
 What is open, grouped by theme, not ranked. Each item comes from a limitation or an unfinished experiment recorded in
-[PROGRESS.md](PROGRESS.md), [ARCHITECTURE.md](ARCHITECTURE.md) or [eval-harness-design.md](eval-harness-design.md); contributions
+[ARCHITECTURE.md](ARCHITECTURE.md), [eval-harness-design.md](eval-harness-design.md) or the [changelog](../CHANGELOG.md); contributions
 are welcome (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 ## Streaming and engine work

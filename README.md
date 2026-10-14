@@ -208,8 +208,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): data flow, protocol details, end of turn, speech.
-- [docs/PROGRESS.md](docs/PROGRESS.md): what was built, measured and why, in order.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): data flow, protocol details, end of turn, speech, and the evaluation results so far.
+- [eval/results/](eval/results/): the recorded evaluation runs, one folder each.
 - [docs/ROADMAP.md](docs/ROADMAP.md): what is next.
 - [docs/eval-harness-design.md](docs/eval-harness-design.md): the evaluation harness.
 - [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md): what is bundled and under which license.

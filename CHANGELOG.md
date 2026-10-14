@@ -61,7 +61,7 @@ The project was first named Sawt and was renamed Nutq (نطق, "utterance") beca
 - Messages for a model that fails to load (with a retry), a blocked or missing microphone, a page without access to the
   microphone, and a browser without speech synthesis or WebAssembly.
 - An evaluation harness (word error rate on recorded cases, end-of-turn replay, latency measurements); see
-  `docs/eval-harness-design.md` and `docs/PROGRESS.md`.
+  `docs/eval-harness-design.md` and `docs/ARCHITECTURE.md`.
 
 ### Build and tooling
 
