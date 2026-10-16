@@ -39,7 +39,12 @@
   updated to match.
 - Privacy wording: the README, `docs/ARCHITECTURE.md` and `docs/THIRD_PARTY.md` now say that online browser voices (such as Google voices
   in Chrome or Microsoft online voices in Edge) send the reply text to that provider to be spoken, while audio and speech recognition
-  stay in the browser. The README support line now reads: tested on Linux with Chrome; Firefox on Linux only has system voices.
+  stay in the browser.
+- Platforms checked by hand by the maintainer: Linux with Chrome (clear voice) and Firefox (robotic: espeak system voices, a plain
+  voice chosen, the hint shown), and Windows with Chrome, Edge and Firefox (all clear). macOS and Safari are untested. Browser voices
+  come from the operating system or the browser vendor's online service, so Firefox sounds good on Windows but robotic on Linux. The
+  README support line, `docs/TESTING_PLATFORMS.md` (a results table) and the README Voice section say so, and the earlier claim that
+  Edge gives the clearest voice is removed.
 - DM Sans is no longer bundled (Inter replaces it) and the Vite template favicon is gone.
 - The ZeroClaw logo and SHIZA icon were reduced with svgo (path data at 3 decimals; at display size the largest colour
   difference from the original is 19 of 255), the SHIZA wordmark only lost its embedded metadata, and the PNG tab icons were
@@ -48,11 +53,11 @@
 ### Known limitations
 
 - The themes were checked in Chrome only.
-- The voice ranking is a judgement from names and languages, and has been tried on illustrative voice lists, not captured real ones.
-  The menu, Test voice, the hint and the engine wiring were not run in any browser when this was written; the three browser tests they
-  touch were edited but not run. `docs/TESTING_PLATFORMS.md` has the checklist.
-- Nutq cannot tell which voices are online: the browser's `localService` flag is the only signal, and Firefox reports its local espeak
-  voices as network.
+- The voice ranking is a judgement from names and languages. The automated test uses illustrative voice lists, not captured real ones;
+  the maintainer checked by hand which voice is chosen and how it sounds on the platforms listed under Changed. Results for the menu
+  and Test voice were not recorded, and the three browser tests that were edited for the voice change were edited but not run when
+  that change was written. `docs/TESTING_PLATFORMS.md` has the checklist.
+- Nutq cannot tell which voices are online: the browser's `localService` flag is the only signal, and it is not used to decide.
 - With the browser's local storage blocked, `src/main.ts` throws at load (`loadSavedTokenForCurrentUrl` reads it without a
   guard). This is older than the themes; the theme code itself copes with blocked storage.
 - Nothing stops the microphone tracks: after listening stops the stream stays open and every start opens a new one. This

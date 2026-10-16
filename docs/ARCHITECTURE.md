@@ -276,7 +276,7 @@ browser's own pick is unreliable (its default was a German voice in a real run).
 `+variant` suffix, such as "English (America)+klatt2", is dropped whenever a plain English voice exists (when only variants exist they
 are kept). The rest are sorted by: a name containing Natural, Neural, Online, Google, Enhanced or Premium (one tier, case-insensitive);
 then `en-US`, `en-GB`, other English; then the browser's default voice; then the order the browser listed them. These are judgements from
-names and languages, not measurements of how a voice sounds, and no real captured voice list has been tested against them.
+names and languages, not measurements of how a voice sounds. They were checked by hand on the systems in `docs/TESTING_PLATFORMS.md`, not against captured voice lists.
 
 **Choice** (`selectVoice`), in this order. `param`: the `?voice=` name, any voice in the list, ignoring case. `saved`: the name saved by the
 menu, only if it is still among the ranked English voices. `ranked`: the first ranked voice. `lang_only`: no voice is set on the utterance,
@@ -286,24 +286,24 @@ happen, because an English browser default is always among the ranked voices, so
 `voice_source`.
 
 **Robotic hint** (`isRobotic`). True only if there is at least one English voice and every English voice looks like espeak: it has a `+variant`
-sibling or is one, or its name or `voiceURI` contains `espeak`, ignoring case. `localService` is deliberately not used, because Firefox reports
-its local espeak voices as network voices. When true, the page shows one line under the microphone (`#voice-hint`). A Firefox list whose
-voices have no variants and no `espeak` in the name or URI would not be flagged; no real Firefox list was captured to check.
+sibling or is one, or its name or `voiceURI` contains `espeak`, ignoring case. `localService` is deliberately not used: it was
+assumed unreliable for espeak voices (Firefox listing them as network voices), which has not been checked. When true, the page shows one line under the microphone
+(`#voice-hint`). Checked by hand: on Firefox on Linux the hint was shown and a plain voice was chosen. No voice list was captured, so the names it listed are not
+recorded here, and a list whose voices have no variants and no `espeak` in the name or URI would not be flagged.
 
-**Late voices.** Chrome and Safari can return an empty list until `voiceschanged`. `loadVoices` in `src/main.ts` runs at load and on every
+**Late voices.** Chrome can return an empty list until `voiceschanged`. `loadVoices` in `src/main.ts` runs at load and on every
 `voiceschanged`, rebuilds the menu and the hint, and the engine reads the list again at every utterance, so a late list never overrides a
 `?voice=` name or a saved choice.
 
 **The menu** (`#voice-select`, `#voice-test`). The first option is "Automatic (best available)", then the ranked English voices as
-"name (lang)", never the whole list (a Firefox list can have thousands). A choice is saved in local storage under `voice` and Automatic
+"name (lang)", never the whole list. A choice is saved in local storage under `voice` and Automatic
 clears it; every storage read and write is in a try/catch, and the choice is also kept in memory, so with blocked storage it works for the
 visit. The menu is disabled while `?voice=` matches a voice (the option says so), when no English voice is listed, and, reading "Browser
 default", when no voice is listed. Test voice runs `speak()` on one fixed sentence, after `cancelSpeech()`, so a mic tap and a new message stop
 it like a reply; it does nothing while `replyState.inFlight` or while listening (the sentence would reach the transcriber). Two voices with the same name share one option (the first wins).
 
 **Privacy.** An online browser voice (such as Google voices in Chrome or Microsoft online voices in Edge) sends the reply text to its provider
-to be spoken. Nutq does not know which voices are online: `localService` is the browser's own report and Firefox reports local espeak voices
-as network.
+to be spoken. Nutq does not know which voices are online: `localService` is the browser's own report and is not used to decide.
 
 ## Eval mode: WER replay
 

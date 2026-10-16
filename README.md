@@ -16,9 +16,10 @@ microphone -> Moonshine speech-to-text (in your browser) -> ZeroClaw /ws/chat ->
 - **A running ZeroClaw gateway** that you can reach from your browser, and its agent alias. See
   [ZeroClaw compatibility](#zeroclaw-compatibility).
 - **Node.js `^20.19.0` or `>=22.12.0`** and npm (the range Vite 8 asks for; the tests here ran on Node 20.19.5).
-- **A desktop browser with WebAssembly, a microphone and speech synthesis.** Tested on Linux with Chrome. Chrome and Edge
-  give the clearest voice. Firefox on Linux only has system voices, which sound robotic. macOS, Windows and Safari are
-  untested; [docs/TESTING_PLATFORMS.md](docs/TESTING_PLATFORMS.md) is a short checklist if you want to try one and report back.
+- **A desktop browser with WebAssembly, a microphone and speech synthesis.** Tested on Linux (Chrome, Firefox) and Windows
+  (Chrome, Edge, Firefox). Firefox on Linux only has system voices, which sound robotic; Chrome is recommended there. macOS
+  and Safari are untested; [docs/TESTING_PLATFORMS.md](docs/TESTING_PLATFORMS.md) has the results so far and a short
+  checklist if you want to try one and report back.
 - **A secure page for the microphone:** `http://localhost` or `https://`. The browser does not give the microphone to a
   plain `http://` page on another address.
 - About 170 MB of disk for the clone (measured: 116 MB of files and a 55 MB repository history, without `node_modules`),
@@ -33,7 +34,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 in Chrome or Firefox, then:
+Open http://localhost:5173 in Chrome, Edge or Firefox (on Linux, Chrome is recommended), then:
 
 1. **Gateway URL:** the form starts with `ws://127.0.0.1:42617/ws/chat`. Change it if your gateway is elsewhere.
 2. **Agent alias:** the agent to talk to, for example `default`.
@@ -113,8 +114,8 @@ behaviour.
 
 ## Voice
 
-The reply is spoken by your browser's own speech synthesis, so which voices exist depends on the browser and the operating
-system.
+The reply is spoken by your browser's own speech synthesis. Browser voices come from the operating system or the browser
+vendor's online service, so Firefox sounds good on Windows but robotic on Linux.
 
 - **Automatic.** Nutq takes the English voices the browser lists and uses the best one. Names that suggest a neural or
   online voice (Natural, Neural, Online, Google, Enhanced, Premium) come first, then US English, British English and other
@@ -125,15 +126,14 @@ system.
   list. Your choice is kept in local storage under `voice`, applies from the next utterance, and choosing Automatic clears
   it. Test voice speaks one short sentence with the chosen voice; it does nothing while an answer is in flight or the
   microphone is listening. With no
-  voices listed the menu is disabled and reads Browser default. Browsers often list voices late, so the menu fills in when
-  the list changes.
+  voices listed the menu is disabled and reads Browser default. The menu is rebuilt when the browser's voice list changes.
 - **`?voice=<exact name>`.** Picks any voice the page logged, ignoring case, and wins over the menu, which is disabled while
   the name matches a voice.
 - **A hint.** If every English voice the browser lists looks like espeak, a line under the microphone says the voice can
-  sound robotic and that Chrome or Edge give a clearer voice.
+  sound robotic and that Chrome or Edge give a clearer voice (the wording of the hint in the page).
 - **Privacy.** Audio and speech recognition stay in the browser. Online browser voices (such as Google voices in Chrome or
   Microsoft online voices in Edge) send the reply text to that provider to be spoken. The log panel marks each voice local
-  or network as the browser reports it; Firefox reports its local espeak voices as network, so read that label with care.
+  or network as the browser reports it; do not rely on that label to tell whether a voice is online.
 
 ## Safety
 
@@ -213,7 +213,7 @@ in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 | "Microphone access is blocked" | Allow the microphone for this site in the browser (the icon in the address bar), then tap the button again. |
 | "The microphone needs a secure page" | Open the page over `https://` or on `localhost`. |
 | "No microphone was found" | Connect or enable one, then tap again. |
-| Replies show as text but nothing is spoken, and a note says there is no speech synthesis | Your browser has no Web Speech synthesis. Use Chrome or Firefox. |
+| Replies show as text but nothing is spoken, and a note says there is no speech synthesis | Your browser has no Web Speech synthesis. Use Chrome, Edge or Firefox. |
 | You want a local voice on Linux Chrome | Chrome lists local voices (through speech-dispatcher) only when started with `--enable-speech-dispatcher`. `?voice=<exact name>` picks one; the page logs the voice list. |
 | "This browser has no WebAssembly support" | Use a current desktop browser. |
 | The agent never answers, or the log shows a provider error | Check the gateway, not Nutq. The ZeroClaw daemon writes almost nothing to `docker logs`; its runtime errors are in `/zeroclaw-data/.zeroclaw/data/state/runtime-trace.jsonl` inside the container. |

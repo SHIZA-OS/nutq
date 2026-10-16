@@ -1,9 +1,28 @@
 # Testing Nutq on other systems
 
-Nutq is tested on Linux with Chrome. Chrome and Edge give the clearest voice. Firefox on Linux only has system voices,
-which sound robotic. macOS, Windows and Safari are untested. If you run it on one of those, this checklist takes about ten
-minutes and tells us what works. You need a microphone and a ZeroClaw gateway you can
+Nutq is tested on Linux (Chrome, Firefox) and Windows (Chrome, Edge, Firefox). Firefox on Linux only has system voices,
+which sound robotic; Chrome is recommended there. macOS and Safari are untested. If you run it on a system marked untested
+below, this checklist takes about ten minutes and tells us what works. You need a microphone and a ZeroClaw gateway you can
 pair with (see the README).
+
+## Results so far
+
+Checked by hand by the maintainer. Browser voices come from the operating system or the browser vendor's online service, so
+Firefox sounds good on Windows but robotic on Linux.
+
+| System | Browser | Voice quality | Notes |
+|---|---|---|---|
+| Linux | Chrome | clear | |
+| Linux | Firefox | robotic | espeak system voices; a plain voice was chosen; the hint was shown |
+| Windows | Chrome | clear | |
+| Windows | Edge | clear | |
+| Windows | Firefox | clear | |
+| macOS | Safari | untested | |
+| macOS | Chrome, Firefox | untested | |
+
+Only voice quality was recorded in this table; the other steps below were not.
+
+## Checklist
 
 Record the operating system and version, the browser and version, and for each step below: works, works with a problem
 (say what), or fails (say what you saw, and any error from the browser console).
@@ -38,9 +57,9 @@ Do this once per browser (Chrome, Edge, Firefox, Safari), after step 5 above. Re
 3. **Test voice works.** Press Test voice: one short sentence is spoken with the chosen voice. Press the microphone while it
    speaks: it stops. Ask a question and press Test voice while the answer is still coming: nothing happens.
 4. **Hint appears only where expected.** The line "This browser only has system voices, which can sound robotic. Chrome or
-   Edge give a clearer voice." should show only when every English voice the browser lists is an espeak voice. Expected,
-   not yet checked on any of these: no hint in Chrome, Edge or Safari; a hint in Firefox on Linux. Report a hint where you
-   have a good voice, or no hint where every voice is robotic.
+   Edge give a clearer voice." should show only when every English voice the browser lists is an espeak voice. Seen so far:
+   the hint on Firefox on Linux. Not recorded for the other systems in the table. Report a hint where you have a good voice,
+   or no hint where every voice is robotic.
 5. **`?voice=`.** Add `?voice=<exact name>` (copy a name from the log): that voice speaks, and the menu is disabled while the
    name matches.
 
