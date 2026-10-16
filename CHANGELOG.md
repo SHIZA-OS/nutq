@@ -4,6 +4,17 @@
 
 ### Added
 
+- A Reply voice menu under the microphone, in both themes: Automatic (best available) and the ranked English voices only. The choice
+  is kept in local storage under `voice` and applies from the next utterance. A Test voice button speaks one short sentence through
+  the normal speech path (so cancel and the mic tap stop it) and does nothing while an answer is in flight. With no voices listed the
+  menu is disabled and reads Browser default. The menu is rebuilt when the browser's voice list changes.
+- One hint line under the microphone when every English voice the browser lists looks like espeak: "This browser only has system
+  voices, which can sound robotic. Chrome or Edge give a clearer voice."
+- The eval-only event `voice_list { count, english, chosen, source, robotic }`.
+- `src/voice-pick.ts` (pure ranking and selection) with `eval/runner/voice-pick.test.mjs`, which needs no browser. Its voice lists are
+  illustrative, not captured real lists.
+- A Voice section in the README, a "Voice selection" section in `docs/ARCHITECTURE.md` and a voice checklist in
+  `docs/TESTING_PLATFORMS.md`.
 - Two themes on one page, switched by a toggle in the header and remembered in local storage (`theme`): **ZeroClaw** (the
   default for a new visitor) and **SHIZA**. Each has its own layout, logo, colours and fonts; the tab icon follows the theme.
   The toggle is a real switch (`role="switch"`, `aria-checked`).
@@ -21,6 +32,14 @@
 
 ### Changed
 
+- Replies are spoken with the best ranked English voice the browser lists, not the browser's own default voice. `?voice=<exact name>`
+  still wins, then a menu choice. `tts_start` `voice_source` is now `param`, `saved`, `ranked` or `lang_only`; `browser_default` is gone
+  (an English browser default is always among the ranked voices).
+- `pickVoice` is removed from `src/voice.ts`; `eval/runner/voice.test.mjs`, `tts-engine.test.mjs` and `tts-stream.test.mjs` were
+  updated to match.
+- Privacy wording: the README, `docs/ARCHITECTURE.md` and `docs/THIRD_PARTY.md` now say that online browser voices (such as Google voices
+  in Chrome or Microsoft online voices in Edge) send the reply text to that provider to be spoken, while audio and speech recognition
+  stay in the browser. The README support line now reads: tested on Linux with Chrome; Firefox on Linux only has system voices.
 - DM Sans is no longer bundled (Inter replaces it) and the Vite template favicon is gone.
 - The ZeroClaw logo and SHIZA icon were reduced with svgo (path data at 3 decimals; at display size the largest colour
   difference from the original is 19 of 255), the SHIZA wordmark only lost its embedded metadata, and the PNG tab icons were
@@ -29,6 +48,11 @@
 ### Known limitations
 
 - The themes were checked in Chrome only.
+- The voice ranking is a judgement from names and languages, and has been tried on illustrative voice lists, not captured real ones.
+  The menu, Test voice, the hint and the engine wiring were not run in any browser when this was written; the three browser tests they
+  touch were edited but not run. `docs/TESTING_PLATFORMS.md` has the checklist.
+- Nutq cannot tell which voices are online: the browser's `localService` flag is the only signal, and Firefox reports its local espeak
+  voices as network.
 - With the browser's local storage blocked, `src/main.ts` throws at load (`loadSavedTokenForCurrentUrl` reads it without a
   guard). This is older than the themes; the theme code itself copes with blocked storage.
 - Nothing stops the microphone tracks: after listening stops the stream stays open and every start opens a new one. This

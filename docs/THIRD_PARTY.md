@@ -107,7 +107,8 @@ referenced by the app. The Vite template's `favicon.svg`, which this page used a
 ## 6. Not shipped, used by the user's browser
 
 The Web Speech API (`speechSynthesis`) uses the voices the user's browser and operating system provide. Nothing is
-downloaded or bundled by Nutq.
+downloaded or bundled by Nutq. An online browser voice (such as Google voices in Chrome or Microsoft online voices in Edge)
+is a service of the browser's vendor, not of Nutq: the browser sends the reply text to that provider to be spoken.
 
 ## 7. Not found
 

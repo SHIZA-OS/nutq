@@ -3,7 +3,9 @@
 Nutq (نطق, "utterance") is a voice chat page for [ZeroClaw](https://github.com/SHIZA-OS/zeroclaw) agents. You talk, it
 transcribes your speech locally in the browser (Moonshine, running as WebAssembly, no server round trip), sends the text
 to your ZeroClaw agent over the gateway's `/ws/chat` WebSocket, and speaks the agent's answer back with the browser's
-speech synthesis. It needs no change to ZeroClaw itself.
+speech synthesis. It needs no change to ZeroClaw itself. Your audio and the speech recognition stay in the browser; the
+reply text is spoken by the browser's voice, and an online browser voice sends that text to its provider (see
+[Voice](#voice)).
 
 ```
 microphone -> Moonshine speech-to-text (in your browser) -> ZeroClaw /ws/chat -> browser speech synthesis -> speaker
@@ -14,9 +16,9 @@ microphone -> Moonshine speech-to-text (in your browser) -> ZeroClaw /ws/chat ->
 - **A running ZeroClaw gateway** that you can reach from your browser, and its agent alias. See
   [ZeroClaw compatibility](#zeroclaw-compatibility).
 - **Node.js `^20.19.0` or `>=22.12.0`** and npm (the range Vite 8 asks for; the tests here ran on Node 20.19.5).
-- **A desktop browser with WebAssembly, a microphone and speech synthesis.** Tested on Linux with Chrome and Firefox.
-  macOS, Windows and Safari are untested; [docs/TESTING_PLATFORMS.md](docs/TESTING_PLATFORMS.md) is a short checklist if
-  you want to try one and report back.
+- **A desktop browser with WebAssembly, a microphone and speech synthesis.** Tested on Linux with Chrome. Chrome and Edge
+  give the clearest voice. Firefox on Linux only has system voices, which sound robotic. macOS, Windows and Safari are
+  untested; [docs/TESTING_PLATFORMS.md](docs/TESTING_PLATFORMS.md) is a short checklist if you want to try one and report back.
 - **A secure page for the microphone:** `http://localhost` or `https://`. The browser does not give the microphone to a
   plain `http://` page on another address.
 - About 170 MB of disk for the clone (measured: 116 MB of files and a 55 MB repository history, without `node_modules`),
@@ -92,9 +94,9 @@ With no URL parameters:
   median wait after you stop was 1768 ms (replayed offline, not a live measurement).
 - **The agent is asked for a spoken-style answer**: thorough, in short sentences, no markdown, signposted in words
   ("There are three things. First, ..."). Markup that still comes through is not read out.
-- **The answer is spoken sentence by sentence as it arrives**, with the browser's default voice (add `voice=<exact name>`
-  to the URL to pick another; the page logs the voice list). The first sentence waits up to 700 ms for the next one to
-  join it, so the pause after it does not sound like an ending.
+- **The answer is spoken sentence by sentence as it arrives**, with the best English voice the browser lists (the Reply
+  voice menu or `voice=<exact name>` in the URL picks another; see [Voice](#voice)). The first sentence waits up to 700 ms
+  for the next one to join it, so the pause after it does not sound like an ending.
 - **Tapping the microphone while it speaks stops it.** If you finish a question while the answer is still coming, it is
   held and sent when the answer ends (the hint under the button says so); it is not sent in the middle of a turn.
 
@@ -108,6 +110,29 @@ Each default has an opt-out, set in the URL:
 
 Combine them with `&`, for example `http://localhost:5173/?silence=3000&reply=short&tts_stream=0` gives the original
 behaviour.
+
+## Voice
+
+The reply is spoken by your browser's own speech synthesis, so which voices exist depends on the browser and the operating
+system.
+
+- **Automatic.** Nutq takes the English voices the browser lists and uses the best one. Names that suggest a neural or
+  online voice (Natural, Neural, Online, Google, Enhanced, Premium) come first, then US English, British English and other
+  English; a tie goes to the browser's default voice, then to the order of the list. espeak "+variant" voices, such as
+  "English (America)+klatt2", are skipped whenever a plain English voice exists. If the browser lists no English voice, Nutq
+  sets no voice and asks for `en-US`. The order is a judgement from voice names, not a measurement of how a voice sounds.
+- **The menu.** The Reply voice menu under the microphone lists Automatic and the ranked English voices, never the whole
+  list. Your choice is kept in local storage under `voice`, applies from the next utterance, and choosing Automatic clears
+  it. Test voice speaks one short sentence with the chosen voice; it does nothing while an answer is in flight. With no
+  voices listed the menu is disabled and reads Browser default. Browsers often list voices late, so the menu fills in when
+  the list changes.
+- **`?voice=<exact name>`.** Picks any voice the page logged, ignoring case, and wins over the menu, which is disabled while
+  the name matches a voice.
+- **A hint.** If every English voice the browser lists looks like espeak, a line under the microphone says the voice can
+  sound robotic and that Chrome or Edge give a clearer voice.
+- **Privacy.** Audio and speech recognition stay in the browser. Online browser voices (such as Google voices in Chrome or
+  Microsoft online voices in Edge) send the reply text to that provider to be spoken. The log panel marks each voice local
+  or network as the browser reports it; Firefox reports its local espeak voices as network, so read that label with care.
 
 ## Safety
 
@@ -133,10 +158,14 @@ normal cache headers so the browser keeps the speech model after the first visit
 ## Network access needed
 
 The only network connection Nutq needs is the one to your ZeroClaw gateway (HTTP for pairing, a WebSocket for
-`/ws/chat`). Everything else is served from this repository: the speech model weights, both ONNX Runtime wasm builds, the
+`/ws/chat`). Everything else the page loads is served from this repository: the speech model weights, both ONNX Runtime wasm builds, the
 voice activity model and the fonts live in `public/vendor/` and `public/fonts/`, and the page requests nothing from a CDN
 or a font host. Nothing is pinned to an external URL, because nothing is loaded from one. What each file is, where it came
 from and its license: [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md).
+
+One connection is not the page's and not in that list: an online browser voice (such as Google voices in Chrome or
+Microsoft online voices in Edge) makes the browser send the reply text to the voice's provider to be spoken. See
+[Voice](#voice).
 
 ## ZeroClaw compatibility
 

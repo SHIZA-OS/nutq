@@ -1,7 +1,8 @@
 # Testing Nutq on other systems
 
-Nutq is tested on Linux with Chrome and Firefox. macOS, Windows and Safari are untested. If you run it on one of those,
-this checklist takes about ten minutes and tells us what works. You need a microphone and a ZeroClaw gateway you can
+Nutq is tested on Linux with Chrome. Chrome and Edge give the clearest voice. Firefox on Linux only has system voices,
+which sound robotic. macOS, Windows and Safari are untested. If you run it on one of those, this checklist takes about ten
+minutes and tells us what works. You need a microphone and a ZeroClaw gateway you can
 pair with (see the README).
 
 Record the operating system and version, the browser and version, and for each step below: works, works with a problem
@@ -22,6 +23,26 @@ Record the operating system and version, the browser and version, and for each s
 7. **Hold and send.** Ask a long-answer question again. While the answer is still coming in, tap the microphone, ask a second
    question and finish it. The hint reads "Will send when the answer finishes", and the second question is sent when the
    first answer ends.
+
+## Voice checklist
+
+Do this once per browser (Chrome, Edge, Firefox, Safari), after step 5 above. Record the browser and operating system with it.
+
+1. **Voice chosen.** Open the Logs panel. It lists the voices and says `Reply voice: <name> (ranked)`. Note the name and
+   whether it sounds like a clear, natural voice or a robotic one when it speaks in step 5. If the log says `lang_only`, the
+   browser listed no English voice; say so.
+2. **Menu works.** Under the microphone, the Reply voice menu starts at "Automatic (best available)" and lists English
+   voices only, as "name (lang)". Choose another voice, then reload the page: the menu still shows it, and the next reply uses
+   it. Choose Automatic again: the saved choice is cleared. If the browser lists no voices at all, the menu is disabled and
+   reads "Browser default".
+3. **Test voice works.** Press Test voice: one short sentence is spoken with the chosen voice. Press the microphone while it
+   speaks: it stops. Ask a question and press Test voice while the answer is still coming: nothing happens.
+4. **Hint appears only where expected.** The line "This browser only has system voices, which can sound robotic. Chrome or
+   Edge give a clearer voice." should show only when every English voice the browser lists is an espeak voice. Expected,
+   not yet checked on any of these: no hint in Chrome, Edge or Safari; a hint in Firefox on Linux. Report a hint where you
+   have a good voice, or no hint where every voice is robotic.
+5. **`?voice=`.** Add `?voice=<exact name>` (copy a name from the log): that voice speaks, and the menu is disabled while the
+   name matches.
 
 Open an issue at https://github.com/SHIZA-OS/nutq/issues with your results. Include anything odd even if every step worked,
 such as a voice that sounded wrong or a long delay.

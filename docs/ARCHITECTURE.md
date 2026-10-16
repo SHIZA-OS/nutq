@@ -3,7 +3,8 @@
 ## Data flow
 
 Nutq's pipeline runs almost entirely on the client. Audio never leaves the browser for
-transcription, and only text crosses the network:
+transcription, and only text crosses the network: to the gateway, and, if the browser's voice is an online one, to
+that voice's provider (step 4):
 
 1. **Mic capture.** The browser captures microphone audio directly.
 2. **Moonshine STT (local, WASM).** The captured audio is transcribed in-browser by
@@ -13,7 +14,10 @@ transcription, and only text crosses the network:
    endpoint (protocol details below), and the agent's reply streams back over the same
    socket.
 4. **Web Speech API TTS.** The agent's reply is spoken back to the user using the browser's
-   built-in Web Speech API. This is a placeholder, not the intended long-term TTS; see
+   built-in Web Speech API, with the best English voice the browser lists unless the user picks one (see
+   "Voice selection"). An online browser voice (such as Google voices in Chrome or Microsoft online voices in
+   Edge) sends the reply text to that provider to be spoken; the audio and the speech recognition stay in the
+   browser either way. This is a placeholder, not the intended long-term TTS; see
    [ROADMAP.md](ROADMAP.md) for the plan to replace it with Piper.
 
 ## Model load order and mic gating
@@ -261,6 +265,46 @@ session ids, and `join-latency.mjs` then needs `--session` to pick one. The old 
 the eval only through `turn_timeout` and the server row. If the user is mid-utterance when the timeout fires, the button is disabled until the new
 socket opens, and an utterance finished before then is "Cannot send: not connected".
 
+## Voice selection
+
+`src/voice-pick.ts` (pure, no DOM) chooses the reply voice; `src/voice-menu.ts` is the menu; `src/tts-engine.ts` calls the choice for every
+utterance, so a change applies from the next one. Choosing a local voice automatically was tried once and removed: local espeak-ng voices
+started in about 60 ms but sounded too robotic for natural-sounding replies. What replaced it is a ranking of English voices, because the
+browser's own pick is unreliable (its default was a German voice in a real run).
+
+**Ranking** (`rankVoices`). English means `lang` starting with `en`, in any case, with a dash or an underscore. An espeak voice with a
+`+variant` suffix, such as "English (America)+klatt2", is dropped whenever a plain English voice exists (when only variants exist they
+are kept). The rest are sorted by: a name containing Natural, Neural, Online, Google, Enhanced or Premium (one tier, case-insensitive);
+then `en-US`, `en-GB`, other English; then the browser's default voice; then the order the browser listed them. These are judgements from
+names and languages, not measurements of how a voice sounds, and no real captured voice list has been tested against them.
+
+**Choice** (`selectVoice`), in this order. `param`: the `?voice=` name, any voice in the list, ignoring case. `saved`: the name saved by the
+menu, only if it is still among the ranked English voices. `ranked`: the first ranked voice. `lang_only`: no voice is set on the utterance,
+only `lang` `en-US`, so the browser does not pick by the system language; this is the case when the browser lists no English voice or no voice
+at all. The original plan also had a `browser_default` step (an English browser default) between `ranked` and `lang_only`; it can never
+happen, because an English browser default is always among the ranked voices, so it was not built and `browser_default` is no longer a
+`voice_source`.
+
+**Robotic hint** (`isRobotic`). True only if there is at least one English voice and every English voice looks like espeak: it has a `+variant`
+sibling or is one, or its name or `voiceURI` contains `espeak`, ignoring case. `localService` is deliberately not used, because Firefox reports
+its local espeak voices as network voices. When true, the page shows one line under the microphone (`#voice-hint`). A Firefox list whose
+voices have no variants and no `espeak` in the name or URI would not be flagged; no real Firefox list was captured to check.
+
+**Late voices.** Chrome and Safari can return an empty list until `voiceschanged`. `loadVoices` in `src/main.ts` runs at load and on every
+`voiceschanged`, rebuilds the menu and the hint, and the engine reads the list again at every utterance, so a late list never overrides a
+`?voice=` name or a saved choice.
+
+**The menu** (`#voice-select`, `#voice-test`). The first option is "Automatic (best available)", then the ranked English voices as
+"name (lang)", never the whole list (a Firefox list can have thousands). A choice is saved in local storage under `voice` and Automatic
+clears it; every storage read and write is in a try/catch, and the choice is also kept in memory, so with blocked storage it works for the
+visit. The menu is disabled while `?voice=` matches a voice (the option says so), when no English voice is listed, and, reading "Browser
+default", when no voice is listed. Test voice runs `speak()` on one fixed sentence, after `cancelSpeech()`, so a mic tap and a new message stop
+it like a reply; it does nothing while `replyState.inFlight`. Two voices with the same name share one option (the first wins).
+
+**Privacy.** An online browser voice (such as Google voices in Chrome or Microsoft online voices in Edge) sends the reply text to its provider
+to be spoken. Nutq does not know which voices are online: `localService` is the browser's own report and Firefox reports local espeak voices
+as network.
+
 ## Eval mode: WER replay
 
 `?eval=1` turns on eval instrumentation (a download button for the events as JSONL). It exists only in dev and in the
@@ -274,14 +318,10 @@ Two extra parameters exist for replaying recorded audio without touching ZeroCla
   all off (`src/mic-constraints.ts`), to test whether Chrome's processing is a source of run-to-run
   differences in the audio. It has no effect without `eval=1`. A `mic_settings` event records what
   Chrome actually applied.
-- `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case. Voices are read
-  at page load and on every `voiceschanged` (Chrome fills the list asynchronously), and the list is written to the
-  log panel (at most 40 lines, with local and network counts) so a name can be copied from it. With no name, or a
-  name that matches nothing (which is logged), the browser's default voice is used, and the utterance asks for `en-US`
-  (`lang`) so the browser does not pick by the system language; which voice it then picks is not observable from the page,
-  so the `voice` field of `tts_start` stays a best guess (the voice flagged default). Choosing a local voice
-  automatically was tried and removed: local espeak-ng voices started in about 60 ms but sounded too robotic for natural-sounding
-  replies. On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
+- `?voice=<exact name>` (any mode): the speech synthesis voice for replies, matched ignoring case, any voice in the list. It wins over
+  the voice menu. Voices are read at page load and on every `voiceschanged`, and the list is written to the log panel (at most 40
+  lines, with local and network counts) so a name can be copied from it. A name that matches nothing is logged and the automatic choice
+  is used (see "Voice selection"). On Linux, Chrome lists local voices (speech-dispatcher) only when started with `--enable-speech-dispatcher`.
 - Sentence streaming (any mode, **on by default**; `?tts_stream=0` opts out to the original flow, the whole reply spoken once at `done`; any other value, such as
   the old `?tts_stream=1`, is the default): speak the reply sentence by sentence as its chunks arrive instead of
   once at `done`. Chunk deltas go through `src/sentence-splitter.ts`, closed sentences are queued in
@@ -303,7 +343,7 @@ terminators) is spoken whole when `done` arrives.
 
 **The gap between utterances (experiment).** With sentence streaming each sentence used to be its own `speechSynthesis` utterance, handed to the browser
 only after the previous one's `onend`, and there was an audible pause of about 740 to 890 ms between sentences. A throwaway page (outside the
-repository; headed Chrome 154, a dedicated profile, the browser's default voice with `lang` en-US as the app uses, a network voice the page cannot name)
+repository; headed Chrome 154, a dedicated profile, the browser's default voice with `lang` en-US as the app used then, a network voice the page cannot name)
 measured `onend` to the next `onstart` for 7 short sentences, two rounds each, 12 gaps per mode:
 
 | mode | mean | median | min to max | sd |
@@ -410,8 +450,12 @@ Events added for WER measurement:
 - `stt_model_call` `{ path, samples, audio_hash, wait_ms, run_ms, skipped }`: one per model call,
   eval mode only (see "Model calls are serialized").
 - `tts_start` `{ voice, local_service, voice_source, engine }`: the reply started to be spoken (with sentence streaming, its first utterance). `voice_source` is `param`
-  (chosen with `?voice=`) or `browser_default`, where `voice` is the voice the browser flags as default, a best
-  guess because Chrome does not say which voice it picked; both are null if no voices were available.
+  (chosen with `?voice=`), `saved` (the menu's choice), `ranked` (the best English voice) or `lang_only` (no voice set, see "Voice selection");
+  for `lang_only`, `voice` is the voice the browser flags as default, a best guess because Chrome does not say which voice it picked; both
+  are null if no voices were available.
+- `voice_list` `{ count, english, chosen, source, robotic }`: eval mode only, once whenever the browser's voice list changes in size and is
+  not empty. `count` is all voices, `english` the ranked English voices (the menu's size), `chosen` the voice's name or null, `source` as for
+  `tts_start`, `robotic` the hint's condition.
 - `speech_text` `{ raw_chars, spoken_chars }`: one per text handed to the voice (the whole reply with the flag off, each streamed
   unit, the `full_response` fallback), before and after `speakable()`; 0 spoken means the unit was dropped. No text is logged.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,
