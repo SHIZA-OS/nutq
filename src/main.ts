@@ -3,7 +3,9 @@ import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
 import { MIC_REARM_MS, REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
-import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
+import { speechText, ttsErrorEvent, voiceLines } from "./voice";
+import { isRobotic, selectVoice } from "./voice-pick";
+import { initVoiceMenu } from "./voice-menu";
 import { browserEngine } from "./tts-engine";
 import { SentenceSplitter } from "./sentence-splitter";
 import { replyPrefix, speakable } from "./speech-text";
@@ -88,6 +90,7 @@ type EvalEvent =
   | "first_chunk_received"
   | "done_received"
   | "tts_requested"
+  | "voice_list"
   | "tts_start"
   | "tts_sentence_start"
   | "speech_text"
@@ -696,30 +699,39 @@ function dropHeld(reason: "closed" | "timeout") {
   notice = reason === "closed" ? "Message not sent, the connection closed" : "Message not sent, the answer timed out";
 }
 
-// Voices load asynchronously in Chrome (getVoices() is empty until "voiceschanged"), so they are read at page
-// load and again whenever the list changes, not first at speak time. ?voice=<exact name> picks one (any mode);
-// the list is written to the log panel so a name can be copied from it.
+// Voices load asynchronously (Chrome and Safari can return an empty list until "voiceschanged"), so they are read at page
+// load and again whenever the list changes, not first at speak time. The English ones are ranked and the best is used
+// (src/voice-pick.ts); ?voice=<exact name> picks any voice (any mode). The list is written to the log panel so a name can be copied.
 const wantedVoice = urlParams.get("voice");
+const voiceHint = $<HTMLParagraphElement>("voice-hint");
+const voiceMenu = initVoiceMenu(wantedVoice, testVoice);
 let voices: SpeechSynthesisVoice[] = [];
 let loggedVoiceCount = -1;
 
 function loadVoices() {
   voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0 || voices.length === loggedVoiceCount) return;
+  if (voices.length === loggedVoiceCount) return;
   loggedVoiceCount = voices.length;
+  const robotic = isRobotic(voices);
+  voiceMenu.refresh(voices);
+  voiceHint.hidden = !robotic;
+  if (voices.length === 0) return;
   for (const line of voiceLines(voices)) log(line);
-  const choice = pickVoice(voices, wantedVoice);
-  if (wantedVoice && !choice.voice) log(`Voice "${wantedVoice}" not found, using the browser default`);
+  const choice = selectVoice(voices, { param: wantedVoice, saved: voiceMenu.saved() });
+  if (wantedVoice && choice.source !== "param") log(`Voice "${wantedVoice}" not found, using the automatic choice`);
   log(`Reply voice: ${choice.voice?.name ?? "browser default"} (${choice.source})`);
+  logEvent("voice_list", { count: voices.length, english: choice.ranked.length, chosen: choice.voice?.name ?? null, source: choice.source, robotic });
 }
 
 if ("speechSynthesis" in window) {
   loadVoices();
   window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+} else {
+  $<HTMLDivElement>("voice-picker").hidden = true;
 }
 
 // The engine that speaks (src/tts-engine.ts); none when the browser has no speechSynthesis, and speak() says so.
-const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice) : null;
+const ttsEngine = "speechSynthesis" in window ? browserEngine(window.speechSynthesis, wantedVoice, voiceMenu.saved) : null;
 if (!ttsEngine) {
   envNote.textContent = NO_SPEECH;
   envNote.hidden = false;
@@ -831,6 +843,15 @@ function speak(text: string) {
     () => logEvent("tts_end"),
     (code) => logTtsError(code, cancelReason),
   );
+}
+
+// The menu's Test voice button: one short sentence through speak(), so cancelSpeech and a mic tap stop it like a reply. It does
+// nothing while a reply is in flight or the mic is open (the sentence would reach the transcriber); otherwise it replaces
+// whatever is still being spoken.
+function testVoice() {
+  if (replyState.inFlight || listening) return;
+  cancelSpeech();
+  speak("This is how I will sound.");
 }
 
 // At done of a reply the mic was tapped during (both modes): nothing is spoken, not a tail, not the full_response

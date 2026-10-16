@@ -1,4 +1,4 @@
-// Tests src/voice.ts (voice picking and the voice list log lines) in a headless Chrome page served by
+// Tests src/voice.ts (the voice list log lines, speechText and ttsErrorEvent; picking a voice is in voice-pick.test.mjs) in a headless Chrome page served by
 // Vite. Runs with the rest of the suite via `node --test eval/runner/`.
 
 import { test, before, after } from "node:test";
@@ -20,24 +20,11 @@ before(async () => {
   const page = context.pages()[0] ?? (await context.newPage());
   await page.goto(vite.url);
   r = await page.evaluate(async () => {
-    const { pickVoice, speechText, ttsErrorEvent, voiceLines } = await import("/src/voice.ts");
+    const { speechText, ttsErrorEvent, voiceLines } = await import("/src/voice.ts");
     const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
-    const name = (c) => [c.voice?.name ?? null, c.source];
-    // Local English voices and a local default are all around, and none of them is picked without a name.
-    const local = [v("Afrikaans espeak-ng", true, true, "af"), v("English (America) espeak-ng", true, false, "en-US"), v("Samantha", true, false, "en-US")];
     return {
-      named: name(pickVoice(list, "Samantha")),
-      namedIgnoresCase: name(pickVoice(list, "samantha")),
-      namedNetworkWhenAsked: name(pickVoice(list, "Google US English")),
-      namedMissing: name(pickVoice(list, "Nobody")),
-      partialIsNotAMatch: name(pickVoice(list, "Sam")),
-      noName: name(pickVoice(list, null)),
-      emptyName: name(pickVoice(list, "")),
-      noNameWithLocalVoices: name(pickVoice(local, null)),
-      emptyList: name(pickVoice([], null)),
-      emptyListNamed: name(pickVoice([], "Samantha")),
       speech: ["", " ", "\n\t  ", "\u00a0", "hi", "  Hi there.\n", "OK."].map((t) => speechText(t)),
       errors: ["canceled", "interrupted", "synthesis-failed", "audio-busy", "not-allowed", undefined].map((c) => ttsErrorEvent(c)),
       lines: voiceLines(list),
@@ -50,25 +37,6 @@ before(async () => {
 after(async () => {
   await context?.close();
   vite?.child.kill();
-});
-
-test("pickVoice: a name that matches a voice (ignoring case) picks it, with source param, even a network voice", () => {
-  assert.deepEqual(r.named, ["Samantha", "param"]);
-  assert.deepEqual(r.namedIgnoresCase, ["Samantha", "param"]);
-  assert.deepEqual(r.namedNetworkWhenAsked, ["Google US English", "param"]);
-});
-
-test("pickVoice: no name is the browser default, even when local English voices exist (nothing is picked automatically)", () => {
-  assert.deepEqual(r.noName, [null, "browser_default"]);
-  assert.deepEqual(r.emptyName, [null, "browser_default"]);
-  assert.deepEqual(r.noNameWithLocalVoices, [null, "browser_default"]);
-  assert.deepEqual(r.emptyList, [null, "browser_default"]);
-});
-
-test("pickVoice: a name that matches nothing (or only part of a name) is the browser default", () => {
-  assert.deepEqual(r.namedMissing, [null, "browser_default"]);
-  assert.deepEqual(r.partialIsNotAMatch, [null, "browser_default"]);
-  assert.deepEqual(r.emptyListNamed, [null, "browser_default"]);
 });
 
 test("voiceLines gives a summary and one line per voice with local or network and the default", () => {

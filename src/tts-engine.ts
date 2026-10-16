@@ -1,7 +1,7 @@
 // The text-to-speech engine behind a small interface, so the speech queue (speech-queue.ts) does not care what
 // speaks. The browser (Web Speech) engine below is the only one.
 
-import { pickVoice } from "./voice";
+import { selectVoice } from "./voice-pick";
 
 // What the engine reports when audio starts: the fields of the eval event tts_start (the main file adds `engine`).
 export type StartInfo = Record<string, unknown>;
@@ -16,20 +16,21 @@ export interface TtsEngine {
   cancel(): void;
 }
 
-// Speaks with the browser's speechSynthesis. `wantedVoice` is the exact ?voice= name, or null for the browser default.
-export function browserEngine(synth: SpeechSynthesis, wantedVoice: string | null): TtsEngine {
+// Speaks with the browser's speechSynthesis. `wantedVoice` is the exact ?voice= name or null; `getSaved` returns the name saved from
+// the voice menu or null. The voice is chosen again for every utterance (src/voice-pick.ts), so a change applies from the next one.
+export function browserEngine(synth: SpeechSynthesis, wantedVoice: string | null, getSaved: () => string | null = () => null): TtsEngine {
   return {
     name: "browser",
     speak(text, onStart, onEnd, onError) {
       const voices = synth.getVoices();
-      const choice = pickVoice(voices, wantedVoice);
-      // With no voice chosen the browser picks (Chrome by language) and does not say which; the voice it flags as
-      // default is the best guess, so the event records where the name came from.
+      const choice = selectVoice(voices, { param: wantedVoice, saved: getSaved() });
+      // With no voice chosen (no English voice listed, or the list is empty) the browser picks (Chrome by language) and does not
+      // say which; the voice it flags as default is the best guess, so the event records where the name came from.
       const used = choice.voice ?? voices.find((v) => v.default) ?? null;
       const utterance = new SpeechSynthesisUtterance(text);
       if (choice.voice) utterance.voice = choice.voice;
       // No voice chosen: ask for English, so the browser does not pick by the system language (the voice it flagged as
-      // default was a German one in a real run). voice_source stays browser_default; the browser still picks the voice.
+      // default was a German one in a real run). voice_source is lang_only; the browser still picks the voice.
       else utterance.lang = "en-US";
       utterance.onstart = () => onStart({ voice: used?.name ?? null, local_service: used?.localService ?? null, voice_source: choice.source });
       utterance.onend = () => onEnd();
