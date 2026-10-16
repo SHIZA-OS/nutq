@@ -9,6 +9,7 @@ are welcome (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 - **A better voice engine than the browser's speech synthesis.** The browser voice is a placeholder. Piper is the candidate to
   evaluate; a local engine started in about 60 ms in an earlier trial but the espeak-ng voices sounded too robotic. The start
   delay of the browser voice was 0.8 to 2 s in the gap experiment.
+- **Better Linux system voices (speech-dispatcher), to research.** Firefox on Linux only has robotic system voices.
 - **Streaming speech for latency**, whether from a new engine or a cloud voice, sentence by sentence as the answer arrives.
 - **Continuous listening and local barge-in.** Today listening is tap to start and tap to stop, and a tap stops the speech.
   Listening without a tap, and interrupting the agent by voice with the detection done in the browser, are the next steps in the
@@ -20,7 +21,7 @@ are welcome (see [CONTRIBUTING.md](../CONTRIBUTING.md)).
 
 ## Platform testing
 
-- **macOS, Windows and Safari are untested.** [TESTING_PLATFORMS.md](TESTING_PLATFORMS.md) is a ten-minute manual checklist; results
+- **Test on macOS and Safari.** They are untested. [TESTING_PLATFORMS.md](TESTING_PLATFORMS.md) has the results so far and a ten-minute manual checklist; results
   from other systems are the most useful contribution here.
 - **A cross-origin-isolated deployment** (COOP and COEP headers) is untested. ONNX Runtime 1.14.0 would then ask for its threaded
   wasm variants, which are not bundled.
