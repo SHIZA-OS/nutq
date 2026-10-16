@@ -890,9 +890,60 @@ a {
   text-align: center;
 }
 
-#env-note {
+#env-note,
+#voice-hint {
   color: var(--muted);
   font-size: 13px;
+}
+
+/* The reply voice menu and its Test button: one look for both themes, from the shared tokens. */
+.voice-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  font: 12px var(--font-sans);
+  color: var(--muted);
+}
+
+.voice-picker[hidden] {
+  display: none;
+}
+
+.voice-picker select {
+  flex: 0 1 320px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: 13px var(--font-sans);
+}
+
+.voice-picker select:focus {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.voice-picker select:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.voice-picker option {
+  background: var(--input-bg);
+  color: var(--text);
+}
+
+.voice-picker .btn-ghost {
+  min-height: 44px;
+  padding: 0 14px;
+  cursor: pointer;
 }
 
 /* ZeroClaw: a round button with a mic icon; rings while listening */

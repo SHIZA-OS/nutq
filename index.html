@@ -87,7 +87,15 @@
               <p id="mic-hint" class="mic-hint">Connect to load the speech model</p>
               <button id="retry-model-btn" type="button" class="btn-ghost" hidden>Try again</button>
               <p id="env-note" class="mic-hint" hidden></p>
+              <p id="voice-hint" class="mic-hint" hidden>This browser only has system voices, which can sound robotic. Chrome or Edge give a clearer voice.</p>
               <span id="mic-status" class="status status-warn">model not loaded</span>
+              <div id="voice-picker" class="voice-picker">
+                <label for="voice-select">Reply voice</label>
+                <select id="voice-select" disabled>
+                  <option value="">Browser default</option>
+                </select>
+                <button id="voice-test" type="button" class="btn-ghost">Test voice</button>
+              </div>
             </div>
 
             <div class="transcript-grid">
