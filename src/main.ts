@@ -3,7 +3,8 @@ import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
 import { MIC_REARM_MS, REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
-import { pickVoice, speechText, ttsErrorEvent, voiceLines } from "./voice";
+import { speechText, ttsErrorEvent, voiceLines } from "./voice";
+import { isRobotic, selectVoice } from "./voice-pick";
 import { browserEngine } from "./tts-engine";
 import { SentenceSplitter } from "./sentence-splitter";
 import { replyPrefix, speakable } from "./speech-text";
@@ -88,6 +89,7 @@ type EvalEvent =
   | "first_chunk_received"
   | "done_received"
   | "tts_requested"
+  | "voice_list"
   | "tts_start"
   | "tts_sentence_start"
   | "speech_text"
@@ -696,21 +698,23 @@ function dropHeld(reason: "closed" | "timeout") {
   notice = reason === "closed" ? "Message not sent, the connection closed" : "Message not sent, the answer timed out";
 }
 
-// Voices load asynchronously in Chrome (getVoices() is empty until "voiceschanged"), so they are read at page
-// load and again whenever the list changes, not first at speak time. ?voice=<exact name> picks one (any mode);
-// the list is written to the log panel so a name can be copied from it.
+// Voices load asynchronously (Chrome and Safari can return an empty list until "voiceschanged"), so they are read at page
+// load and again whenever the list changes, not first at speak time. The English ones are ranked and the best is used
+// (src/voice-pick.ts); ?voice=<exact name> picks any voice (any mode). The list is written to the log panel so a name can be copied.
 const wantedVoice = urlParams.get("voice");
 let voices: SpeechSynthesisVoice[] = [];
 let loggedVoiceCount = -1;
 
 function loadVoices() {
   voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0 || voices.length === loggedVoiceCount) return;
+  if (voices.length === loggedVoiceCount) return;
   loggedVoiceCount = voices.length;
+  if (voices.length === 0) return;
   for (const line of voiceLines(voices)) log(line);
-  const choice = pickVoice(voices, wantedVoice);
-  if (wantedVoice && !choice.voice) log(`Voice "${wantedVoice}" not found, using the browser default`);
+  const choice = selectVoice(voices, { param: wantedVoice });
+  if (wantedVoice && choice.source !== "param") log(`Voice "${wantedVoice}" not found, using the automatic choice`);
   log(`Reply voice: ${choice.voice?.name ?? "browser default"} (${choice.source})`);
+  logEvent("voice_list", { count: voices.length, english: choice.ranked.length, chosen: choice.voice?.name ?? null, source: choice.source, robotic: isRobotic(voices) });
 }
 
 if ("speechSynthesis" in window) {

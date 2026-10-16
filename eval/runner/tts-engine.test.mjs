@@ -31,39 +31,61 @@ before(async () => {
     };
     const v = (name, localService, def = false) => ({ name, lang: "en-US", localService, default: def });
     const voices = [v("Google US English", false, true), v("Samantha", true)];
-    const setup = (list, wanted) => {
+    const setup = (list, wanted, getSaved) => {
       const spoken = [];
       const calls = [];
       const synth = { getVoices: () => list, speak: (u) => spoken.push(u), cancel: () => calls.push("cancel") };
-      const engine = browserEngine(synth, wanted);
+      const engine = browserEngine(synth, wanted, getSaved);
       const events = [];
       const speak = (text) => engine.speak(text, (info) => events.push(["start", info]), () => events.push(["end"]), (code) => events.push(["error", code]));
       return { engine, spoken, calls, events, speak };
     };
     const out = {};
 
+    const used = (u) => ({ voice: u.voice?.name ?? null, lang: u.lang ?? null });
+
     let t = setup(voices, null);
     t.speak("Hello there.");
-    out.noVoice = { name: t.engine.name, text: t.spoken[0].text, voice: t.spoken[0].voice, lang: t.spoken[0].lang };
+    out.noVoice = { name: t.engine.name, text: t.spoken[0].text, ...used(t.spoken[0]) };
     t.spoken[0].onstart();
     t.spoken[0].onend();
     out.noVoiceEvents = t.events;
 
     t = setup(voices, "samantha");
     t.speak("Hi.");
-    out.named = { voice: t.spoken[0].voice?.name ?? null, lang: t.spoken[0].lang ?? null };
+    out.named = used(t.spoken[0]);
     t.spoken[0].onstart();
     out.namedStart = t.events;
 
-    t = setup(voices, "Nobody");
+    t = setup(voices, "Nobody"); // a name that matches nothing: the ranked voice
     t.speak("Hi.");
     t.spoken[0].onstart();
-    out.missing = { voice: t.spoken[0].voice, lang: t.spoken[0].lang, events: t.events };
+    out.missing = { ...used(t.spoken[0]), events: t.events };
 
-    t = setup([v("Only", true)], null); // no voice flagged default: nothing to name
+    let saved = null; // the menu's saved voice is read at every utterance, so a change applies from the next one
+    t = setup(voices, null, () => saved);
+    t.speak("One.");
+    saved = "Samantha";
+    t.speak("Two.");
+    saved = "Nobody"; // a saved name that is not listed any more is ignored
+    t.speak("Three.");
+    t.spoken[1].onstart();
+    out.saved = { voices: t.spoken.map((u) => u.voice?.name ?? null), events: t.events };
+
+    t = setup(voices, "samantha", () => "Google US English"); // ?voice= wins over a saved voice
+    t.speak("Hi.");
+    out.paramBeatsSaved = used(t.spoken[0]);
+
+    const german = { name: "Anna", lang: "de-DE", localService: true, default: true };
+    t = setup([german], null); // no English voice: no voice is set, lang en-US asked, the default voice named as the best guess
     t.speak("Hi.");
     t.spoken[0].onstart();
-    out.noDefault = t.events;
+    out.noEnglish = { ...used(t.spoken[0]), events: t.events };
+
+    t = setup([], null); // voices not loaded: nothing to name
+    t.speak("Hi.");
+    t.spoken[0].onstart();
+    out.noVoices = { ...used(t.spoken[0]), events: t.events };
 
     t = setup(voices, null);
     t.speak("One.");
@@ -84,22 +106,31 @@ after(async () => {
   vite?.child.kill();
 });
 
-test("the browser engine is named browser, speaks the text it is given and leaves the voice to the browser, asking for en-US", () => {
-  assert.deepEqual(r.noVoice, { name: "browser", text: "Hello there.", voice: null, lang: "en-US" });
+test("the browser engine is named browser and speaks the text it is given with the best English voice (no lang needed)", () => {
+  assert.deepEqual(r.noVoice, { name: "browser", text: "Hello there.", voice: "Google US English", lang: null });
 });
 
-test("lang is en-US only when no voice was chosen: a voice that matched (?voice=) keeps its own language, a name that matched nothing gets en-US", () => {
+test("lang is en-US only when no voice was chosen (no English voice, or no voices): a chosen voice keeps its own language", () => {
   assert.deepEqual(r.named, { voice: "Samantha", lang: null });
-  assert.equal(r.missing.lang, "en-US");
+  assert.deepEqual(r.missing, { voice: "Google US English", lang: null, events: [["start", { voice: "Google US English", local_service: false, voice_source: "ranked" }]] });
+  assert.equal(r.noEnglish.voice, null);
+  assert.equal(r.noEnglish.lang, "en-US");
+  assert.equal(r.noVoices.voice, null);
+  assert.equal(r.noVoices.lang, "en-US");
+});
+
+test("a saved voice is read at every utterance and ignored when it is not listed; ?voice= wins over it", () => {
+  assert.deepEqual(r.saved.voices, ["Google US English", "Samantha", "Google US English"]);
+  assert.deepEqual(r.saved.events, [["start", { voice: "Samantha", local_service: true, voice_source: "saved" }]]);
+  assert.equal(r.paramBeatsSaved.voice, "Samantha");
 });
 
 test("onStart carries the tts_start fields: the voice, whether it is local and where the name came from", () => {
-  // No voice chosen: the voice flagged default is the best guess.
-  assert.deepEqual(r.noVoiceEvents, [["start", { voice: "Google US English", local_service: false, voice_source: "browser_default" }], ["end"]]);
+  assert.deepEqual(r.noVoiceEvents, [["start", { voice: "Google US English", local_service: false, voice_source: "ranked" }], ["end"]]);
   assert.deepEqual(r.namedStart, [["start", { voice: "Samantha", local_service: true, voice_source: "param" }]]);
-  assert.equal(r.missing.voice, null);
-  assert.deepEqual(r.missing.events, [["start", { voice: "Google US English", local_service: false, voice_source: "browser_default" }]]);
-  assert.deepEqual(r.noDefault, [["start", { voice: null, local_service: null, voice_source: "browser_default" }]]);
+  // No voice chosen: the voice flagged default is the best guess, and none flagged or none listed is null.
+  assert.deepEqual(r.noEnglish.events, [["start", { voice: "Anna", local_service: true, voice_source: "lang_only" }]]);
+  assert.deepEqual(r.noVoices.events, [["start", { voice: null, local_service: null, voice_source: "lang_only" }]]);
 });
 
 test("onError carries the browser's error code, undefined if it gave none", () => {

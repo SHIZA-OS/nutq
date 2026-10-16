@@ -360,7 +360,7 @@ test("flag off: nothing is spoken until done, then the whole reply once from ful
 test("flag off: tts_start keeps voice, local_service and voice_source, in that order, and gains engine", () => {
   const start = r.offAfterDone.events.find((e) => e.event === "tts_start");
   assert.deepEqual(Object.keys(start), ["event", "timestamp_ms", "voice", "local_service", "voice_source", "engine"]);
-  assert.equal(start.voice_source, "browser_default");
+  assert.ok(["param", "saved", "ranked", "lang_only"].includes(start.voice_source), start.voice_source); // which depends on the voices the headless Chrome lists
   assert.equal(start.engine, "browser");
 });
 
