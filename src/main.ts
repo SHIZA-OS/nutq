@@ -846,9 +846,10 @@ function speak(text: string) {
 }
 
 // The menu's Test voice button: one short sentence through speak(), so cancelSpeech and a mic tap stop it like a reply. It does
-// nothing while a reply is in flight; otherwise it replaces whatever is still being spoken.
+// nothing while a reply is in flight or the mic is open (the sentence would reach the transcriber); otherwise it replaces
+// whatever is still being spoken.
 function testVoice() {
-  if (replyState.inFlight) return;
+  if (replyState.inFlight || listening) return;
   cancelSpeech();
   speak("This is how I will sound.");
 }

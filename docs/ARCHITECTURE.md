@@ -299,7 +299,7 @@ voices have no variants and no `espeak` in the name or URI would not be flagged;
 clears it; every storage read and write is in a try/catch, and the choice is also kept in memory, so with blocked storage it works for the
 visit. The menu is disabled while `?voice=` matches a voice (the option says so), when no English voice is listed, and, reading "Browser
 default", when no voice is listed. Test voice runs `speak()` on one fixed sentence, after `cancelSpeech()`, so a mic tap and a new message stop
-it like a reply; it does nothing while `replyState.inFlight`. Two voices with the same name share one option (the first wins).
+it like a reply; it does nothing while `replyState.inFlight` or while listening (the sentence would reach the transcriber). Two voices with the same name share one option (the first wins).
 
 **Privacy.** An online browser voice (such as Google voices in Chrome or Microsoft online voices in Edge) sends the reply text to its provider
 to be spoken. Nutq does not know which voices are online: `localService` is the browser's own report and Firefox reports local espeak voices

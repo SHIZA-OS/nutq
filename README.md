@@ -123,7 +123,8 @@ system.
   sets no voice and asks for `en-US`. The order is a judgement from voice names, not a measurement of how a voice sounds.
 - **The menu.** The Reply voice menu under the microphone lists Automatic and the ranked English voices, never the whole
   list. Your choice is kept in local storage under `voice`, applies from the next utterance, and choosing Automatic clears
-  it. Test voice speaks one short sentence with the chosen voice; it does nothing while an answer is in flight. With no
+  it. Test voice speaks one short sentence with the chosen voice; it does nothing while an answer is in flight or the
+  microphone is listening. With no
   voices listed the menu is disabled and reads Browser default. Browsers often list voices late, so the menu fills in when
   the list changes.
 - **`?voice=<exact name>`.** Picks any voice the page logged, ignoring case, and wins over the menu, which is disabled while

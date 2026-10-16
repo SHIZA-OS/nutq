@@ -6,7 +6,7 @@
 
 - A Reply voice menu under the microphone, in both themes: Automatic (best available) and the ranked English voices only. The choice
   is kept in local storage under `voice` and applies from the next utterance. A Test voice button speaks one short sentence through
-  the normal speech path (so cancel and the mic tap stop it) and does nothing while an answer is in flight. With no voices listed the
+  the normal speech path (so cancel and the mic tap stop it) and does nothing while an answer is in flight or the microphone is listening. With no voices listed the
   menu is disabled and reads Browser default. The menu is rebuilt when the browser's voice list changes.
 - One hint line under the microphone when every English voice the browser lists looks like espeak: "This browser only has system
   voices, which can sound robotic. Chrome or Edge give a clearer voice."

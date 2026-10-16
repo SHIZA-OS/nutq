@@ -6,7 +6,9 @@ changes required to ZeroClaw core.
 
 The pipeline, in short: microphone audio is transcribed locally in-browser with Moonshine
 (WASM, no server round-trip for STT), the transcript is sent to a ZeroClaw agent over
-`/ws/chat`, and the agent's reply is spoken back with the Web Speech API. See
+`/ws/chat`, and the agent's reply is spoken back with the Web Speech API (audio and speech recognition stay in the
+browser, but an online browser voice, such as Google voices in Chrome or Microsoft online voices in Edge, sends the reply
+text to that provider to be spoken). See
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full data flow and protocol details,
 including the pairing-token gotcha and a known upstream config-parsing bug.
 
