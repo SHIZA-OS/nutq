@@ -330,7 +330,11 @@ function setAuthToken(token: string) {
 }
 
 function savePairingToken(gatewayUrl: string, token: string) {
-  localStorage.setItem(pairingStorageKey(gatewayUrl), token);
+  try {
+    localStorage.setItem(pairingStorageKey(gatewayUrl), token);
+  } catch {
+    // ponytail: a failed save is dropped; the token is used for this visit and just does not persist
+  }
   setAuthToken(token);
 }
 
@@ -361,7 +365,12 @@ pairFallbackSaveBtn.addEventListener("click", () => {
 function loadSavedTokenForCurrentUrl() {
   const gatewayUrl = wsUrlInput.value.trim();
   if (!gatewayUrl) return;
-  const saved = localStorage.getItem(pairingStorageKey(gatewayUrl));
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(pairingStorageKey(gatewayUrl));
+  } catch {
+    // storage blocked: no saved token, the page still loads
+  }
   if (saved) {
     setAuthToken(saved);
     setStatus(pairStatus, "paired (saved token)", "ok");

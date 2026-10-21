@@ -56,6 +56,9 @@
   opening) now stops the stream's tracks, so the browser's recording indicator goes off, and disconnects the stream's source node
   from the Transcriber's AudioContext. Before, each press left its stream open: ten presses left ten live tracks. The Transcriber's AudioContext is kept and reused by the next press, because the VAD is bound to
   it at load; the level meter's own AudioContext was already closed on stop. Test: `eval/runner/mic-release.test.mjs`.
+- With the browser's local storage blocked, the page no longer throws at load: the two pairing-token accesses in `src/main.ts`
+  are guarded like the theme and voice ones (nothing is read, a save is dropped, a pasted token is still used for the visit).
+  Test: `eval/runner/blocked-storage.test.mjs`.
 
 ### Known limitations
 
@@ -65,8 +68,6 @@
   and Test voice were not recorded, and the three browser tests that were edited for the voice change were edited but not run when
   that change was written. `docs/TESTING_PLATFORMS.md` has the checklist.
 - Nutq cannot tell which voices are online: the browser's `localService` flag is the only signal, and it is not used to decide.
-- With the browser's local storage blocked, `src/main.ts` throws at load (`loadSavedTokenForCurrentUrl` reads it without a
-  guard). This is older than the themes; the theme code itself copes with blocked storage.
 - The design's entrance animations are not built.
 
 ## 0.1.0 (2026-10-06)
