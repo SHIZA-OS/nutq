@@ -50,6 +50,13 @@
   difference from the original is 19 of 255), the SHIZA wordmark only lost its embedded metadata, and the PNG tab icons were
   recompressed losslessly.
 
+### Fixed
+
+- Every end of listening (release, the silence auto-send, a failed start, and a stop pressed while the microphone was still
+  opening) now stops the stream's tracks, so the browser's recording indicator goes off, and disconnects the stream's source node
+  from the Transcriber's AudioContext. Before, each press left its stream open: ten presses left ten live tracks. The Transcriber's AudioContext is kept and reused by the next press, because the VAD is bound to
+  it at load; the level meter's own AudioContext was already closed on stop. Test: `eval/runner/mic-release.test.mjs`.
+
 ### Known limitations
 
 - The themes were checked in Chrome only.
@@ -60,8 +67,6 @@
 - Nutq cannot tell which voices are online: the browser's `localService` flag is the only signal, and it is not used to decide.
 - With the browser's local storage blocked, `src/main.ts` throws at load (`loadSavedTokenForCurrentUrl` reads it without a
   guard). This is older than the themes; the theme code itself copes with blocked storage.
-- Nothing stops the microphone tracks: after listening stops the stream stays open and every start opens a new one. This
-  is older than the themes and is not fixed here.
 - The design's entrance animations are not built.
 
 ## 0.1.0 (2026-10-06)

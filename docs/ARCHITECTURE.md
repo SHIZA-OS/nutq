@@ -34,6 +34,8 @@ therefore loads first and opens the mic second:
    nosend eval mode is on). The status reads "loading model…" and the hint says so.
 3. **On click**, `getUserMedia` and `attachStream` run, then `start()`. Because the load
    already finished, `start()` does not load again.
+4. **On stop** (release, the silence auto-send, a failed start), `Transcriber.stop()` ends the stream's tracks and
+   disconnects its source node. The Transcriber's one `AudioContext` stays open for the next press.
 
 **When loading starts.**
 

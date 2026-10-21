@@ -1103,6 +1103,11 @@ async function startMicrophone(t: Transcriber): Promise<string | null> {
   try {
     t.callbacks.onPermissionsRequested();
     const stream = await navigator.mediaDevices.getUserMedia(micConstraints(isEvalMode, isRawMic));
+    if (!listening) {
+      // Stopped while the permission prompt or the device was still opening: nothing is attached, so give it straight back.
+      stream.getAudioTracks().forEach((t) => t.stop());
+      return null;
+    }
     window.dispatchEvent(new CustomEvent("mic-stream", { detail: { stream } })); // for the page's level meter, which only reads it
     // What Chrome actually applied, since a constraint can be ignored.
     const { echoCancellation, noiseSuppression, autoGainControl, sampleRate } = stream.getAudioTracks()[0]?.getSettings() ?? {};
