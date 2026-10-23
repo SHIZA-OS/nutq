@@ -6,7 +6,7 @@ You need Node.js `^20.19.0` or `>=22.12.0` and npm, plus Google Chrome for the t
 binary named by the `CHROME_BIN` environment variable, and `/usr/bin/google-chrome` when it is not set:
 
 ```
-CHROME_BIN=/path/to/chrome npm test
+CHROME_BIN=/path/to/chrome npm run test:full
 ```
 
 ```
@@ -19,8 +19,11 @@ npm run dev        # http://localhost:5173, with eval mode available (?eval=1)
 ## Tests
 
 - `npx tsc --noEmit` must report no errors.
-- `npm test` runs every `eval/runner/*.test.mjs` with `node --test`. Run one file with
-  `node --test eval/runner/<name>.test.mjs`. Check the exit code of the command, not only the summary it prints.
+- `npm test` runs the fast files only: the ones that start no browser, no Playwright, no Vite server and no worker. It is the
+  list written out in `package.json`, so a new fast test file must be added there. Run it on every commit.
+- `npm run test:full` runs every `eval/runner/*.test.mjs` (including the page tests that launch Chrome) with
+  `--test-concurrency=2`. Run it once before opening a PR. A new test file is picked up by it automatically.
+- Run one file with `node --test eval/runner/<name>.test.mjs`. Check the exit code of the command, not only the summary it prints.
 - Most page tests drive real headless Chrome against the dev server and a stub gateway (`eval/runner/page-harness.mjs`).
   A few load the real speech model, which is served from `public/vendor/`.
 - Some tests and eval drivers (`prod-build.test.mjs`, `smoke-evals.test.mjs`, `run-wer.mjs`, `replay-commits.mjs`) need the

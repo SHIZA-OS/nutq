@@ -20,7 +20,8 @@ For open work, see [docs/ROADMAP.md](docs/ROADMAP.md). For setup, tests and comm
 
 - `npm install`, then `npm run dev` (dev server, eval mode available) or `npm run build` (type check, then the
   production build into `dist/`).
-- `npm test` runs every `eval/runner/*.test.mjs`. `npx tsc --noEmit` must report no errors.
+- `npm test` runs the fast files (no browser, Vite or worker): run it on every commit. `npm run test:full` runs every
+  `eval/runner/*.test.mjs`: run it once before opening a PR. `npx tsc --noEmit` must report no errors.
 
 ## House rules
 

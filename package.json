@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --test eval/runner/*.test.mjs",
+    "test": "node --test eval/runner/audio-dir.test.mjs eval/runner/chrome-bin.test.mjs eval/runner/completion.test.mjs eval/runner/deps.test.mjs eval/runner/docs.test.mjs eval/runner/endpoint-check.test.mjs eval/runner/endpoint-metrics.test.mjs eval/runner/join-latency.test.mjs eval/runner/parse-trace.test.mjs eval/runner/voice-pick.test.mjs eval/runner/wer.test.mjs",
+    "test:full": "node --test --test-concurrency=2 eval/runner/*.test.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {
