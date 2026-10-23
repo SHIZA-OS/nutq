@@ -1,30 +1,19 @@
 // Tests the end-of-turn simulator (endpoint-sim.mjs) that replays a policy on a recorded stream of VAD events and
-// commits, in a headless Chrome page served by Vite so that it runs the real TurnPolicy from src/turn-policy.ts.
+// commits, in Node, where it runs the real TurnPolicy from src/turn-policy.ts.
 // Hand-made streams with known answers; the timing rules are the replay's (frame k is processed, then the commits whose
 // modelled run has finished are delivered, then the policy is asked about time k * 32 ms).
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-endpointsim-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { TurnPolicy, waitFor } = await import("/src/turn-policy.ts");
-    const { simulate } = await import("/eval/runner/endpoint-sim.mjs");
-    const { commitLatencyMs } = await import("/eval/runner/endpoint-metrics.mjs");
+  r = structuredClone(await (async () => {
+    const { TurnPolicy, waitFor } = await loadTs("turn-policy");
+    const { simulate } = await import("./endpoint-sim.mjs");
+    const { commitLatencyMs } = await import("./endpoint-metrics.mjs");
     const W = { done: 300, unknown: 1500, open: 3500, floor: 0, ceiling: 8000 };
     const fixed = (ms) => () => new TurnPolicy(ms);
     const semantic = () => new TurnPolicy((text, n) => waitFor(text, W, n));
@@ -53,12 +42,7 @@ before(async () => {
     // a commit under the encoder minimum is never in flight
     out.skipped = simulate(base([{ k: "start", f: 2 }, { k: "commit", f: 99, from: 90, samples: 100, skipped: true, path: "stop", text: "" }, { k: "end", f: 100 }]), semantic, commitLatencyMs, 1);
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("a fixed wait ends the turn one wait after the speech end, seen at the next frame boundary", () => {

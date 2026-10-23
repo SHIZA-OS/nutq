@@ -1,13 +1,10 @@
-// Tests src/turn-state.ts, the reply-in-flight state, in a headless Chrome page served by Vite (the real module,
-// no copy of the logic here). Runs with the rest of the suite via `node --test eval/runner/`.
+// Tests src/turn-state.ts, the reply-in-flight state, in Node (the real module,
+// no copy of the logic here). Runs with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 const CLEARING = [
@@ -45,17 +42,9 @@ const NOT_CLEARING = [
 ];
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-turnstate-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(
+  r = structuredClone(await (
     async ({ clearing, notClearing }) => {
-      const { ReplyState, REPLY_TIMEOUT_MS } = await import("/src/turn-state.ts");
+      const { ReplyState, REPLY_TIMEOUT_MS } = await loadTs("turn-state");
       const out = {};
       let s = new ReplyState();
       out.fresh = s.inFlight;
@@ -162,14 +151,8 @@ before(async () => {
       s.mute();
       out.muteChunk = { first, nextTurn, nextTurnMuted: s.firstMutedChunk() };
       return out;
-    },
-    { clearing: CLEARING, notClearing: NOT_CLEARING },
-  );
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+    }
+  )({ clearing: CLEARING, notClearing: NOT_CLEARING }));
 });
 
 test("a fresh state has no reply in flight; the first trySend marks one and a second is refused without changing anything", () => {

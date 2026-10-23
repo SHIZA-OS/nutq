@@ -1,27 +1,16 @@
 // Tests the text-dependent end-of-turn rule in src/turn-policy.ts (endHint, waitFor, and TurnPolicy with a
-// wait function), in a headless Chrome page served by Vite. The fixed-wait behavior stays pinned by
+// wait function), in Node. The fixed-wait behavior stays pinned by
 // turn-policy.test.mjs; this file only covers what the text adds.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-endpoint-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { TurnPolicy, endHint, waitFor, waitFromParams, SEMANTIC_WAITS } = await import("/src/turn-policy.ts");
+  r = structuredClone(await (async () => {
+    const { TurnPolicy, endHint, waitFor, waitFromParams, SEMANTIC_WAITS } = await loadTs("turn-policy");
     const out = {};
     const hints = [
       "Thank you.", "What time is it?", "Stop!", "Bring the blue folder to the office", "Stop", "", "   ",
@@ -126,12 +115,7 @@ before(async () => {
       expected: [waitFor("Thank you.", SEMANTIC_WAITS, 0), waitFor("and", SEMANTIC_WAITS, 0), waitFor("Thank you.", SEMANTIC_WAITS, 1)],
     };
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("terminal punctuation alone reads as done; no punctuation and no open word reads as unknown", () => {

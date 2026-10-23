@@ -1,26 +1,15 @@
-// Tests src/sentence-splitter.ts, the streamed-reply sentence splitter, in a headless Chrome page served by Vite
+// Tests src/sentence-splitter.ts, the streamed-reply sentence splitter, in Node
 // (the real module, no copy of the logic here). Runs with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-splitter-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { SentenceSplitter } = await import("/src/sentence-splitter.ts");
+  r = structuredClone(await (async () => {
+    const { SentenceSplitter } = await loadTs("sentence-splitter");
     // What each delta closed, then what flush() returned.
     const run = (deltas) => {
       const s = new SentenceSplitter();
@@ -96,12 +85,7 @@ before(async () => {
     out.emoji = { all: all(run([emoji.slice(0, cut), emoji.slice(cut)])), emojiText: emoji.trim() };
     out.mixed = all(run(["日本語のテキスト。 English follows the line here. Ça va très bien aujourd'hui. "]));
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("a reply that arrives as one big chunk closes all its sentences at once; the unterminated end waits for flush", () => {

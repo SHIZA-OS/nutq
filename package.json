@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --test eval/runner/audio-dir.test.mjs eval/runner/chrome-bin.test.mjs eval/runner/completion.test.mjs eval/runner/deps.test.mjs eval/runner/docs.test.mjs eval/runner/endpoint-check.test.mjs eval/runner/endpoint-metrics.test.mjs eval/runner/join-latency.test.mjs eval/runner/parse-trace.test.mjs eval/runner/voice-pick.test.mjs eval/runner/wer.test.mjs",
+    "test": "node --test eval/runner/audio-dir.test.mjs eval/runner/chrome-bin.test.mjs eval/runner/completion.test.mjs eval/runner/deps.test.mjs eval/runner/docs.test.mjs eval/runner/endpoint-check.test.mjs eval/runner/endpoint-metrics.test.mjs eval/runner/endpoint-sim.test.mjs eval/runner/endpoint.test.mjs eval/runner/join-latency.test.mjs eval/runner/parse-trace.test.mjs eval/runner/pre-roll.test.mjs eval/runner/sentence-splitter.test.mjs eval/runner/speech-queue.test.mjs eval/runner/speech-text.test.mjs eval/runner/tts-engine.test.mjs eval/runner/turn-policy.test.mjs eval/runner/turn-state.test.mjs eval/runner/voice-pick.test.mjs eval/runner/voice.test.mjs eval/runner/wer.test.mjs",
     "test:full": "node --test --test-concurrency=2 eval/runner/*.test.mjs",
     "preview": "vite preview"
   },

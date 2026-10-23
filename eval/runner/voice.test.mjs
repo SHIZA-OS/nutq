@@ -1,26 +1,14 @@
-// Tests src/voice.ts (the voice list log lines, speechText and ttsErrorEvent; picking a voice is in voice-pick.test.mjs) in a headless Chrome page served by
-// Vite. Runs with the rest of the suite via `node --test eval/runner/`.
+// Tests src/voice.ts (the voice list log lines, speechText and ttsErrorEvent; picking a voice is in voice-pick.test.mjs) in Node. Runs with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-voice-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { speechText, ttsErrorEvent, voiceLines } = await import("/src/voice.ts");
+  r = structuredClone(await (async () => {
+    const { speechText, ttsErrorEvent, voiceLines } = await loadTs("voice");
     const v = (name, local, def = false, lang = "en-US") => ({ name, lang, localService: local, default: def });
     const list = [v("Google US English", false, true), v("English (America) espeak-ng", true), v("Samantha", true)];
     const many = Array.from({ length: 45 }, (_, i) => v("Voice " + i, i % 2 === 0));
@@ -31,12 +19,7 @@ before(async () => {
       manyLines: voiceLines(many, 40),
       none: voiceLines([]),
     };
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("voiceLines gives a summary and one line per voice with local or network and the default", () => {
