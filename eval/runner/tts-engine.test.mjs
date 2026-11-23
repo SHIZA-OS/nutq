@@ -1,27 +1,16 @@
-// Tests src/tts-engine.ts, the browser engine, in a headless Chrome page served by Vite (the real module). The
+// Tests src/tts-engine.ts, the browser engine, in Node (the real module). The
 // speechSynthesis object and the utterance class are fakes, so nothing is spoken and no voices are needed. Runs
 // with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-ttsengine-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { browserEngine } = await import("/src/tts-engine.ts");
+  r = structuredClone(await (async () => {
+    const { browserEngine } = await loadTs("tts-engine");
     // A plain class: the real SpeechSynthesisUtterance refuses a voice that is not a real SpeechSynthesisVoice.
     globalThis.SpeechSynthesisUtterance = class {
       constructor(text) {
@@ -98,12 +87,7 @@ before(async () => {
     t.engine.cancel();
     out.cancel = t.calls;
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("the browser engine is named browser and speaks the text it is given with the best English voice (no lang needed)", () => {

@@ -1,26 +1,15 @@
-// Tests src/turn-policy.ts, the end-of-turn policy, in a headless Chrome page served by Vite (the real
-// module, no copy of the logic here). Runs with the rest of the suite via `node --test eval/runner/`.
+// Tests src/turn-policy.ts, the end-of-turn policy, in Node (the real
+// module, no copy of the logic here). Runs with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-turnpolicy-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { TurnPolicy, SILENCE_COMMIT_MS, MIN_SILENCE_MS, MAX_SILENCE_MS, parseSilenceMs, transcriptToSend } = await import("/src/turn-policy.ts");
+  r = structuredClone(await (async () => {
+    const { TurnPolicy, SILENCE_COMMIT_MS, MIN_SILENCE_MS, MAX_SILENCE_MS, parseSilenceMs, transcriptToSend } = await loadTs("turn-policy");
     const out = { SILENCE_COMMIT_MS };
 
     const D = 5000; // the default silence delay, pinned by the first test
@@ -90,12 +79,7 @@ before(async () => {
     out.range = [MIN_SILENCE_MS, MAX_SILENCE_MS];
     out.send = ["", " ", "\n\t ", "hi", " hi ", "Stop."].map((t) => transcriptToSend(t));
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("the default auto-silence time is 5000 ms", () => assert.equal(r.SILENCE_COMMIT_MS, 5000));

@@ -1,13 +1,10 @@
-// Tests src/speech-text.ts, the reply-to-speakable-text cleaner and the reply prefixes, in a headless Chrome page served
-// by Vite (the real module, no copy of the logic here). Runs with the rest of the suite via `npm test`.
+// Tests src/speech-text.ts, the reply-to-speakable-text cleaner and the reply prefixes, in Node
+// (the real module, no copy of the logic here). Runs with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 // Input text to the expected speakable text, one row per rule. Checked in the page, compared here.
@@ -49,16 +46,8 @@ const CASES = [
 ];
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-speechtext-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async (cases) => {
-    const { speakable } = await import("/src/speech-text.ts");
+  r = structuredClone(await (async (cases) => {
+    const { speakable } = await loadTs("speech-text");
     const out = {};
     out.cases = cases.map(([, input]) => speakable(input).text);
     // A code fence that spans two streamed units: the second call is told it starts inside code.
@@ -69,15 +58,10 @@ before(async () => {
     // Cleaning twice gives the same text as cleaning once.
     const sample = "# Title\n- **One** item with `code` and [a link](http://x.y)\n| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\nEnd 🎉";
     out.idempotent = [speakable(sample).text, speakable(speakable(sample).text).text];
-    const { replyPrefix } = await import("/src/speech-text.ts");
+    const { replyPrefix } = await loadTs("speech-text");
     out.prefix = { none: replyPrefix(null), empty: replyPrefix(""), short: replyPrefix("short"), voice: replyPrefix("voice"), upper: replyPrefix("VOICE"), shortUpper: replyPrefix("SHORT"), other: replyPrefix("loud") };
     return out;
-  }, CASES);
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })(CASES));
 });
 
 for (const [i, [name, input, expected]] of CASES.entries()) {

@@ -1,27 +1,16 @@
-// Tests src/speech-queue.ts, the sentence queue, in a headless Chrome page served by Vite (the real module). The
+// Tests src/speech-queue.ts, the sentence queue, in Node (the real module). The
 // engine is a fake and the clock is a fake: time only moves when the test ticks it, so nothing here waits. Runs
 // with the rest of the suite via `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r;
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-speechqueue-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { SpeechQueue, MAX_UTTERANCE_CHARS, FIRST_UTTERANCE_WAIT_MS } = await import("/src/speech-queue.ts");
+  r = structuredClone(await (async () => {
+    const { SpeechQueue, MAX_UTTERANCE_CHARS, FIRST_UTTERANCE_WAIT_MS } = await loadTs("speech-queue");
 
     const makeClock = () => {
       let now = 0;
@@ -464,12 +453,7 @@ before(async () => {
     s.queue.enqueue("bbbb");
     out.fwCounts = { sentences: s.queue.sentences, fresh: s.queue.fresh, requested: s.events.filter((e) => e.type === "requested").length };
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("sentences play in order, one utterance at a time; the engine only gets the next one when the last has ended", () => {

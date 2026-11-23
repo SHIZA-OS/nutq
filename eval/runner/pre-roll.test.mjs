@@ -1,27 +1,16 @@
-// Tests the real src/vendor/pre-roll.ts: Vite serves it and a headless Chrome page imports
-// and drives it (no copy of the logic here). Runs with the rest of the suite via
-// `node --test eval/runner/`.
+// Tests the real src/vendor/pre-roll.ts, compiled and driven in Node
+// (no copy of the logic here). Runs with the rest of the suite via
+// `npm test`.
 
-import { test, before, after } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
-import { chromium } from "playwright-core";
-import { makeTempDir, startVite } from "./vite-server.mjs";
+import { loadTs } from "./load-ts.mjs";
 
-let context;
-let vite;
 let r; // scenario results, each a list of the frame ids that take() returned
 
 before(async () => {
-  vite = await startVite();
-  context = await chromium.launchPersistentContext(makeTempDir("nutq-preroll-"), {
-    executablePath: process.env.CHROME_BIN || "/usr/bin/google-chrome",
-    headless: true,
-    args: ["--no-first-run", "--no-default-browser-check"],
-  });
-  const page = context.pages()[0] ?? (await context.newPage());
-  await page.goto(vite.url);
-  r = await page.evaluate(async () => {
-    const { PreRoll } = await import("/src/vendor/pre-roll.ts");
+  r = structuredClone(await (async () => {
+    const { PreRoll } = await loadTs("vendor/pre-roll");
     const frame = (i) => new Float32Array([i]); // one sample whose value is the frame id
     const ids = (frames) => frames.map((f) => f[0]);
     const fill = (p, from, to) => { for (let i = from; i <= to; i++) p.push(frame(i)); };
@@ -59,12 +48,7 @@ before(async () => {
     fill(p, 20, 21);
     out.secondStart = ids(p.take(false));
     return out;
-  });
-});
-
-after(async () => {
-  await context?.close();
-  vite?.child.kill();
+  })());
 });
 
 test("keeps only the most recent N frames, oldest first", () => assert.deepEqual(r.lastN, [6, 7, 8, 9]));
