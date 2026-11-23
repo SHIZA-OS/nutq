@@ -22,7 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+<<<<<<< Updated upstream
 .archify/
+=======
+.archify
+>>>>>>> Stashed changes
 
 graphify-out/
 
