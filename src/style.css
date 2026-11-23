@@ -1281,6 +1281,15 @@ input:focus {
   display: none;
 }
 
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#forget-token-hint:not(:empty) {
+  margin-top: 8px;
+}
+
 .fallback-panel {
   display: flex;
   flex-direction: column;
