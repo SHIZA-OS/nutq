@@ -330,7 +330,11 @@ function setAuthToken(token: string) {
 }
 
 function savePairingToken(gatewayUrl: string, token: string) {
-  localStorage.setItem(pairingStorageKey(gatewayUrl), token);
+  try {
+    localStorage.setItem(pairingStorageKey(gatewayUrl), token);
+  } catch {
+    // ponytail: a failed save is dropped; the token is used for this visit and just does not persist
+  }
   setAuthToken(token);
 }
 
@@ -361,7 +365,12 @@ pairFallbackSaveBtn.addEventListener("click", () => {
 function loadSavedTokenForCurrentUrl() {
   const gatewayUrl = wsUrlInput.value.trim();
   if (!gatewayUrl) return;
-  const saved = localStorage.getItem(pairingStorageKey(gatewayUrl));
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(pairingStorageKey(gatewayUrl));
+  } catch {
+    // storage blocked: no saved token, the page still loads
+  }
   if (saved) {
     setAuthToken(saved);
     setStatus(pairStatus, "paired (saved token)", "ok");
@@ -1103,6 +1112,11 @@ async function startMicrophone(t: Transcriber): Promise<string | null> {
   try {
     t.callbacks.onPermissionsRequested();
     const stream = await navigator.mediaDevices.getUserMedia(micConstraints(isEvalMode, isRawMic));
+    if (!listening) {
+      // Stopped while the permission prompt or the device was still opening: nothing is attached, so give it straight back.
+      stream.getAudioTracks().forEach((t) => t.stop());
+      return null;
+    }
     window.dispatchEvent(new CustomEvent("mic-stream", { detail: { stream } })); // for the page's level meter, which only reads it
     // What Chrome actually applied, since a constraint can be ignored.
     const { echoCancellation, noiseSuppression, autoGainControl, sampleRate } = stream.getAudioTracks()[0]?.getSettings() ?? {};

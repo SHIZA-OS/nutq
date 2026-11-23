@@ -289,6 +289,9 @@ class Transcriber {
 
     private useVAD: boolean;
     private mediaStream: MediaStream;
+    // Nutq addition: the stream attached for the current press and its node in audioContext, so stop() can release both.
+    private liveStream: MediaStream | undefined;
+    private sourceNode: MediaStreamAudioSourceNode | undefined;
     private speechBuffer: SpeechBuffer;
     private preRoll: PreRoll;
     // Nutq addition: every model call runs through this chain, one at a time (see enqueue()).
@@ -611,6 +614,7 @@ class Transcriber {
      */
     public attachStream(stream: MediaStream) {
         if (stream) {
+            this.liveStream = stream;
             if (this.vadModel) {
                 var sourceNode = new MediaStreamAudioSourceNode(
                     this.audioContext,
@@ -618,6 +622,7 @@ class Transcriber {
                         mediaStream: stream,
                     }
                 );
+                this.sourceNode = sourceNode;
                 this.vadModel.receive(sourceNode);
                 Log.log(
                     "Transcriber.attachStream(): VAD set to receive source node from stream."
@@ -718,6 +723,11 @@ class Transcriber {
         if (this.vadModel) {
             this.vadModel.pause();
         }
+        // Nutq addition: give the microphone back. The AudioContext is not closed: the VAD node is bound to it at load,
+        // and the next press reuses it. Only this press's stream and node go.
+        this.sourceNode?.disconnect();
+        this.liveStream?.getAudioTracks().forEach((t) => t.stop());
+        this.sourceNode = this.liveStream = undefined;
     }
 }
 

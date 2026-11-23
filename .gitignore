@@ -22,7 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.archify/architecture-nutq-overview-20260929-205714
+.archify/
 
 graphify-out/
 
