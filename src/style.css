@@ -1281,6 +1281,15 @@ input:focus {
   display: none;
 }
 
+.btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#forget-token-hint:not(:empty) {
+  margin-top: 8px;
+}
+
 .fallback-panel {
   display: flex;
   flex-direction: column;
@@ -1392,7 +1401,9 @@ input:focus {
   text-transform: uppercase;
 }
 
-@supports (background-clip: text) {
+/* Gradient text. Firefox ignores `text` here when other layers are stacked with it: it paints the top gradient over the whole pill
+   and color: transparent then hides the label. Firefox keeps the rule above (solid label colour). */
+@supports (background-clip: text) and (not (-moz-appearance: none)) {
   :root[data-theme="shiza"] .status {
     background:
       linear-gradient(135deg, var(--pill-a), var(--pill-b)) text,

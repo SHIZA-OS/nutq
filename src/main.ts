@@ -33,6 +33,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const wsUrlInput = $<HTMLInputElement>("ws-url");
 const agentAliasInput = $<HTMLInputElement>("agent-alias");
 const authTokenInput = $<HTMLInputElement>("auth-token");
+const forgetBtn = $<HTMLButtonElement>("forget-token-btn");
+const forgetHint = $<HTMLParagraphElement>("forget-token-hint");
 const connectBtn = $<HTMLButtonElement>("connect-btn");
 const connStatus = $<HTMLSpanElement>("conn-status");
 const pairCodeInput = $<HTMLInputElement>("pair-code");
@@ -97,6 +99,7 @@ type EvalEvent =
   | "tts_dropped"
   | "tts_text_mismatch"
   | "tts_muted"
+  | "token_forgotten"
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
@@ -329,6 +332,20 @@ function setAuthToken(token: string) {
   tokenAutoFilled = true;
 }
 
+function savedTokenFor(gatewayUrl: string): string | null {
+  try {
+    return localStorage.getItem(pairingStorageKey(gatewayUrl));
+  } catch {
+    return null; // storage blocked: no saved token
+  }
+}
+
+// "Forget token" is enabled only while a token is stored for the current gateway URL. Clears the hint of an earlier forget.
+function updateForgetBtn() {
+  forgetBtn.disabled = !savedTokenFor(wsUrlInput.value.trim());
+  forgetHint.textContent = "";
+}
+
 function savePairingToken(gatewayUrl: string, token: string) {
   try {
     localStorage.setItem(pairingStorageKey(gatewayUrl), token);
@@ -336,7 +353,22 @@ function savePairingToken(gatewayUrl: string, token: string) {
     // ponytail: a failed save is dropped; the token is used for this visit and just does not persist
   }
   setAuthToken(token);
+  updateForgetBtn();
 }
+
+forgetBtn.addEventListener("click", () => {
+  try {
+    localStorage.removeItem(pairingStorageKey(wsUrlInput.value.trim()));
+  } catch {
+    // ponytail: a failed removal is dropped; blocked storage has nothing stored to remove anyway
+  }
+  authTokenInput.value = "";
+  tokenAutoFilled = false;
+  setStatus(pairStatus, "not paired", "warn");
+  updateForgetBtn();
+  forgetHint.textContent = "Removed from this browser. It still works on ZeroClaw until revoked: zeroclaw gateway get-paircode --rotate revokes all tokens, --rotate-device <id> revokes one.";
+  logEvent("token_forgotten", { reason: "user" });
+});
 
 function showPairFallback(httpBase: string, code: string) {
   pairFallbackCurl.textContent = `curl -X POST ${httpBase}/pair -H "X-Pairing-Code: ${code}"`;
@@ -363,14 +395,10 @@ pairFallbackSaveBtn.addEventListener("click", () => {
 });
 
 function loadSavedTokenForCurrentUrl() {
+  updateForgetBtn();
   const gatewayUrl = wsUrlInput.value.trim();
   if (!gatewayUrl) return;
-  let saved: string | null = null;
-  try {
-    saved = localStorage.getItem(pairingStorageKey(gatewayUrl));
-  } catch {
-    // storage blocked: no saved token, the page still loads
-  }
+  const saved = savedTokenFor(gatewayUrl);
   if (saved) {
     setAuthToken(saved);
     setStatus(pairStatus, "paired (saved token)", "ok");

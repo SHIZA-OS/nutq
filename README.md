@@ -66,6 +66,7 @@ the code for a long-lived bearer token through the gateway's `/pair` endpoint, s
 for that gateway URL, and fills in the "Pairing token" field. Come back to the same gateway later and the token is
 filled in again; point Nutq at a different gateway URL and the field clears, because a token only works for the gateway
 it was issued by.
+The token stays in this browser's local storage until you click **Forget token** next to the field, which removes it for the current gateway URL only; Nutq never deletes it by itself.
 
 The 6-digit code is **not** the token that `/ws/chat` checks. If you put the code in the token field, the connection
 fails with a bare `1006` close (see [Troubleshooting](#troubleshooting)).
