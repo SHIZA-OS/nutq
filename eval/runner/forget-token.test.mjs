@@ -8,7 +8,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { startHarness } from "./page-harness.mjs";
 
-const HINT = "Removed from this browser. To revoke it on ZeroClaw, run zeroclaw gateway get-paircode --rotate";
+const HINT = "Removed from this browser. It still works on ZeroClaw until revoked: zeroclaw gateway get-paircode --rotate revokes all tokens, --rotate-device <id> revokes one.";
 const OTHER_KEY = "nutq:pairing-token:ws://other.example/ws/chat";
 
 let h;

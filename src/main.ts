@@ -366,7 +366,7 @@ forgetBtn.addEventListener("click", () => {
   tokenAutoFilled = false;
   setStatus(pairStatus, "not paired", "warn");
   updateForgetBtn();
-  forgetHint.textContent = "Removed from this browser. To revoke it on ZeroClaw, run zeroclaw gateway get-paircode --rotate";
+  forgetHint.textContent = "Removed from this browser. It still works on ZeroClaw until revoked: zeroclaw gateway get-paircode --rotate revokes all tokens, --rotate-device <id> revokes one.";
   logEvent("token_forgotten", { reason: "user" });
 });
 
