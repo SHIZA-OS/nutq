@@ -68,10 +68,14 @@ export class SpeechQueue {
   private waitFrom: number | null = null; // when the first utterance's wait began (its first unit was ready)
   private waitTimer: unknown = null;
   private waitOver = false; // the first utterance has been handed over, or its wait ended: no second wait this turn
+  private onDrained: (() => void) | undefined;
 
-  constructor(engine: TtsEngine, emit: (e: SpeechEvent) => void, options: { firstWaitMs?: number; timers?: Timers } = {}) {
+  // `onDrained` is called when a finished turn has nothing left to say: its last utterance ended (or failed) and no unit waits. Not for
+  // cancel(), and not for a turn that was never finished (more sentences may still come).
+  constructor(engine: TtsEngine, emit: (e: SpeechEvent) => void, options: { firstWaitMs?: number; timers?: Timers; onDrained?: () => void } = {}) {
     this.engine = engine;
     this.emit = emit;
+    this.onDrained = options.onDrained;
     this.firstWaitMs = options.firstWaitMs ?? FIRST_UTTERANCE_WAIT_MS;
     this.timers = options.timers ?? browserTimers;
   }
@@ -79,6 +83,12 @@ export class SpeechQueue {
   // How many sentences this turn has had queued so far.
   get sentences(): number {
     return this.requested;
+  }
+
+  // Nothing is playing and no unit waits, the ones held back for the first utterance included. True between turns, and at a done
+  // for a reply with nothing to say.
+  get idle(): boolean {
+    return !this.playing && this.waiting.length === 0;
   }
 
   // How many units were queued since the last drop() (or the turn began): what the done fallback asks, because the
@@ -214,7 +224,10 @@ export class SpeechQueue {
   }
 
   private settle(): void {
-    if (this.finished && !this.playing && this.waiting.length === 0) this.endTurn();
+    if (this.finished && !this.playing && this.waiting.length === 0) {
+      this.endTurn();
+      this.onDrained?.();
+    }
   }
 
   private endTurn(): void {
