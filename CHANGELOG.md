@@ -4,6 +4,11 @@
 
 ### Added
 
+- Hands-free mode, off by default: a Hands-free switch in the Voice panel and `?listen=hands-free` (the switch is kept in local
+  storage under `listen`). One tap starts a loop of listening, waiting for the answer, speaking it, and listening again, reopening
+  the microphone only after a finished reply with nothing left to say and a 300 ms guard, and stopping on its own after 10 s without
+  speech. `src/listen-loop.ts` is the pure state machine; `SpeechQueue` gains `idle` and `onDrained`. The eval-only events
+  `listen_mode`, `listen_reopen` and `listen_idle_stop`.
 - A Reply voice menu under the microphone, in both themes: Automatic (best available) and the ranked English voices only. The choice
   is kept in local storage under `voice` and applies from the next utterance. A Test voice button speaks one short sentence through
   the normal speech path (so cancel and the mic tap stop it) and does nothing while an answer is in flight or the microphone is listening. With no voices listed the

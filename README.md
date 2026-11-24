@@ -136,6 +136,33 @@ vendor's online service, so Firefox sounds good on Windows but robotic on Linux.
   Microsoft online voices in Edge) send the reply text to that provider to be spoken. The log panel marks each voice local
   or network as the browser reports it; do not rely on that label to tell whether a voice is online.
 
+## Hands-free mode
+
+Off by default. Turn it on with the Hands-free switch in the Voice panel, or open the page with `?listen=hands-free`. The
+switch is kept in local storage under `listen`; the URL parameter turns it on for that visit and writes nothing.
+
+With it on, one tap on the microphone starts a loop: the microphone listens, your message is sent when you stop talking,
+the microphone stays closed while the answer is awaited and spoken, and it opens again when the answer is over. No stream is
+kept open between turns: every listening run opens its own and gives it back.
+
+- **When it reopens.** Only after the reply has finished, nothing is left to say (nothing queued, held back for the first
+  sentence or playing), and a 300 ms guard has passed. The guard is a judgement, not a measurement: it keeps the tail of the
+  reply out of your next message, and a room with a long echo may need more.
+- **What the page says.** "Listening" appears only once the microphone is live. Between listening runs the hint under the
+  button reads Waiting for the answer, Speaking the answer, or Getting ready to listen.
+- **Stopping.** A tap while listening sends what was said and the loop goes on; if nothing was captured, the loop stops.
+  After 10 s with no speech the microphone closes and the page says "Stopped listening. Tap to talk."; hands-free stays on
+  and the next tap restarts it (the 10 s is a judgement too). Silence or noise that gives no text is not sent: the
+  microphone listens again, and that counts toward the 10 s.
+- **Tapping during an answer.** As in tap mode, the tap mutes the rest of that answer. In hands-free the microphone opens at
+  once, and what you say is held and sent when the answer ends.
+- **What turns the loop off.** An aborted turn, a PROVIDER_ERROR, AUTH_ERROR or AGENT_ERROR, a microphone or speech
+  recognition failure, a connection error or close, and the 60 s reply timeout. The switch stays on; tap to start again. A
+  microphone the loop had open when the connection went is stopped and what it heard is dropped. Turning the switch off ends
+  the loop at once; a microphone that is open carries on in tap mode.
+
+Not yet checked: the delays above in a real room, and what happens when the speakers' own sound reaches the microphone.
+
 ## Safety
 
 Nutq always denies tool approval requests. When the agent asks to run a tool that needs approval, Nutq logs the request
