@@ -96,9 +96,10 @@ export async function startHarness() {
     h.server?.close();
   };
 
-  h.openPage = async (query, { keepFirstWait = false, init, connectNow = true } = {}) => {
+  // `transcriber`: a route handler that serves /src/vendor/transcriber.ts in place of the fake one (hands-free-harness.mjs wraps the real one).
+  h.openPage = async (query, { keepFirstWait = false, init, connectNow = true, transcriber } = {}) => {
     const page = await h.context.newPage();
-    await page.route(/\/src\/vendor\/transcriber\.ts/, (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER }));
+    await page.route(/\/src\/vendor\/transcriber\.ts/, transcriber ?? ((route) => route.fulfill({ contentType: "text/javascript", body: FAKE_TRANSCRIBER })));
     await page.addInitScript(() => {
       window.__sp = { utterances: [], cancels: 0 };
       window.__commitOnStop = false;

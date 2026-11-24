@@ -335,7 +335,8 @@ a {
   color: var(--accent);
 }
 
-.theme-switch {
+.theme-switch,
+.listen-switch {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -350,11 +351,13 @@ a {
   cursor: pointer;
 }
 
-.theme-switch:hover {
+.theme-switch:hover,
+.listen-switch:hover {
   color: var(--text);
 }
 
 .theme-switch:focus-visible,
+.listen-switch:focus-visible,
 .mic-circle:focus-visible,
 .btn-solid:focus-visible,
 .btn-ghost:focus-visible,
@@ -391,6 +394,25 @@ a {
 :root[data-theme="shiza"] .knob {
   left: 19px;
   background: #f5f2ff;
+}
+
+/* The Hands-free switch shows its own state (aria-checked), not the theme's: on is the same look the SHIZA theme gives the header switch. */
+.listen-switch[aria-checked="true"] .track {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.listen-switch[aria-checked="true"] .knob {
+  left: 19px;
+  background: #f5f2ff;
+}
+
+:root[data-theme="shiza"] .listen-switch[aria-checked="false"] .track {
+  background: #2a3240;
+}
+
+:root[data-theme="shiza"] .listen-switch[aria-checked="false"] .knob {
+  left: 3px;
+  background: var(--muted);
 }
 
 /* ZeroClaw header: a top bar, logo then divider then name, the switch at the far right */
