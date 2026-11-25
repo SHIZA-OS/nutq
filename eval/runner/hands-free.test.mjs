@@ -208,7 +208,7 @@ test("aborted and every terminal error turn the loop off, say so, show no reopen
   }
 });
 
-test("a microphone that fails to start, or a transcriber error while listening, pauses the loop and says so", async () => {
+test("a microphone that fails to start pauses the loop with its specific hint; a transcriber error, which has none, says the microphone stopped", async () => {
   const a = await openHandsFree(h, HF);
   await a.page.evaluate(() => {
     navigator.mediaDevices.getUserMedia = async () => {
@@ -216,7 +216,8 @@ test("a microphone that fails to start, or a transcriber error while listening, 
     };
   });
   await a.mic();
-  await a.page.waitForFunction((t) => document.getElementById("mic-hint").textContent === t, PAUSED_MIC, { timeout: 4000 });
+  const BLOCKED = "Hands-free paused: Microphone access is blocked. Allow the microphone for this site in your browser, then tap the button again. Tap to try again.";
+  await a.page.waitForFunction((t) => document.getElementById("mic-hint").textContent === t, BLOCKED, { timeout: 4000 });
   let m = await mic(a);
   assert.deepEqual([m.pill, m.switch, m.live], ["microphone unavailable", "true", 0]);
 

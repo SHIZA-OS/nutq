@@ -1080,14 +1080,16 @@ let loopTimer: ReturnType<typeof setTimeout> | null = null;
 function speechEngineBusy(): boolean {
   return "speechSynthesis" in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
 }
-function runLoop(actions: LoopAction[]) {
+// `specific` is the existing hint for a microphone failure (why it stopped); without one the generic wording is used.
+function runLoop(actions: LoopAction[], specific?: string) {
   for (const a of actions) {
     if (a.type === "open") void startListening("loop");
     else if (a.type === "stop") void finishListening("manual", true);
     else if (a.type === "speech_watchdog") log(`The speech engine reported nothing speaking or pending for ${SPEECH_QUIET_MS} ms, so the answer is taken as finished`);
     else if (a.type === "paused") {
       // Shown where the idle notice is; the log has the specific cause (the server's error, the microphone's problem).
-      notice = a.reason === "mic" ? "Hands-free paused: the microphone stopped. Tap to try again." : "Hands-free paused: the agent returned an error. Tap to try again.";
+      const why = a.reason === "mic" ? (specific?.replace(/\.$/, "") ?? "the microphone stopped") : "the agent returned an error";
+      notice = `Hands-free paused: ${why}. Tap to try again.`;
     } else {
       logEvent("listen_idle_stop");
       notice = "Stopped listening. Tap to talk.";
@@ -1316,7 +1318,7 @@ async function startListening(source: "tap" | "loop") {
     micBtn.textContent = "Start listening";
     notice = problem;
     setStatus(micStatus, "microphone unavailable", "error");
-    runLoop(loop.fault());
+    runLoop(loop.fault(), problem);
     return;
   }
   if (!listening || !handsFree) return; // stopped meanwhile, or tap mode: its pill was set when the transcriber started
