@@ -303,6 +303,57 @@ test("?tts_stream=0: the loop reopens when the whole-reply utterance ends", asyn
   await waitHint(p, "Listening");
 });
 
+// The speaking watchdog (src/listen-loop.ts): the engine's own speaking/pending flags, looked at on the loop's timer while it is speaking.
+test("a speech engine that never reports the end still reopens the mic, in both speech modes, and the next turn works", async () => {
+  for (const query of [HF, `${HF}&tts_stream=0`]) {
+    const p = await openHandsFree(h, query, { real: true }); // the real clock: the watchdog's looks repeat, and a frozen clock would stretch them
+    await p.mic();
+    await waitHint(p, "Listening");
+    await say(p, "question one");
+    await waitMessages(h, p, 1);
+    await p.send({ type: "chunk", content: "Here is the answer." });
+    await p.send({ type: "done", full_response: "Here is the answer.", tokens_used: 1 });
+    await waitHint(p, "Speaking the answer");
+    const since = Date.now();
+    await p.page.evaluate(() => { window.__synth.speaking = false; }); // the engine goes quiet and never fires onend
+    await sleep(1000);
+    assert.equal((await mic(p)).hint, "Speaking the answer", `${query}: not before the quiet time is up`);
+    await waitHint(p, "Listening", 6000);
+    const waited = Date.now() - since;
+    assert.ok(waited >= 1500 + 300, `${query}: reopened after ${waited} ms, under the quiet time and the guard`);
+    assert.match(await log(p), /nothing speaking or pending for 1500 ms/);
+    assert.equal((await events(p, "listen_reopen")).length, 1);
+    assert.equal((await mic(p)).live, 1);
+    await say(p, "question two"); // the queue was reset by the reopen, so the next answer is spoken and ends normally
+    await waitMessages(h, p, 2);
+    await p.send({ type: "chunk", content: "Second answer." });
+    await p.send({ type: "done", full_response: "Second answer.", tokens_used: 1 });
+    await waitHint(p, "Speaking the answer");
+    await finishSpeech(p);
+    await waitHint(p, "Listening");
+  }
+});
+
+test("an engine that is still speaking, or has something pending, does not reopen the mic however long it takes", async () => {
+  const p = await openHandsFree(h, HF, { real: true });
+  await p.mic();
+  await waitHint(p, "Listening");
+  await say(p, "question one");
+  await waitMessages(h, p, 1);
+  await p.send({ type: "chunk", content: "A long answer." });
+  await p.send({ type: "done", full_response: "A long answer.", tokens_used: 1 });
+  await waitHint(p, "Speaking the answer");
+  await sleep(3500); // well past the quiet time, the engine still speaking
+  assert.deepEqual([(await mic(p)).hint, (await mic(p)).calls], ["Speaking the answer", 1]);
+  await p.page.evaluate(() => { window.__synth.speaking = false; window.__synth.pending = true; }); // between two utterances: pending only
+  await sleep(2500);
+  assert.deepEqual([(await mic(p)).hint, (await mic(p)).calls], ["Speaking the answer", 1]);
+  await p.page.evaluate(() => { window.__synth.pending = false; });
+  await finishSpeech(p); // the end arrives in the usual way
+  await waitHint(p, "Listening");
+  assert.ok(!(await log(p)).includes("nothing speaking or pending"), "the watchdog did not fire");
+});
+
 test("the switch: kept in local storage under listen, set by ?listen=hands-free, and working with storage blocked", async () => {
   const a = await openHandsFree(h, "");
   assert.equal((await mic(a)).switch, "false");

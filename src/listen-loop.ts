@@ -26,12 +26,21 @@ export const REOPEN_GUARD_MS = 300;
 // room does not stay live. A judgement, not measured.
 export const IDLE_STOP_MS = 10000;
 
+// The speaking watchdog. A speech engine can fail to report the end of an utterance (the queue then waits for ever, and the mic stays
+// closed). While the loop is speaking it looks at the engine every SPEECH_POLL_MS, on its one timer; if the engine reports nothing
+// speaking and nothing pending continuously for SPEECH_QUIET_MS, the speech counts as drained. Both are judgements, not measured:
+// QUIET is longer than any gap between two utterances of one reply that was seen (the queue hands the next one over at the end of the
+// previous), POLL is how finely "continuously" is checked, so a quiet stretch can be up to one poll longer than QUIET.
+export const SPEECH_QUIET_MS = 1500;
+export const SPEECH_POLL_MS = 250;
+
 export type LoopState = "off" | "armed" | "opening" | "listening" | "waiting" | "speaking" | "reopening";
 
 // open: start the mic through the page's one start path. stop: end listening without sending anything. idle_stop: stop listening
 // without sending because nothing was said (the caller also tells the user). paused: the loop turned itself off because of a
 // failure, not because the user asked: an error or abort from the agent, or the microphone stopping; the caller tells the user.
-export type LoopAction = { type: "open" } | { type: "stop" } | { type: "idle_stop" } | { type: "paused"; reason: "agent_error" | "mic" };
+export type LoopAction = { type: "open" } | { type: "stop" } | { type: "idle_stop" } | { type: "paused"; reason: "agent_error" | "mic" }
+  | { type: "speech_watchdog" }; // the speech counted as drained because the engine was quiet; the caller logs it
 
 // What finishing an utterance came to: sent, held back behind a reply still in flight, nothing said (empty or noise), or nothing
 // could be sent (not connected, or the finish failed).
@@ -47,6 +56,8 @@ export class ListenLoop {
   private stopping = false; // a tap is finishing the utterance: the idle deadline is off
   private guardEnds: number | null = null;
   private overAt: number | null = null; // when the turn was fully over (or the user took the floor), for the reopen delay
+  private pollAt: number | null = null; // speaking: when the speech engine is looked at next
+  private quietSince: number | null = null; // speaking: the first look in the current run of looks that found the engine idle
 
   get state(): LoopState {
     return this.s;
@@ -65,6 +76,10 @@ export class ListenLoop {
       this.stopping = false;
     }
     if (s !== "opening" && s !== "reopening") this.overAt = null;
+    if (s !== "speaking") {
+      this.pollAt = null;
+      this.quietSince = null;
+    }
   }
 
   // The toggle. Off from any state; on from off. Turning it off never stops a mic that is open: that carries on in tap mode.
@@ -148,7 +163,10 @@ export class ListenLoop {
     }
     if (this.s !== "waiting") return [];
     if (speechIdle) this.startGuard(now);
-    else this.go("speaking");
+    else {
+      this.go("speaking");
+      this.pollAt = now + SPEECH_POLL_MS;
+    }
     return [];
   }
 
@@ -186,11 +204,22 @@ export class ListenLoop {
 
   // When the next deadline falls (the guard, or the idle stop), so the caller can keep one timer; null if there is none.
   nextAt(): number | null {
-    return this.s === "reopening" ? this.guardEnds : this.idleAt();
+    return this.s === "reopening" ? this.guardEnds : this.s === "speaking" ? this.pollAt : this.idleAt();
   }
 
-  // Time has reached `now`.
-  tick(now: number): LoopAction[] {
+  // Time has reached `now`. `speechBusy` tells whether the speech engine is speaking or has anything pending; only asked while the loop
+  // is speaking and a look is due. Without it the engine is taken to be busy, so the watchdog never fires.
+  tick(now: number, speechBusy?: () => boolean): LoopAction[] {
+    if (this.s === "speaking" && this.pollAt !== null && now >= this.pollAt) {
+      if (speechBusy ? speechBusy() : true) this.quietSince = null;
+      else this.quietSince ??= now;
+      if (this.quietSince !== null && now - this.quietSince >= SPEECH_QUIET_MS) {
+        this.startGuard(now);
+        return [{ type: "speech_watchdog" }];
+      }
+      this.pollAt = now + SPEECH_POLL_MS;
+      return [];
+    }
     if (this.s === "reopening" && this.guardEnds !== null && now >= this.guardEnds) {
       this.go("opening"); // overAt stays, for the reopen delay
       return [{ type: "open" }];

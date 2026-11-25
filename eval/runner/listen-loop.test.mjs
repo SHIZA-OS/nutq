@@ -206,7 +206,7 @@ test("waiting: done while speech is still queued or playing waits for the drain,
   const l = waiting();
   l.turnEnd("done", false, 1000);
   assert.equal(l.state, "speaking");
-  assert.equal(l.nextAt(), null);
+  assert.equal(l.nextAt(), 1000 + M.SPEECH_POLL_MS, "only the watchdog's look, which counts an engine it cannot see as busy");
   assert.deepEqual(l.tick(1000 + 1e9), [], "no reopen while the queue has not drained");
   assert.equal(l.state, "speaking");
   assert.deepEqual(l.speechDrained(5000), []);
@@ -371,4 +371,97 @@ test("a reply with nothing to say is idle at the done, so the guard starts at on
   assert.equal(x.queue.idle, true);
   x.loop.turnEnd("done", x.queue.idle, 0);
   assert.equal(x.loop.state, "reopening");
+});
+
+// The speaking watchdog: a speech engine that never reports the end of an utterance must not keep the mic closed for ever. While the
+// loop is speaking it samples the engine on its one timer (nextAt/tick); the sampler says whether the engine is speaking or has
+// anything pending. Nothing speaking and nothing pending, continuously for SPEECH_QUIET_MS, counts as drained.
+const POLL = () => M.SPEECH_POLL_MS;
+const QUIET = () => M.SPEECH_QUIET_MS;
+const speakingAt = (t = 1000) => {
+  const l = waiting();
+  l.turnEnd("done", false, t);
+  return l;
+};
+// Ticks at every poll deadline from `from` to `to`, with the engine reporting `busy()`; returns the first non-empty actions and when.
+const poll = (l, from, to, busy) => {
+  for (let t = from; t <= to; t += POLL()) {
+    if (l.nextAt() === null || l.nextAt() > t) continue;
+    const actions = l.tick(t, busy);
+    if (actions.length) return { t, actions };
+  }
+  return null;
+};
+
+test("the watchdog's two delays are named judgements", () => {
+  assert.equal(M.SPEECH_QUIET_MS, 1500);
+  assert.equal(M.SPEECH_POLL_MS, 250);
+});
+
+test("speaking: the engine is polled on the loop's one timer, from the done", () => {
+  const l = speakingAt(1000);
+  assert.equal(l.nextAt(), 1000 + POLL());
+  let asked = 0;
+  assert.deepEqual(l.tick(1000 + POLL() - 1, () => (asked++, true)), []);
+  assert.equal(asked, 0, "not asked before the deadline");
+  assert.deepEqual(l.tick(1000 + POLL(), () => (asked++, true)), []);
+  assert.equal(asked, 1);
+  assert.equal(l.nextAt(), 1000 + 2 * POLL(), "the next look is scheduled on the same timer");
+});
+
+test("an engine that reports nothing speaking and nothing pending for the whole quiet time counts as drained, then the guard, then the reopen", () => {
+  const l = speakingAt(1000);
+  const first = 1000 + POLL(); // the first quiet sample
+  assert.equal(poll(l, first, first + QUIET() - POLL(), () => false), null, "still speaking just before the quiet time is up");
+  assert.equal(l.state, "speaking");
+  const hit = poll(l, first + QUIET(), first + QUIET(), () => false);
+  assert.deepEqual(hit, { t: first + QUIET(), actions: [{ type: "speech_watchdog" }] });
+  assert.equal(l.state, "reopening");
+  assert.equal(l.nextAt(), first + QUIET() + M.REOPEN_GUARD_MS, "the guard runs from the watchdog's decision");
+  assert.deepEqual(l.tick(first + QUIET() + M.REOPEN_GUARD_MS), [{ type: "open" }]);
+});
+
+test("an engine that is still speaking, however long, never counts as drained", () => {
+  const l = speakingAt(0);
+  assert.equal(poll(l, POLL(), 600 * 1000, () => true), null);
+  assert.equal(l.state, "speaking");
+});
+
+test("a busy sample in the middle (speaking or pending) restarts the quiet time", () => {
+  const l = speakingAt(0);
+  const quiet = (from, to) => poll(l, from, to, () => false);
+  assert.equal(quiet(250, 1000), null); // quiet since 250
+  assert.equal(poll(l, 1250, 1250, () => true), null); // busy: the count starts over
+  assert.equal(quiet(1500, 1500 + QUIET() - POLL()), null, "not yet, counted from 1500");
+  assert.ok(quiet(1500 + QUIET(), 1500 + QUIET()), "quiet time reached from the new start");
+});
+
+test("the engine is only asked while speaking", () => {
+  let asked = 0;
+  const busy = () => (asked++, false);
+  for (const [name, make] of Object.entries({ armed, opening, listening, waiting, reopening })) {
+    const l = make();
+    const before = l.state;
+    l.tick(1e9, busy);
+    assert.notEqual(before, "speaking", name);
+  }
+  mk().tick(1e9, busy);
+  assert.equal(asked, 0);
+});
+
+test("a real drain ends the polling and a tick without a sampler never counts as quiet", () => {
+  const l = speakingAt(1000);
+  l.speechDrained(1100);
+  assert.equal(l.state, "reopening");
+  assert.equal(l.nextAt(), 1100 + M.REOPEN_GUARD_MS, "no poll deadline any more");
+  const n = speakingAt(0);
+  assert.equal(poll(n, POLL(), 100 * 1000, undefined), null, "no sampler: the engine is taken to be busy");
+});
+
+test("leaving speaking by a tap, a socket close or an error drops the poll deadline", () => {
+  for (const leave of [(l) => l.tap(5, false), (l) => l.socketClosed(), (l) => l.fault(), (l) => l.setOn(false)]) {
+    const l = speakingAt(0);
+    leave(l);
+    assert.equal(l.nextAt(), null);
+  }
 });

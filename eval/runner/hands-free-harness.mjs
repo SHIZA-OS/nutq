@@ -65,6 +65,21 @@ export const initScript = (theme) => `(${(theme) => {
     window.__mic.tracks.push(d.stream.getAudioTracks()[0]);
     return d.stream;
   };
+  // The speech engine's own state, which the loop's watchdog looks at: speaking from speak() until the test plays the end (finishSpeech)
+  // or the page cancels. A test sets window.__synth.speaking / .pending to model an engine that dies silently or one still talking.
+  window.__synth = { speaking: false, pending: false };
+  Object.defineProperty(speechSynthesis, "speaking", { get: () => window.__synth.speaking, configurable: true });
+  Object.defineProperty(speechSynthesis, "pending", { get: () => window.__synth.pending, configurable: true });
+  const speak = speechSynthesis.speak;
+  speechSynthesis.speak = (u) => {
+    window.__synth.speaking = true;
+    speak(u);
+  };
+  const cancel = speechSynthesis.cancel;
+  speechSynthesis.cancel = () => {
+    window.__synth.speaking = window.__synth.pending = false;
+    cancel();
+  };
   // Every text the hint under the mic button showed, in order.
   window.__hints = [];
   addEventListener("DOMContentLoaded", () => {
@@ -120,6 +135,7 @@ export const finishSpeech = (p) =>
       n++;
     }
     window.__played = us.length;
+    window.__synth.speaking = window.__synth.pending = false;
     return n;
   });
 

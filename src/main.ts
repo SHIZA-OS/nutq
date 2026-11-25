@@ -2,7 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
-import { ListenLoop, type FinishResult, type LoopAction } from "./listen-loop";
+import { ListenLoop, SPEECH_QUIET_MS, type FinishResult, type LoopAction } from "./listen-loop";
 import { MIC_REARM_MS, REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { isRobotic, selectVoice } from "./voice-pick";
@@ -1075,10 +1075,16 @@ async function finishListening(trigger: Exclude<SendTrigger, "held">, discard = 
 // Runs what the hands-free loop asks for, then keeps its one timer and the hint in step with it. Every call into `loop` from the page
 // goes through here (or is followed by a call here), so the timer exists exactly while the loop has a deadline.
 let loopTimer: ReturnType<typeof setTimeout> | null = null;
+
+// For the loop's speaking watchdog: the engine is speaking, or has something pending. Without speech synthesis there is nothing to wait for.
+function speechEngineBusy(): boolean {
+  return "speechSynthesis" in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+}
 function runLoop(actions: LoopAction[]) {
   for (const a of actions) {
     if (a.type === "open") void startListening("loop");
     else if (a.type === "stop") void finishListening("manual", true);
+    else if (a.type === "speech_watchdog") log(`The speech engine reported nothing speaking or pending for ${SPEECH_QUIET_MS} ms, so the answer is taken as finished`);
     else if (a.type === "paused") {
       // Shown where the idle notice is; the log has the specific cause (the server's error, the microphone's problem).
       notice = a.reason === "mic" ? "Hands-free paused: the microphone stopped. Tap to try again." : "Hands-free paused: the agent returned an error. Tap to try again.";
@@ -1101,7 +1107,7 @@ function syncLoopTimer() {
   if (at === null) return;
   loopTimer = setTimeout(() => {
     loopTimer = null;
-    runLoop(loop.tick(at)); // the deadline, as for the reply timer: a frozen test clock does not stop it
+    runLoop(loop.tick(at, speechEngineBusy)); // the deadline, as for the reply timer: a frozen test clock does not stop it
   }, Math.max(0, at - Date.now()));
 }
 
