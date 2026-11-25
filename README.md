@@ -162,8 +162,8 @@ kept open between turns: every listening run opens its own and gives it back.
 - **What turns the loop off.** An aborted turn, a PROVIDER_ERROR, AUTH_ERROR or AGENT_ERROR, a microphone or speech
   recognition failure, a connection error or close, and the 60 s reply timeout. The switch stays on; tap to start again. After an
   error or abort the page says "Hands-free paused: the agent returned an error. Tap to try again."; after a microphone that
-  fails to start, "Hands-free paused: " plus the usual problem text (for example the blocked-microphone hint) and " Tap to try
-  again."; after a transcriber error, which has no such text, "Hands-free paused: the microphone stopped. Tap to try again." A
+  fails to start, "Hands-free paused: " plus the usual problem text (for example the blocked-microphone hint), with " Tap to try
+  again." added only when that text does not already say to tap; after a transcriber error, which has no such text, "Hands-free paused: the microphone stopped. Tap to try again." A
   microphone the loop had open when the connection went is stopped and what it heard is dropped. Turning the switch off ends
   the loop at once; a microphone that is open carries on in tap mode.
 

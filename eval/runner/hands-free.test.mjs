@@ -216,7 +216,7 @@ test("a microphone that fails to start pauses the loop with its specific hint; a
     };
   });
   await a.mic();
-  const BLOCKED = "Hands-free paused: Microphone access is blocked. Allow the microphone for this site in your browser, then tap the button again. Tap to try again.";
+  const BLOCKED = "Hands-free paused: Microphone access is blocked. Allow the microphone for this site in your browser, then tap the button again.";
   await a.page.waitForFunction((t) => document.getElementById("mic-hint").textContent === t, BLOCKED, { timeout: 4000 });
   let m = await mic(a);
   assert.deepEqual([m.pill, m.switch, m.live], ["microphone unavailable", "true", 0]);

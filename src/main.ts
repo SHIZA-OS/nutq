@@ -1088,8 +1088,9 @@ function runLoop(actions: LoopAction[], specific?: string) {
     else if (a.type === "speech_watchdog") log(`The speech engine reported nothing speaking or pending for ${SPEECH_QUIET_MS} ms, so the answer is taken as finished`);
     else if (a.type === "paused") {
       // Shown where the idle notice is; the log has the specific cause (the server's error, the microphone's problem).
-      const why = a.reason === "mic" ? (specific?.replace(/\.$/, "") ?? "the microphone stopped") : "the agent returned an error";
-      notice = `Hands-free paused: ${why}. Tap to try again.`;
+      const why = a.reason === "mic" ? (specific ?? "the microphone stopped") : "the agent returned an error";
+      // A hint that already tells the user to tap (the blocked and missing ones) is not followed by a second instruction.
+      notice = /tap/i.test(why) ? `Hands-free paused: ${why}` : `Hands-free paused: ${why.replace(/\.$/, "")}. Tap to try again.`;
     } else {
       logEvent("listen_idle_stop");
       notice = "Stopped listening. Tap to talk.";
