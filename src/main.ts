@@ -2,6 +2,7 @@ import "./style.css";
 import { Transcriber, type VADThresholdOptions } from "./vendor/transcriber";
 import { micConstraints } from "./mic-constraints";
 import { TurnPolicy, endHint, transcriptToSend, waitFromParams } from "./turn-policy";
+import { ListenLoop, SPEECH_QUIET_MS, type FinishResult, type LoopAction } from "./listen-loop";
 import { MIC_REARM_MS, REPLY_TIMEOUT_MS, ReplyState } from "./turn-state";
 import { speechText, ttsErrorEvent, voiceLines } from "./voice";
 import { isRobotic, selectVoice } from "./voice-pick";
@@ -100,6 +101,9 @@ type EvalEvent =
   | "tts_text_mismatch"
   | "tts_muted"
   | "token_forgotten"
+  | "listen_mode"
+  | "listen_reopen"
+  | "listen_idle_stop"
   | "tts_skipped"
   | "tts_end"
   | "tts_error"
@@ -178,14 +182,26 @@ const MIC_MISSING = "No microphone was found. Connect one, then tap the button a
 // Why the model is not usable, shown as the hint once its state is "failed"; null for the eval-only invalid model.
 let loadProblem: string | null = null;
 
+// What the hint under the mic says while the hands-free loop is between taps. "Listening" is only said once the mic is live.
+const LOOP_HINTS: Partial<Record<typeof loop.state, string>> = {
+  opening: "Starting the microphone…",
+  listening: "Listening",
+  waiting: "Waiting for the answer",
+  speaking: "Speaking the answer",
+  reopening: "Getting ready to listen",
+};
+
 function updateMicState() {
+  const loopHint = LOOP_HINTS[loop.state];
   micBtn.disabled = !(modelState === "ready" && (socketOpen || isNoSend));
   retryModelBtn.hidden = loadProblem !== MODEL_LOAD_FAILED; // only a failed download is worth retrying
   micHint.textContent =
     notice ??
     (held
       ? "Will send when the answer finishes"
-      : modelState === "failed"
+      : loopHint
+        ? loopHint
+        : modelState === "failed"
       ? (loadProblem ?? "Speech model unavailable")
       : modelState === "idle"
         ? "Connect to load the speech model"
@@ -223,6 +239,9 @@ let replyBuffer = "";
 // Whether a reply is in flight (src/turn-state.ts): a message sent mid-turn is steering, not a new turn, so
 // nothing is sent until the running turn ends.
 const replyState = new ReplyState();
+// The hands-free loop (src/listen-loop.ts): off unless the Hands-free switch or ?listen=hands-free turns it on. While it is off every call
+// into it is ignored, so the page behaves as it does without it.
+const loop = new ListenLoop();
 let replyTimer: ReturnType<typeof setTimeout> | null = null;
 // An utterance that finished while a reply was in flight, waiting for the turn to end (see sendTranscript and sendHeld).
 // At most one: a later utterance is appended. `at` is when the first part was held. The hint under the mic button shows it.
@@ -259,6 +278,7 @@ function replyTimedOut() {
   const old = socket;
   socket = null;
   socketOpen = false;
+  runLoop(loop.socketClosed());
   updateMicState(); // no connection until the new one opens
   old?.close();
   reconnectedAfterTimeout = true;
@@ -635,6 +655,8 @@ function connect() {
         log(`Unhandled frame type "${parsed.type}": ${ev.data}`);
     }
     // After the frame is handled, so its events and its reply belong to the turn it ended, not to the one sent now.
+    // Before sendHeld: a held message that goes out at this turn end puts the loop back to waiting (sendHeld tells it).
+    if (turnEnded) runLoop(loop.turnEnd(parsed.type === "done" ? "done" : parsed.type === "aborted" ? "aborted" : "error", speechIdle(), Date.now()));
     if (turnEnded) sendHeld(parsed.type);
   };
 
@@ -643,6 +665,7 @@ function connect() {
     log("WebSocket error");
     logEvent("ws_error");
     setStatus(connStatus, "error", "error");
+    runLoop(loop.socketClosed()); // the close that follows finds the loop already off, so the mic is stopped here
   };
 
   sock.onclose = (ev) => {
@@ -661,6 +684,7 @@ function connect() {
       );
     }
     setStatus(connStatus, "disconnected", "warn");
+    runLoop(loop.socketClosed());
     dropHeld("closed");
     replyState.closed();
     replyEnded();
@@ -686,10 +710,10 @@ let finishing = false;
 let releasedAt: number | null = null; // when listening last ended
 let lastSendAt: number | null = null; // when the last message went out (any trigger); null before the first send
 
-function sendTranscript(text: string, trigger: SendTrigger) {
+function sendTranscript(text: string, trigger: SendTrigger): "sent" | "held" | "none" {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     log("Cannot send: not connected");
-    return;
+    return "none";
   }
   if (!replyState.trySend(Date.now())) {
     // A reply is in flight and a message sent now would be steering, merged into that turn. So it is held and goes out when
@@ -699,7 +723,7 @@ function sendTranscript(text: string, trigger: SendTrigger) {
     log("A reply is still in progress, so this utterance is held and will be sent when it ends");
     logEvent("send_held", { chars: held.text.length }); // the length of the whole held message so far
     updateMicState();
-    return;
+    return "held";
   }
   syncReplyTimer();
   cancelSpeech();
@@ -711,6 +735,7 @@ function sendTranscript(text: string, trigger: SendTrigger) {
   lastSendAt = Date.now();
   logEvent("ws_message_sent", { send_trigger: trigger, reply_style: reply.style });
   log(`Sent (${trigger}): ${text}`);
+  return "sent";
 }
 
 // The turn in flight ended (done, aborted or a turn-failure error): send the held message, if any, as an ordinary message.
@@ -720,7 +745,7 @@ function sendHeld(end: string) {
   const { text, at } = held;
   held = null;
   logEvent("held_sent", { chars: text.length, waited_ms: Date.now() - at, end });
-  sendTranscript(text, "held");
+  if (sendTranscript(text, "held") === "sent") loop.sent();
   // The user has the mic open again: the new answer is not read out over it, as for a reply the mic was tapped during.
   if (listening) replyState.mute();
   updateMicState();
@@ -783,6 +808,15 @@ function logTtsError(code: string | undefined, cancelledBy = "canceled") {
   logEvent(e.event, e.event === "tts_cancelled" && code === "canceled" ? { reason: cancelledBy } : e.fields);
 }
 
+// ?tts_stream=0 only: the one whole-reply utterance is playing. legacySeq tells a late callback of a cancelled one from the current one.
+let legacySpeaking = false;
+let legacySeq = 0;
+
+// Whether nothing is queued, held back or playing, for the hands-free loop. Without a speech engine there is nothing to wait for.
+function speechIdle(): boolean {
+  return speechQueue ? speechQueue.idle : !legacySpeaking;
+}
+
 // Why speech was last cancelled (see cancelSpeech), for the browser's late "canceled" error on the flag-off path.
 let cancelReason = "canceled";
 
@@ -791,7 +825,7 @@ let cancelReason = "canceled";
 // and speak() reports it. The "flag on" and "flag off" of the comments below mean streaming on (the default) and ?tts_stream=0.
 const splitter = new SentenceSplitter();
 let streamedChunks = ""; // the chunks of this turn so far, to compare with full_response at done
-const speechQueue = urlParams.get("tts_stream") !== "0" && ttsEngine ? new SpeechQueue(ttsEngine, logSpeechEvent) : null;
+const speechQueue = urlParams.get("tts_stream") !== "0" && ttsEngine ? new SpeechQueue(ttsEngine, logSpeechEvent, { onDrained: () => runLoop(loop.speechDrained(Date.now())) }) : null;
 
 function logSpeechEvent(e: SpeechEvent) {
   switch (e.type) {
@@ -820,6 +854,8 @@ function logSpeechEvent(e: SpeechEvent) {
 // `reason` is what tts_cancelled reports; "canceled" is the default.
 function cancelSpeech(reason = "canceled") {
   cancelReason = reason;
+  legacySeq++; // a late end or error of the cancelled whole-reply utterance (flag off) is not the speech draining
+  legacySpeaking = false;
   splitter.reset();
   speechInCode = false;
   streamedChunks = "";
@@ -874,11 +910,24 @@ function speak(text: string) {
     return;
   }
   cancelReason = "canceled";
+  const seq = ++legacySeq;
+  legacySpeaking = true;
+  const ended = () => {
+    if (seq !== legacySeq) return;
+    legacySpeaking = false;
+    runLoop(loop.speechDrained(Date.now()));
+  };
   ttsEngine.speak(
     spoken,
     (info) => logEvent("tts_start", { ...info, engine: ttsEngine.name }),
-    () => logEvent("tts_end"),
-    (code) => logTtsError(code, cancelReason),
+    () => {
+      logEvent("tts_end");
+      ended();
+    },
+    (code) => {
+      logTtsError(code, cancelReason);
+      ended();
+    },
   );
 }
 
@@ -987,7 +1036,9 @@ function scheduleSilenceTimer() {
 // silence-timeout path so the stop/flush/send sequence lives in one place.
 // trigger records which path called it, so ws_message_sent (and downstream
 // eval reporting) can tell manual releases apart from silence auto-sends.
-async function finishListening(trigger: Exclude<SendTrigger, "held">) {
+// `discard` is the hands-free loop stopping the mic for the idle timeout or a closed socket: whatever was heard is dropped and
+// nothing is sent, and the loop is not told (it has already turned itself off).
+async function finishListening(trigger: Exclude<SendTrigger, "held">, discard = false) {
   if (!listening) return;
   listening = false;
   window.dispatchEvent(new CustomEvent("mic-stream-end"));
@@ -995,23 +1046,103 @@ async function finishListening(trigger: Exclude<SendTrigger, "held">) {
   releasedAt = Date.now();
   clearSilenceTimer();
   micBtn.textContent = "Start listening";
+  let result: FinishResult = "none"; // what the hands-free loop is told; stays "none" if this throws
   try {
     await transcriber!.stop();
-    // Logged even when empty: a total miss counts as data.
-    if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
-    if (transcriptToSend(sessionTranscript) === null) {
-      // Nothing was heard (empty or only whitespace): nothing goes to the gateway, and the UI is idle again.
-      log(`Empty transcript (${trigger}), nothing sent`);
-      logEvent("send_skipped", { reason: "empty_transcript", trigger });
+    if (discard) {
+      log("Stopped listening, nothing sent");
       liveTranscriptEl.textContent = "";
-    } else if (!isNoSend) {
-      sendTranscript(sessionTranscript, trigger);
+    } else {
+      // Logged even when empty: a total miss counts as data.
+      if (isEvalMode) logEvent("transcript_final", { text: sessionTranscript, trigger });
+      if (transcriptToSend(sessionTranscript) === null) {
+        // Nothing was heard (empty or only whitespace): nothing goes to the gateway, and the UI is idle again.
+        log(`Empty transcript (${trigger}), nothing sent`);
+        logEvent("send_skipped", { reason: "empty_transcript", trigger });
+        liveTranscriptEl.textContent = "";
+        result = "empty";
+      } else if (!isNoSend) {
+        result = sendTranscript(sessionTranscript, trigger);
+      }
     }
     sessionTranscript = "";
   } finally {
     finishing = false; // after a send the window continues from lastSendAt; after a skip there is none
+    if (!discard) runLoop(loop.finished(result, trigger, Date.now()));
   }
 }
+
+// Runs what the hands-free loop asks for, then keeps its one timer and the hint in step with it. Every call into `loop` from the page
+// goes through here (or is followed by a call here), so the timer exists exactly while the loop has a deadline.
+let loopTimer: ReturnType<typeof setTimeout> | null = null;
+
+// For the loop's speaking watchdog: the engine is speaking, or has something pending. Without speech synthesis there is nothing to wait for.
+function speechEngineBusy(): boolean {
+  return "speechSynthesis" in window && (window.speechSynthesis.speaking || window.speechSynthesis.pending);
+}
+// `specific` is the existing hint for a microphone failure (why it stopped); without one the generic wording is used.
+function runLoop(actions: LoopAction[], specific?: string) {
+  for (const a of actions) {
+    if (a.type === "open") void startListening("loop");
+    else if (a.type === "stop") void finishListening("manual", true);
+    else if (a.type === "speech_watchdog") log(`The speech engine reported nothing speaking or pending for ${SPEECH_QUIET_MS} ms, so the answer is taken as finished`);
+    else if (a.type === "paused") {
+      // Shown where the idle notice is; the log has the specific cause (the server's error, the microphone's problem).
+      const why = a.reason === "mic" ? (specific ?? "the microphone stopped") : "the agent returned an error";
+      // A hint that already tells the user to tap (the blocked and missing ones) is not followed by a second instruction.
+      notice = /tap/i.test(why) ? `Hands-free paused: ${why}` : `Hands-free paused: ${why.replace(/\.$/, "")}. Tap to try again.`;
+    } else {
+      logEvent("listen_idle_stop");
+      notice = "Stopped listening. Tap to talk.";
+      void finishListening("manual", true);
+    }
+  }
+  syncLoopTimer();
+  updateMicState();
+}
+
+function syncLoopTimer() {
+  if (loopTimer !== null) {
+    clearTimeout(loopTimer);
+    loopTimer = null;
+  }
+  const at = loop.nextAt();
+  if (at === null) return;
+  loopTimer = setTimeout(() => {
+    loopTimer = null;
+    runLoop(loop.tick(at, speechEngineBusy)); // the deadline, as for the reply timer: a frozen test clock does not stop it
+  }, Math.max(0, at - Date.now()));
+}
+
+// The switch and ?listen=hands-free (either turns it on). The switch's choice is kept in local storage under `listen`.
+const LISTEN_KEY = "listen";
+const handsFreeSwitch = $<HTMLButtonElement>("hands-free-switch");
+
+function savedListenMode(): boolean {
+  try {
+    return localStorage.getItem(LISTEN_KEY) === "hands-free";
+  } catch {
+    return false; // storage blocked: off, the switch still works for this visit
+  }
+}
+
+function setHandsFree(on: boolean) {
+  loop.setOn(on);
+  handsFreeSwitch.setAttribute("aria-checked", String(on));
+  logEvent("listen_mode", { on });
+  runLoop([]);
+}
+
+handsFreeSwitch.addEventListener("click", () => {
+  const on = !loop.on;
+  try {
+    if (on) localStorage.setItem(LISTEN_KEY, "hands-free");
+    else localStorage.removeItem(LISTEN_KEY);
+  } catch {
+    // ponytail: a failed save is dropped; the choice just does not persist
+  }
+  setHandsFree(on);
+});
 
 function initTranscriber() {
   transcriber = new Transcriber(
@@ -1023,6 +1154,7 @@ function initTranscriber() {
       onError(error) {
         log(`Moonshine error: ${error}`);
         setStatus(micStatus, "error", "error");
+        runLoop(loop.fault());
       },
       onModelLoadStarted() {
         log("Moonshine model loading started");
@@ -1033,7 +1165,8 @@ function initTranscriber() {
       },
       onTranscribeStarted() {
         log("Transcription started");
-        setStatus(micStatus, "listening…", "ok");
+        // Hands-free says "listening" only once the mic is live (startListening), not when the transcriber begins to start.
+        if (!loop.on) setStatus(micStatus, "listening…", "ok");
       },
       onTranscribeStopped() {
         log("Transcription stopped");
@@ -1044,6 +1177,7 @@ function initTranscriber() {
         if (isEvalMode) logEvent("pre_roll", { frames: preRollFrames });
         turn.speechStart(Date.now());
         scheduleSilenceTimer();
+        loop.speechStart();
       },
       onSpeechEnd() {
         logEvent("speech_end");
@@ -1167,6 +1301,34 @@ async function startMicrophone(t: Transcriber): Promise<string | null> {
 
 retryModelBtn.addEventListener("click", ensureModelLoaded);
 
+// Starts listening: the tap path, and the hands-free loop's reopen (source "loop"). One start path for both.
+async function startListening(source: "tap" | "loop") {
+  const handsFree = loop.on;
+  micBtn.textContent = "Stop listening";
+  notice = null;
+  updateMicState();
+  listening = true;
+  turn = new TurnPolicy(endpointWait);
+  if (source === "tap") logEvent("mic_button_press");
+  replyState.mute(); // a reply still arriving is not spoken either; ends with the turn (no effect if none is in flight)
+  cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
+  sessionTranscript = "";
+  const problem = await startMicrophone(transcriber!);
+  if (problem) {
+    listening = false;
+    micBtn.textContent = "Start listening";
+    notice = problem;
+    setStatus(micStatus, "microphone unavailable", "error");
+    runLoop(loop.fault(), problem);
+    return;
+  }
+  if (!listening || !handsFree) return; // stopped meanwhile, or tap mode: its pill was set when the transcriber started
+  setStatus(micStatus, "listening…", "ok"); // the mic is live: the stream is attached and start() has resolved
+  const live = loop.micLive(Date.now());
+  if (live?.reopenDelayMs != null) logEvent("listen_reopen", { delay_ms: live.reopenDelayMs });
+  runLoop([]);
+}
+
 micBtn.addEventListener("click", async () => {
   if (modelState !== "ready") return;
   const now = Date.now();
@@ -1182,24 +1344,10 @@ micBtn.addEventListener("click", async () => {
     });
     return;
   }
+  loop.tap(now, listening);
+  syncLoopTimer(); // a tap during the guard or the wait takes it away
   if (!listening) {
-    micBtn.textContent = "Stop listening";
-    notice = null;
-    updateMicState();
-    listening = true;
-    turn = new TurnPolicy(endpointWait);
-    logEvent("mic_button_press");
-    replyState.mute(); // a reply still arriving is not spoken either; ends with the turn (no effect if none is in flight)
-    cancelSpeech("mic_press"); // the reply being read out stops when the user starts to speak
-    sessionTranscript = "";
-    const problem = await startMicrophone(transcriber!);
-    if (problem) {
-      listening = false;
-      micBtn.textContent = "Start listening";
-      notice = problem;
-      setStatus(micStatus, "microphone unavailable", "error");
-      updateMicState();
-    }
+    await startListening("tap");
   } else {
     logEvent("mic_button_release");
     await finishListening(turn.manualStop(Date.now()).reason);
@@ -1207,6 +1355,7 @@ micBtn.addEventListener("click", async () => {
 });
 
 if (isEvalMode) ensureModelLoaded(); // eval: load at page load so a runner can wait for ready
+if (urlParams.get("listen") === "hands-free" || savedListenMode()) setHandsFree(true);
 updateMicState();
 loadSavedTokenForCurrentUrl();
 log("Page loaded. Configure the gateway URL/agent/token above, then Connect.");
