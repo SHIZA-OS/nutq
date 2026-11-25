@@ -458,6 +458,9 @@ Events added for WER measurement:
 - `voice_list` `{ count, english, chosen, source, robotic }`: eval mode only, once whenever the browser's voice list changes in size and is
   not empty. `count` is all voices, `english` the ranked English voices (the menu's size), `chosen` the voice's name or null, `source` as for
   `tts_start`, `robotic` the hint's condition.
+- `listen_mode` `{ on }`, `listen_reopen` `{ delay_ms }` and `listen_idle_stop`: Hands-free mode (`src/listen-loop.ts`). The loop was turned on or off; the mic is live
+  again after the loop opened it (`delay_ms` from the turn being fully over to the mic being live, the 300 ms guard included); 10 s with no speech start
+  stopped the listening. Dev builds only, and in the eval export only with `?eval=1`. See [the eval harness design](eval-harness-design.md), section 4.
 - `speech_text` `{ raw_chars, spoken_chars }`: one per text handed to the voice (the whole reply with the flag off, each streamed
   unit, the `full_response` fallback), before and after `speakable()`; 0 spoken means the unit was dropped. No text is logged.
 - `transcript_final` `{ text, trigger }`: the accumulated transcript at the end of a turn,

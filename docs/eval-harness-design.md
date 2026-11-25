@@ -96,6 +96,13 @@ plan):**
   (`mic_button_release`, or the `auto_silence` trigger) to the press. `since_send_ms` is the time from the send (`ws_message_sent`) to the press, always
   under 400, and `null` in the `finishing` phase. A press that stops listening is never reported here. An utterance that sent nothing (`send_skipped`)
   closes the window at the skip.
+- Hands-free mode (`src/listen-loop.ts`): `listen_mode` `{on}` (the loop was turned on or off: by the Hands-free switch, or `on: true` at page load from
+  `?listen=hands-free` or the saved choice), `listen_reopen` `{delay_ms}` (the mic is live again after the loop opened it, or after a mic tap during the
+  answer, or after an empty or noise result; `delay_ms` runs from the turn being fully over, that is the `done` with nothing left to say, or the end of the last
+  utterance, or the speaking watchdog's decision, to the mic being live, so it includes the 300 ms guard; from the tap or the empty result in the other two
+  cases; not logged for the tap that starts the loop) and `listen_idle_stop` (no fields: 10 s with no speech start stopped the listening). Like every event
+  they are logged in a dev build only and recorded in the eval export only with `?eval=1`; neither `join-latency.mjs` nor `completion.mjs` reads them. The
+  delays are measured in the page's own clock, so a headless run with a fake device says nothing about a real microphone or room.
 - `tts_dropped` `{reason, units, chars, partial_chars}` (sentence streaming only): a `tool_call` frame arrived and speech that had not been heard was
   dropped, because text streamed before a tool call is not part of `full_response`. `reason` is `tool_call`. `units` is how many queued units were
   dropped, including an utterance that was with the engine but not audible yet (the engine is told to cancel it, and no `tts_cancelled` is reported

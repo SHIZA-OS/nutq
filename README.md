@@ -148,6 +148,9 @@ kept open between turns: every listening run opens its own and gives it back.
 - **When it reopens.** Only after the reply has finished, nothing is left to say (nothing queued, held back for the first
   sentence or playing), and a 300 ms guard has passed. The guard is a judgement, not a measurement: it keeps the tail of the
   reply out of your next message, and a room with a long echo may need more.
+- **A speech engine that goes quiet.** If the engine reports nothing speaking and nothing pending for 1.5 s while the answer is
+  being spoken, the page takes the answer as finished and goes on (the 1.5 s is a judgement). A voice that
+  is still speaking, or has a sentence pending, never trips it.
 - **What the page says.** "Listening" appears only once the microphone is live. Between listening runs the hint under the
   button reads Waiting for the answer, Speaking the answer, or Getting ready to listen.
 - **Stopping.** A tap while listening sends what was said and the loop goes on; if nothing was captured, the loop stops.
@@ -157,7 +160,9 @@ kept open between turns: every listening run opens its own and gives it back.
 - **Tapping during an answer.** As in tap mode, the tap mutes the rest of that answer. In hands-free the microphone opens at
   once, and what you say is held and sent when the answer ends.
 - **What turns the loop off.** An aborted turn, a PROVIDER_ERROR, AUTH_ERROR or AGENT_ERROR, a microphone or speech
-  recognition failure, a connection error or close, and the 60 s reply timeout. The switch stays on; tap to start again. A
+  recognition failure, a connection error or close, and the 60 s reply timeout. The switch stays on; tap to start again. After an
+  error or abort the page says "Hands-free paused: the agent returned an error. Tap to try again."; after a microphone failure,
+  "Hands-free paused: the microphone stopped. Tap to try again." A
   microphone the loop had open when the connection went is stopped and what it heard is dropped. Turning the switch off ends
   the loop at once; a microphone that is open carries on in tap mode.
 
