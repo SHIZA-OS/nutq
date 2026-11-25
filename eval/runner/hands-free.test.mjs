@@ -166,6 +166,7 @@ test("a socket that closes while listening stops the mic without sending, with n
   assert.match(text, /Stopped listening, nothing sent/);
   const m = await mic(p);
   assert.deepEqual([m.live, m.switch], [0, "true"], "the toggle stays on, the loop is off");
+  assert.doesNotMatch(m.hint, /paused/, "a closed connection has its own messages: it is not reported as an agent or microphone pause");
   assert.equal((await events(p, "listen_reopen")).length, 0);
 });
 
@@ -184,7 +185,10 @@ test("a socket that closes while waiting for the answer turns the loop off", asy
   assert.notEqual(m.hint, WAIT);
 });
 
-test("aborted and every terminal error turn the loop off, show no reopen, and a tap starts it again", async () => {
+const PAUSED_AGENT = "Hands-free paused: the agent returned an error. Tap to try again.";
+const PAUSED_MIC = "Hands-free paused: the microphone stopped. Tap to try again.";
+
+test("aborted and every terminal error turn the loop off, say so, show no reopen, and a tap starts it again", async () => {
   for (const frame of [{ type: "aborted" }, ...["PROVIDER_ERROR", "AUTH_ERROR", "AGENT_ERROR"].map((code) => ({ type: "error", code, message: "no" }))]) {
     const p = await openHandsFree(h, HF);
     await p.mic();
@@ -196,12 +200,36 @@ test("aborted and every terminal error turn the loop off, show no reopen, and a 
     await sleep(900);
     const m = await mic(p);
     const what = frame.code ?? frame.type;
-    assert.deepEqual([m.calls, m.live, m.hint, m.switch], [1, 0, "Tap to start listening", "true"], what);
+    assert.deepEqual([m.calls, m.live, m.hint, m.switch], [1, 0, PAUSED_AGENT, "true"], what);
     assert.equal((await events(p, "listen_reopen")).length, 0, what);
     await p.advance(5000); // past the re-arm window of the send
     await p.mic();
     await waitHint(p, "Listening");
   }
+});
+
+test("a microphone that fails to start, or a transcriber error while listening, pauses the loop and says so", async () => {
+  const a = await openHandsFree(h, HF);
+  await a.page.evaluate(() => {
+    navigator.mediaDevices.getUserMedia = async () => {
+      throw new DOMException("denied", "NotAllowedError");
+    };
+  });
+  await a.mic();
+  await a.page.waitForFunction((t) => document.getElementById("mic-hint").textContent === t, PAUSED_MIC, { timeout: 4000 });
+  let m = await mic(a);
+  assert.deepEqual([m.pill, m.switch, m.live], ["microphone unavailable", "true", 0]);
+
+  const b = await openHandsFree(h, HF);
+  await b.mic();
+  await waitHint(b, "Listening");
+  await b.page.evaluate(() => window.__tcb.onError("boom")); // the transcriber reports an error; the mic itself carries on in tap mode
+  await b.page.waitForFunction((t) => document.getElementById("mic-hint").textContent === t, PAUSED_MIC, { timeout: 4000 });
+  m = await mic(b);
+  assert.deepEqual([m.switch, m.live], ["true", 1]);
+  await sleep(600);
+  assert.equal((await mic(b)).hint, PAUSED_MIC);
+  assert.equal((await events(b, "listen_reopen")).length, 0);
 });
 
 test("a tap while waiting is the mute: the mic opens at once, the utterance is held and goes out when the turn ends", async () => {

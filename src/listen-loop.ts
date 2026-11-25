@@ -29,8 +29,9 @@ export const IDLE_STOP_MS = 10000;
 export type LoopState = "off" | "armed" | "opening" | "listening" | "waiting" | "speaking" | "reopening";
 
 // open: start the mic through the page's one start path. stop: end listening without sending anything. idle_stop: stop listening
-// without sending because nothing was said (the caller also tells the user).
-export type LoopAction = { type: "open" } | { type: "stop" } | { type: "idle_stop" };
+// without sending because nothing was said (the caller also tells the user). paused: the loop turned itself off because of a
+// failure, not because the user asked: an error or abort from the agent, or the microphone stopping; the caller tells the user.
+export type LoopAction = { type: "open" } | { type: "stop" } | { type: "idle_stop" } | { type: "paused"; reason: "agent_error" | "mic" };
 
 // What finishing an utterance came to: sent, held back behind a reply still in flight, nothing said (empty or noise), or nothing
 // could be sent (not connected, or the finish failed).
@@ -141,8 +142,9 @@ export class ListenLoop {
   // its turn (speaking, reopening), or while the user is already speaking again after a mute, changes nothing.
   turnEnd(kind: TurnEndKind, speechIdle: boolean, now: number): LoopAction[] {
     if (kind !== "done") {
-      if (this.s === "opening" || this.s === "listening" || this.s === "waiting") this.go("armed");
-      return [];
+      if (this.s !== "opening" && this.s !== "listening" && this.s !== "waiting") return [];
+      this.go("armed");
+      return [{ type: "paused", reason: "agent_error" }];
     }
     if (this.s !== "waiting") return [];
     if (speechIdle) this.startGuard(now);
@@ -171,9 +173,11 @@ export class ListenLoop {
     return micOpen ? [{ type: "stop" }] : [];
   }
 
-  // The mic failed to start, the transcriber reported an error: the loop turns off.
-  fault(): void {
-    if (this.s !== "off") this.go("armed");
+  // The mic failed to start, the transcriber reported an error: the loop turns off, and says so if it was running.
+  fault(): LoopAction[] {
+    if (this.s === "off" || this.s === "armed") return [];
+    this.go("armed");
+    return [{ type: "paused", reason: "mic" }];
   }
 
   private idleAt(): number | null {

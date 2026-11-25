@@ -1079,7 +1079,10 @@ function runLoop(actions: LoopAction[]) {
   for (const a of actions) {
     if (a.type === "open") void startListening("loop");
     else if (a.type === "stop") void finishListening("manual", true);
-    else {
+    else if (a.type === "paused") {
+      // Shown where the idle notice is; the log has the specific cause (the server's error, the microphone's problem).
+      notice = a.reason === "mic" ? "Hands-free paused: the microphone stopped. Tap to try again." : "Hands-free paused: the agent returned an error. Tap to try again.";
+    } else {
       logEvent("listen_idle_stop");
       notice = "Stopped listening. Tap to talk.";
       void finishListening("manual", true);
@@ -1142,8 +1145,7 @@ function initTranscriber() {
       onError(error) {
         log(`Moonshine error: ${error}`);
         setStatus(micStatus, "error", "error");
-        loop.fault();
-        runLoop([]);
+        runLoop(loop.fault());
       },
       onModelLoadStarted() {
         log("Moonshine model loading started");
@@ -1308,8 +1310,7 @@ async function startListening(source: "tap" | "loop") {
     micBtn.textContent = "Start listening";
     notice = problem;
     setStatus(micStatus, "microphone unavailable", "error");
-    loop.fault();
-    runLoop([]);
+    runLoop(loop.fault());
     return;
   }
   if (!listening || !handsFree) return; // stopped meanwhile, or tap mode: its pill was set when the transcriber started

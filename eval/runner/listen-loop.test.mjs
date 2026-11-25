@@ -75,7 +75,7 @@ test("while off every event is ignored", () => {
   const l = mk();
   assert.deepEqual(
     [l.tap(0, false), l.speechStart(), l.micLive(0), l.finished("sent", "manual", 0), l.turnEnd("done", true, 0), l.speechDrained(0), l.sent(), l.tick(1e9), l.socketClosed(), l.fault()],
-    [undefined, undefined, null, [], [], [], undefined, [], [], undefined],
+    [undefined, undefined, null, [], [], [], undefined, [], [], []],
   );
   assert.equal(l.state, "off");
   assert.equal(l.nextAt(), null);
@@ -183,9 +183,10 @@ test("aborted and every terminal error turn the loop off from any state with the
     for (const [name, make] of Object.entries(ON_STATES)) {
       if (name === "armed") continue;
       const l = make();
-      assert.deepEqual(l.turnEnd(kind, true, 50), [], `${kind} in ${name}`);
-      const expected = name === "speaking" || name === "reopening" ? name : "armed"; // those two states are past their turn end already
-      assert.equal(l.state, expected, `${kind} in ${name}`);
+      const past = name === "speaking" || name === "reopening"; // those two states are past their turn end already
+      // The loop going off is reported once, as a pause the page tells the user about; a turn end that changes nothing says nothing.
+      assert.deepEqual(l.turnEnd(kind, true, 50), past ? [] : [{ type: "paused", reason: "agent_error" }], `${kind} in ${name}`);
+      assert.equal(l.state, past ? name : "armed", `${kind} in ${name}`);
     }
   }
 });
@@ -286,13 +287,17 @@ test("socket close or the reply timeout: the loop turns off, and a mic the loop 
   assert.equal(a.state, "armed");
 });
 
-test("a fault (mic failure, transcriber error) turns the loop off from any running state and clears its timer", () => {
+test("a fault (mic failure, transcriber error) turns a running loop off, clears its timer and is reported as a pause", () => {
   for (const [name, make] of Object.entries(ON_STATES)) {
     const l = make();
-    assert.equal(l.fault(), undefined);
+    assert.deepEqual(l.fault(), name === "armed" ? [] : [{ type: "paused", reason: "mic" }], name);
     assert.equal(l.state, "armed", name);
     assert.equal(l.nextAt(), null, name);
   }
+  assert.deepEqual(mk().fault(), [], "off stays off, with nothing to report");
+  const l = armed();
+  l.fault();
+  assert.deepEqual(l.fault(), [], "a second fault in the stopped loop says nothing again");
 });
 
 test("three turns in a row cycle listening, waiting, speaking and back", () => {
